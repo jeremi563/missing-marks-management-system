@@ -1,0 +1,1455 @@
+A WEB-BASED APPLICATION FOR REPORTING AND TRACKING MISSING MARKS A CASE
+STUDY OF KISII UNIVERSITY
+
+SYSTEM DESIGN AND TECHNICAL DOCUMENTATION Text-only project baseline
+Version: 1.0 Status: Proposed design for team review Institution: Kisii
+University Project type: University Software Engineering Project Team
+size: Four members Target implementation period: Approximately eight
+weeks Initial data environment: Local/mock academic data Primary
+platform: Responsive web application
+
+DOCUMENT PURPOSE AND DESIGN STATUS
+
+This document converts the approved project requirements into a
+practical system design baseline for the development team. It defines
+the problem, scope, users, functional requirements, workflows, business
+rules, architecture, data model, API conventions, security, testing,
+repository organization, and implementation plan.
+
+This is a proposed technical design based on the team’s requirements
+document. It is not an assertion that Kisii University has approved a
+production deployment or granted access to live institutional data. The
+initial application must use local/mock academic data. Institutional
+policies, real academic records, production email, and any integration
+with university systems require appropriate authorization.
+
+The team should treat this document as the shared baseline. Changes to
+core rules should be discussed, recorded in a GitHub Issue, reviewed by
+the team, and merged through the agreed develop/main workflow.
+
+1. EXECUTIVE SUMMARY
+
+The Missing Marks Management System is a responsive web application
+intended to organize the reporting, investigation, tracking, review,
+appeal, and closure of missing-mark cases.
+
+The application serves four roles: 1. Student. 2. Lecturer. 3.
+Coordinator of Department (COD) / Academic Officer. 4. Administrator.
+
+The platform also manages the application’s own class attendance
+records, CAT attendance and submission confirmation, examination
+attendance recorded through QR codes embedded in examination booklets,
+attendance history, attendance discrepancies, special-case evidence,
+notifications, reporting, and audit records.
+
+Normal eligibility checks use three configured conditions: - At least
+80% class attendance. - All required CAT attendance conditions. -
+Confirmed examination attendance in the application’s records.
+
+If any normal condition is not satisfied, the case is classified for
+special-case review. The system must not automatically decide whether a
+special circumstance is academically valid; authorized academic staff
+make that decision.
+
+The application does not modify official university marks or directly
+update external university registers. It does not integrate with live
+university systems in the initial version.
+
+2. PROBLEM STATEMENT
+
+Missing-mark reporting and follow-up may rely on informal communication,
+telephone calls, messaging applications, and physical visits. This can
+leave students uncertain about whether a report was received, who is
+handling it, what action has been taken, whether additional information
+is needed, or whether an appeal is possible.
+
+Lecturers need a manageable queue of assigned cases and access to
+relevant attendance and assessment information. CODs need departmental
+oversight and a consistent process for reviewing escalated cases and
+appeals. Administrators need account management, configuration,
+monitoring, reporting, and audit access.
+
+The proposed system centralizes these activities in a controlled
+workflow with role-based access, status history, notifications,
+attendance records, and traceable decisions.
+
+3. PROJECT AIM AND OBJECTIVES
+
+Aim: Design and develop a responsive web application for reporting,
+tracking, and managing missing-mark cases through a structured,
+transparent, and auditable workflow.
+
+Objectives: - Allow students to submit, track, and where permitted
+withdraw missing-mark reports. - Provide students with case references,
+status history, feedback, notifications, and appeal status. - Provide
+lecturers with tools to investigate cases, review attendance
+eligibility, comment, and record recommendations or decisions. - Provide
+CODs with departmental review, reassignment, escalation, appeal, and
+final-decision workflows. - Provide administrators with account,
+configuration, reporting, and audit functions. - Record class attendance
+through lecturer-generated links or QR codes with authentication,
+enrollment checks, session validation, and classroom-level location
+verification. - Maintain attendance history for successful attendance
+events. - Support CAT attendance, student confirmation of CAT
+submission, and lecturer verification as separate events. - Record
+examination attendance through QR codes embedded in examination
+booklets. - Support attendance discrepancy reports and audited
+corrections. - Apply the configured 80% class-attendance rule and
+configurable CAT requirements. - Route cases that do not satisfy normal
+eligibility conditions to special-case review. - Allow permitted
+supporting-document uploads for special cases only. - Provide in-app and
+email notifications, search, filtering, pagination, PDF/Excel exports,
+and audit trails. - Produce maintainable documentation and an
+architecture that can support approved future integration.
+
+4. PROJECT SCOPE
+
+4.1 Included in the initial release - Public landing page, help page,
+and basic FAQs. - Account registration and login according to the
+configured account process. - Password reset, account
+activation/deactivation, failed-login lockout, and role-based
+authorization. - Student, lecturer, COD, and administrator dashboards. -
+Department, course/unit, classroom, enrollment, and assessment
+configuration using local/mock data. - Missing-mark report drafts,
+submission, tracking, lecturer review, COD review, appeals, closure, and
+controlled reopening. - Class attendance sessions with unique links and
+QR codes. - Server-side attendance validation and classroom-level
+location verification. - Persistent attendance records and separate
+dashboard attendance-history entries. - CAT attendance and CAT
+submission confirmation/verification. - Examination attendance using QR
+references embedded in booklets. - Attendance discrepancy reporting and
+audited correction. - Special-case workflow and permitted
+supporting-document uploads. - In-app and email notifications; email may
+be mocked during development. - Overdue detection and notifications. -
+Role-scoped search, filtering, and server-side pagination. - PDF and
+Excel report exports. - Audit trail, archive access controls,
+maintenance mode, and system configuration. - OpenAPI/Swagger
+documentation, Postman collection, automated tests, user documentation,
+and technical documentation.
+
+4.2 Explicitly out of scope for the initial release - Direct integration
+with live Kisii University systems or live university attendance
+systems. - Direct modification of official university results or
+official institutional registers. - SMS notifications. - AI or automated
+AI-based academic decisions. - Payments. - A dedicated native
+Android/iOS application. - Real-time dashboards or real-time
+notifications. - Cloud/object storage as the initial file-storage
+mechanism. - Automated database backups. - Routine uploads of attendance
+evidence, CAT booklets, or examination booklets. - A support-ticket
+platform. - Advanced analytics or complex distributed background
+processing.
+
+4.3 Future enhancements Potential future enhancements include approved
+university-system integration, cloud/object storage, a production email
+provider, automated backups, mobile applications, real-time updates,
+advanced analytics, expanded location-verification capabilities, and
+more sophisticated background processing.
+
+5. USER ROLES AND PERMISSIONS
+
+5.1 Student Can: - Register and log in; reset password using the
+configured identity process. - View and update permitted profile/contact
+details. - Create, save, resume, edit, and submit missing-mark drafts. -
+Edit or withdraw a submitted report only while its status is Pending. -
+View own reports, reference numbers, status history, comments,
+decisions, notifications, and appeal state. - Submit one permitted
+appeal per case. - View own class attendance, CAT attendance,
+examination attendance, and attendance history. - Access a valid
+class/CAT session through its link or QR code, authenticate, and submit
+a location-verification attempt. - Confirm CAT submission after handing
+the CAT to the lecturer. - Scan an examination booklet QR code to
+initiate examination attendance recording. - Submit attendance
+discrepancy requests. - Upload permitted supporting documents for
+recognized special cases and view their own evidence for active cases,
+subject to the evidence policy.
+
+Cannot: - View another student’s personal records or attendance
+history. - View general academic results through this application. -
+Modify official university results. - Directly edit attendance records
+or delete attendance history. - Edit the original missing-mark report
+after lecturer review begins. - Upload attendance screenshots/documents
+as substitutes for system attendance records. - Submit more than one
+appeal for the same case.
+
+5.2 Lecturer Can: - View cases assigned to them and relevant records for
+their assigned units. - Investigate missing-mark claims and inspect
+relevant attendance, CAT, examination, and special-case information. -
+Add comments, request clarification, approve at lecturer level, or
+reject with a mandatory reason. - Retrieve an existing mark where
+available and enter a proposed/corrected mark within the configured
+assessment maximum, subject to COD approval for the final academic
+decision. - Create and manage class attendance sessions, links, QR
+codes, and validity windows. - View relevant attendance histories for
+assigned units. - Investigate attendance discrepancies and make
+justified corrections through an audited workflow. - Create CAT
+assessments/sessions, review CAT submission confirmations, and verify
+submissions. - Review examination attendance records for assigned
+assessments. - Receive relevant notifications.
+
+Cannot: - Modify or delete a student’s original report. - Modify
+official university results or external official attendance registers. -
+Change system-wide configuration. - Delete attendance-history entries.
+
+5.3 COD / Academic Officer Can: - View cases within the assigned
+department. - Assign/reassign reports to lecturers within the
+department. - Review lecturer decisions, escalated cases, appeals,
+special cases, and relevant attendance history. - Add comments and
+approve or reject cases within the defined workflow. - Record final
+decisions, monitor overdue cases, and generate departmental reports. -
+Review escalated attendance discrepancies. - View departmental audit
+history relevant to their duties.
+
+Cannot: - Manage system-wide users or global settings. - Access
+unrelated departments without an explicitly authorized permission. -
+Delete attendance-history entries.
+
+5.4 Administrator Can: - Manage accounts, roles, departments,
+courses/units, enrollments, classroom configuration, and system
+settings. - Assign/reassign and monitor cases system-wide. - Configure
+deadlines, upload limits, login lockout settings, maintenance mode, and
+account activation. - Review audit records, notifications, system-wide
+statistics, and exports. - Access archived records only with a recorded
+reason. - Authorize reopening of closed cases. - View attendance history
+system-wide. - Permanently delete attendance-history entries under the
+specific administrator-only rule. Such deletion must be audited where
+technically possible.
+
+Administrator permissions do not authorize modification of official
+university marks.
+
+5.5 Authorization principle The backend is the security boundary. Hiding
+a page or button in React is not sufficient. Every protected API
+operation must independently verify identity, role, ownership,
+department, unit assignment, enrollment, session validity, and other
+relevant permissions.
+
+6. CORE FUNCTIONAL MODULES
+
+6.1 Authentication and account management - Registration for eligible
+students using required university registration details and local/mock
+identity data. - Configured account creation or activation for
+lecturers, CODs, and administrators. - Login and logout. - Password
+reset using the student’s registration/admission number and official
+university email in the configured local/mock account data. - JWT access
+and refresh tokens managed through HttpOnly cookies; Secure cookies in
+HTTPS environments. - bcrypt password hashing. - Minimum password length
+of eight characters, including uppercase, lowercase, number, and special
+character. - Default lockout after five consecutive failed attempts for
+30 minutes; both values configurable. - Successful login resets the
+failed-attempt counter. - Administrator-only two-factor authentication
+in the initial design. - Account deactivation blocks login but retains
+historical records. - Login, logout, reset, lockout, deactivation, and
+reactivation events are audited.
+
+6.2 Missing-mark case management - Create drafts automatically and allow
+the student to resume them. - Capture student, department, course/unit,
+academic year/semester where applicable, year the unit was taken,
+assessment/type, missing-mark description, contact details required by
+the workflow, and relevant explanatory notes. - Generate a unique
+human-readable reference, for example MMR-2026-000001, plus an internal
+UUID. - Detect duplicate active reports for the same
+student/unit/assessment. - Automatically assign the lecturer from the
+unit mapping where available. - Allow authorized COD/admin reassignment,
+with actor, timestamp, old/new assignee, and reason recorded. - Lock
+original report content after lecturer review starts. - Preserve status
+history, comments, decisions, and notification records. - Support
+withdrawal while Pending and allow resubmission after withdrawal or
+closure according to duplicate rules. - Support controlled reopening by
+an authorized administrator with a recorded reason.
+
+6.3 Eligibility engine The engine evaluates the application’s records
+and returns a classification plus a clear explanation: - Normal Case: at
+least 80% class attendance, all configured required CAT attendance
+conditions satisfied, and confirmed examination attendance. - Special
+Case: one or more normal conditions are not satisfied, or the student
+declares a recognized special circumstance requiring review.
+
+The classification is advisory workflow routing, not a final academic
+decision. It must not automatically reject a report or determine the
+validity of a special circumstance. The engine must show which condition
+is satisfied, missing, or unresolved.
+
+6.4 Class attendance - Lecturer configures a classroom location and
+acceptable boundary. - Lecturer creates an attendance session linked to
+a unit, classroom, date/time, and validity window. - System generates a
+unique attendance link and QR code. - Student opens the link or scans
+the QR code and authenticates. - Backend checks enrollment, session
+state, session validity, and duplicate status. - Browser requests
+location permission and submits coordinates to the backend. - Backend
+compares the submitted coordinates with the configured classroom
+boundary. - On success, backend writes the authoritative attendance
+record to the database. - After receiving server confirmation, frontend
+creates and persists a separate dashboard attendance-history entry. - A
+failed location check rejects that attempt but does not automatically
+mark the student absent. - Student may raise a discrepancy for lecturer
+investigation. - Lecturer correction requires a reason and audit
+event. - Closed/expired sessions reject new attempts.
+
+6.5 Attendance history - Displays successfully signed attendance events
+with unit, session/assessment, date/time, status, location-check outcome
+where appropriate, and correction information. - Is distinct from the
+underlying authoritative attendance record. - Is created/persisted only
+after successful server confirmation. - Students can view only their own
+history. - Lecturers can view history relevant to assigned units. - CODs
+can view relevant history within their department. - Administrators can
+view history system-wide. - Students, lecturers, and CODs cannot delete
+history. - Only administrators may permanently delete history entries,
+and deletion must be audited where possible. - History must not expose
+precise location information unnecessarily.
+
+6.6 CAT attendance and submission - Lecturer creates a CAT assessment
+and attendance/submission session. - System provides a unique link and
+QR code. - Student signs CAT attendance and physically submits the CAT
+to the lecturer; either event may occur first during the same class. -
+Student confirms CAT submission in the system after handing it in. -
+Lecturer verifies the submission. - Attendance, student confirmation,
+and lecturer verification are separate records. - CAT attendance
+statuses: Present, Absent, Late, Excused. - Present satisfies normal CAT
+attendance unless an authorized configured rule states otherwise. Late,
+Excused, and Absent do not automatically satisfy normal eligibility. -
+Required CATs are configured per unit; the system must not assume every
+unit has the same number of CATs. - Missing confirmation or verification
+may be flagged for review. Missing confirmation does not automatically
+prove absence from class. - No routine CAT booklet upload is required.
+
+6.7 Examination attendance - Each examination booklet contains a QR code
+referencing the relevant examination assessment or a secure opaque
+reference. - QR content must not expose sensitive student information. -
+Student scans the QR code through the application and authenticates. -
+Backend validates the QR reference, assessment, student,
+session/eligibility conditions, and duplicate status. - Only successful
+server-side validation records the student as Present. - Routine
+examination booklet uploads are not required. - Application records
+support the application’s eligibility workflow but do not automatically
+update official university results or external examination registers. -
+Conflicts with external institutional records go through the discrepancy
+workflow and may be escalated to the COD.
+
+6.8 Attendance discrepancy management Student submits: - Unit/course. -
+Session or assessment. - The displayed status/history entry concerned. -
+Explanation. - Relevant reference details.
+
+No attendance evidence file uploads are accepted. The student’s
+dashboard history is used as the application’s attendance record.
+Special-case documents remain supported in the separate special-case
+process.
+
+Workflow: Student submits discrepancy -> assigned lecturer investigates
+-> lecturer resolves with an audited correction or escalates -> COD
+reviews escalated cases.
+
+Lecturer is notified first. COD is notified when escalation is required.
+Preserve the original record and record the correction rather than
+silently overwriting history.
+
+6.9 Special-case management and evidence Recognized examples: -
+Sickness. - Burial ceremony. - Special examination application. -
+Fee-related examination denial. - Another circumstance recognized by the
+institution or authorized academic decision-maker.
+
+Student describes the circumstance and uploads supporting evidence when
+required. Permitted formats: PDF, JPG, JPEG, PNG. Maximum size is
+configurable. Multer validates file type and size. Initial storage is
+the application server’s local filesystem; PostgreSQL stores metadata
+and file path. Access is restricted and may be audited.
+
+Special-case evidence is not attendance evidence. The system does not
+automatically decide the academic validity of the circumstance.
+Lecturer/COD review is required.
+
+After case closure, evidence is not normally shown through the ordinary
+student dashboard. Authorized academic/administrative access follows
+retention and access policy.
+
+6.10 Notifications - In-app notifications. - Email notifications through
+a provider abstraction; mock/log email may be used during development. -
+No SMS in the initial release. - No real-time delivery required;
+ordinary API fetching and page refresh are sufficient.
+
+Notification events include report submitted, review started, lecturer
+approval/rejection, COD review/decision, appeal submitted, case closed,
+comments/feedback, attendance discrepancy, attendance correction, CAT
+verification, and escalation.
+
+Before the student’s first missing-mark submission, a valid notification
+email must exist. It may be any valid email and need not be the
+university email. The official university email in the account data is
+used for password-reset functionality. Notification history is retained
+until related case closure subject to retention policy; users can mark
+notifications read/unread.
+
+6.11 Dashboards Student dashboard: - Submitted reports, case reference,
+unit, lecturer, submission date, status, overdue flag, progress
+timeline, comments, appeal state, notifications. - Class/CAT/examination
+attendance and attendance history. - CAT confirmation/verification
+state. - Relevant active special-case evidence.
+
+Lecturer dashboard: - Assigned cases, student identity details needed
+for work, unit, report date, missing-mark details, eligibility checks,
+special-case information, comments, decisions, overdue flags, status
+counts, and filters. - Attendance session creation/management. -
+Attendance history and discrepancy workflow. - CAT session creation and
+submission verification. - Examination attendance review.
+
+COD dashboard: - Departmental reports, student/unit/lecturer details,
+eligibility, special-case evidence, lecturer decisions/comments,
+appeals, overdue flags, status counts, filters, departmental statistics,
+and escalated discrepancies.
+
+Administrator dashboard: - System-wide report/user statistics, reports
+by status/department/lecturer, overdue cases, appeal statistics, recent
+administrative activity, user/course/unit management, assignment
+monitoring, system settings, audit trail, notification monitoring, and
+system-wide search.
+
+6.12 Search, pagination, and exports - Search/filtering occurs in the
+backend/database, not only in browser memory. - Use server-side
+pagination with parameters such as page and limit. - Search fields may
+include case reference, student registration number/name, unit,
+department, lecturer, status, date range, normal/special classification,
+appeal state, overdue flag, session, and assessment. - PDF exports may
+include individual case summaries, departmental reports, system reports,
+and statistics. - Excel exports support tabular statistics and
+authorized analysis. - Export permissions follow the same role scope as
+the underlying data; export actions may be audited.
+
+6.13 Administration, archive, and maintenance - Configurable lecturer
+and COD deadlines. - Configurable upload size/type restrictions for
+special-case evidence. - Configurable login lockout. - Maintenance mode:
+ordinary users see a maintenance message and cannot use normal
+operations; authorized administrators may continue. - Reports and audit
+records have separate retention periods, determined by applicable
+policy. - Archived records are read-only and inaccessible to ordinary
+users. - Administrator access to archived records requires a reason. -
+Deactivated accounts retain historical records. - Only an authorized
+administrator can reopen a closed case; reason and audit event are
+mandatory.
+
+7. MISSING-MARK WORKFLOW AND STATUS MODEL
+
+7.1 Primary statuses - Pending: submitted and awaiting lecturer review.
+Student may edit or withdraw while Pending. - Under Review: lecturer
+investigation has started. Original report content is locked. - Approved
+by Lecturer: lecturer approves at their level; case proceeds to COD
+review. - Rejected by Lecturer: lecturer rejects with a mandatory
+reason. Student may appeal if eligible and no appeal has been used. -
+Appealed: student has submitted the one permitted appeal; original
+report and previous comments/decisions are attached to the appeal
+context. - Under COD Review: COD is reviewing a case or appeal. -
+Approved by COD: COD has approved the case. - Rejected by COD: COD has
+rejected the case. - Resolved/Closed: final decision recorded, case
+closed, and student notified.
+
+Overdue is a flag, not a primary status. For example, a case can be
+Under Review + Overdue.
+
+7.2 Normal case workflow 1. Student creates and submits a report. 2.
+System validates required fields, detects active duplicates, generates
+reference, records audit event, and sends notification. 3. System
+evaluates class attendance, required CAT attendance, and examination
+attendance. 4. System classifies the case as Normal or Special for
+workflow purposes. 5. Case is assigned to the mapped lecturer, or enters
+an assignment queue if mapping is unavailable. 6. Lecturer starts
+review; status becomes Under Review and original report content is
+locked. 7. Lecturer investigates records, comments, and supporting
+special-case evidence where applicable. 8. Lecturer approves or rejects.
+Rejection requires a reason. 9. An approved lecturer-level case proceeds
+to COD review. 10. COD verifies the case and records the decision. 11.
+COD decision is recorded, case becomes Resolved/Closed, case history is
+updated, and student is notified. 12. Any mark entered by a lecturer is
+subject to COD approval and never directly modifies an external official
+results system.
+
+7.3 Rejection and appeal workflow 1. A permitted rejection is
+communicated with reasons. 2. Student may submit one appeal for the
+case, with mandatory reason and optional new special-case evidence. 3.
+The system attaches the original report, earlier comments, prior
+decisions, relevant timestamps, and appeal history. 4. Appeal enters COD
+review. 5. COD records final decision and comments. 6. Case becomes
+Resolved/Closed; final decision is locked and student is notified. 7. A
+second appeal for the same case is blocked.
+
+The design baseline allows one appeal per case following a permitted
+rejection. The team should confirm the exact rejection points that
+permit appeal in the final workflow configuration before implementation.
+
+7.4 Comment and decision immutability - Lecturer comments can be edited
+before COD review begins. - Once COD review begins, existing lecturer
+comments become immutable; new comments can still be added. - COD can
+revise comments/final decision before closure as permitted by
+workflow. - Final decision is locked after Resolved/Closed. - All
+important changes are audited.
+
+7.5 Duplicate and draft rules - Only one active missing-mark report per
+student/unit/assessment. - A new report is permitted after previous
+resolution/closure, subject to the active-case rule. - A withdrawn
+report does not block resubmission. - Drafts are separate from submitted
+reports. - Abandoned drafts are removed after a configurable period. -
+Students may edit/withdraw only while Pending.
+
+8. DEADLINES AND OVERDUE HANDLING
+
+Default lecturer deadline: 3 working days. - If exceeded, set Overdue
+flag. - Notify lecturer and COD. - COD may reassign if appropriate.
+
+Default COD deadline: 5 working days. - If exceeded, set Overdue flag. -
+Notify COD and administrator. - Notify the student of the delay. -
+Administrator may escalate or reassign.
+
+Both deadlines are configurable. Working-day calculation and holiday
+handling must be explicitly defined in configuration; the initial
+implementation may use weekdays unless the team configures a holiday
+calendar. Overdue processing should use a simple scheduled/asynchronous
+task, not a distributed event-driven architecture.
+
+9. HIGH-LEVEL SYSTEM ARCHITECTURE
+
+Architecture style: modular monolith with a React single-page frontend
+and a versioned Express REST API.
+
+Request flow: React frontend -> Axios API client -> REST API under
+/api/v1 -> Express middleware -> Authentication / Authorization / Zod
+validation -> Routes and controllers -> Domain services -> Prisma ORM ->
+PostgreSQL database
+
+Supporting components: - Local filesystem for permitted special-case
+evidence. - Notification service (in-app and email abstraction). - Audit
+service. - Attendance session/link/QR service. - Location-verification
+service. - Eligibility service. - Report/export service. - Simple
+scheduled tasks for overdue detection and notification work.
+
+Do not begin with microservices. Keep clear module boundaries inside one
+backend application so the four-person team can build and integrate the
+system within the planned period.
+
+9.1 Frontend - React.js. - React Router. - Axios. - Plain CSS or CSS
+Modules. - React useState/useContext where appropriate and custom
+hooks. - No Redux, Zustand, or TanStack Query required initially. -
+Responsive layouts for desktop, tablet, and mobile browser. -
+Centralized API client and error handling. - Role-aware route guards for
+usability, with backend authorization as the real security boundary.
+
+9.2 Backend - Node.js and Express.js. - REST and JSON. - Zod request
+validation. - JWT access/refresh tokens using HttpOnly cookies. - bcrypt
+password hashing. - Multer for permitted special-case evidence only. -
+Modular routes, controllers, services, and data-access through Prisma.
+
+9.3 Database and storage - PostgreSQL. - Prisma ORM and Prisma
+Migrate. - UUIDs for internal identifiers. - Human-readable case
+references for students and staff. - Local filesystem initially for
+special-case evidence; database stores metadata and protected paths. -
+Do not store passwords in plaintext or expose file paths directly to
+clients.
+
+9.4 Testing and documentation - Jest and Supertest for backend tests. -
+Manual browser tests for frontend flows. - OpenAPI/Swagger for API
+documentation. - Postman collection for manual/API integration
+testing. - GitHub Issues and Pull Requests for task coordination and
+review.
+
+10. PROPOSED BACKEND MODULES
+
+Suggested modules: - auth: registration, login, logout, refresh,
+password reset, lockout, administrator 2FA. - users: profiles, roles,
+activation/deactivation. - academic-structure: departments,
+courses/units, enrollments, lecturer-unit mapping. - classrooms:
+classroom location and boundary configuration. - attendance: sessions,
+links/QR, location validation, attendance records, history. -
+assessments: CAT and examination assessment configuration. -
+cat-submissions: student confirmation and lecturer verification. -
+examination-attendance: embedded booklet QR validation and attendance
+records. - discrepancies: attendance discrepancy reports, investigation,
+correction, escalation. - missing-mark-reports: drafts, submission,
+assignment, status transitions, comments, decisions. - eligibility: 80%
+attendance and required CAT/examination checks. - special-cases:
+circumstances, permitted evidence uploads, evidence access. - appeals:
+one appeal per case, COD review, final decision. - notifications: in-app
+and email provider abstraction. - reporting: dashboard statistics,
+search, pagination, PDF/Excel exports. - audit: append-only
+business/security event records. - administration: settings, maintenance
+mode, archiving, controlled reopening, history deletion.
+
+Keep business rules in service functions, not duplicated across route
+handlers or React components.
+
+11. PROPOSED DATABASE DESIGN
+
+This is a conceptual entity model. Final field names, indexes,
+constraints, and relations must be agreed by the team before Prisma
+schema implementation. Use snake_case for database fields if that
+convention is adopted consistently, UUID primary keys, timestamps,
+foreign keys, and appropriate unique constraints.
+
+11.1 User Purpose: common authentication identity. Suggested fields: -
+id (UUID, primary key) - registration_number or staff_number (nullable
+where not applicable; unique within the relevant identity namespace) -
+full_name - email - official_email (where applicable for password
+reset) - password_hash - role (STUDENT, LECTURER, COD, ADMIN) -
+department_id (nullable for roles not tied to a department) -
+is_active - failed_login_attempts - locked_until - two_factor_enabled -
+created_at - updated_at Do not store raw password, reset token, refresh
+token, or 2FA secret in plaintext.
+
+11.2 StudentProfile - id - user_id (unique foreign key) -
+registration_number - program/course information required by the
+project - year_of_study - status - created_at - updated_at
+
+11.3 LecturerProfile - id - user_id (unique foreign key) -
+staff_number - department_id - status
+
+11.4 Department - id - name - code - is_active
+
+11.5 CourseUnit - id - code - name - department_id - is_active
+
+11.6 UnitEnrollment - id - student_id - unit_id - academic_year -
+semester - status - created_at Constraint: unique enrollment for the
+same student/unit/academic year/semester.
+
+11.7 LecturerUnitAssignment - id - lecturer_id - unit_id -
+academic_year - semester - is_active Used for automatic report
+assignment and scope enforcement.
+
+11.8 Classroom - id - name/code - unit_id or department_id as
+appropriate - latitude - longitude - allowed_radius_meters or another
+approved boundary representation - is_active Location values are
+sensitive operational data; restrict access and avoid exposing them
+unnecessarily.
+
+11.9 AttendanceSession - id - unit_id - classroom_id -
+created_by_lecturer_id - session_type (CLASS or CAT) - title -
+starts_at - ends_at - status (DRAFT, OPEN, CLOSED, EXPIRED) -
+secure_token_hash or secure opaque token reference - created_at -
+updated_at A raw high-entropy session token should not be stored in a
+way that enables unnecessary disclosure. Session validity is enforced by
+the backend.
+
+11.10 AttendanceRecord - id - session_id - student_id - status (PRESENT,
+LATE, EXCUSED, ABSENT where applicable) - recorded_at -
+location_verification_status - correction_state - created_by/system
+actor details where appropriate Constraint: unique student/session
+attendance record. Successful attendance must be written by the backend
+after all checks.
+
+11.11 AttendanceHistory - id - attendance_record_id - student_id -
+display details needed for history - created_at - correction metadata
+where needed This is a separate dashboard/history entity as required by
+the specification. The team must ensure it cannot become inconsistent
+with the authoritative attendance record. If the implementation derives
+history from AttendanceRecord, document that design change and get team
+agreement before removing the separate entity.
+
+11.12 Assessment - id - unit_id - name - type (CAT or EXAM) -
+assessment_date - maximum_marks - required_for_eligibility -
+configuration for required attendance/submission - created_by -
+created_at - updated_at
+
+11.13 CATSubmission - id - assessment_id - student_id -
+student_confirmed_at - lecturer_verified_at - verified_by_lecturer_id -
+verification_status (UNCONFIRMED, CONFIRMED, VERIFIED,
+REJECTED/NEEDS_REVIEW as agreed) - comments - created_at - updated_at
+Constraint: one CAT submission record per student/assessment unless a
+documented resubmission policy requires otherwise.
+
+11.14 ExaminationQRReference - id - assessment_id -
+opaque_token_hash/reference - is_active - expires_at where applicable -
+created_at QR payload must not expose personal student data.
+
+11.15 ExaminationAttendance - id - assessment_id - student_id -
+qr_reference_id - status (PRESENT) - recorded_at Constraint: unique
+student/assessment attendance.
+
+11.16 AttendanceDiscrepancy - id - student_id - unit_id -
+attendance_record_id or assessment/session reference - explanation -
+status (SUBMITTED, UNDER_REVIEW, RESOLVED, ESCALATED, CLOSED) -
+assigned_lecturer_id - resolved_by - resolution_note - created_at -
+updated_at - resolved_at
+
+11.17 MissingMarkReport - id - public_reference (unique,
+human-readable) - student_id - unit_id - assessment_id where
+applicable - academic_year - semester - year_unit_taken - description -
+case_classification (NORMAL or SPECIAL) - status -
+assigned_lecturer_id - submitted_at - review_started_at - closed_at -
+created_at - updated_at Constraint: only one active report for a
+student/unit/assessment. Exact database implementation of conditional
+uniqueness depends on the final status model and PostgreSQL constraints.
+
+11.18 MissingMarkDraft Can be represented as a draft state of
+MissingMarkReport or a separate entity. If separate: - id - student_id -
+draft_payload or structured draft fields - last_saved_at - expires_at
+Use a design that prevents drafts from being confused with submitted
+reports.
+
+11.19 ReportComment - id - report_id - author_user_id - comment_text -
+comment_type (GENERAL, REQUEST_FOR_INFORMATION, DECISION_REASON, etc.) -
+editable_until / immutability policy - created_at - updated_at where
+edits are allowed Preserve immutable history where required.
+
+11.20 ReportDecision - id - report_id - decision_level (LECTURER or
+COD) - decision (APPROVE or REJECT) - reason/comments - decided_by -
+decided_at - proposed_mark (nullable) - maximum_marks_checked (nullable)
+Decisions are recorded rather than silently overwritten. A final
+decision becomes locked at closure.
+
+11.21 Appeal - id - report_id (unique if one appeal per case) -
+student_id - reason - status - submitted_at - reviewed_by_cod_id -
+decision - decision_reason - decided_at - optional reference to
+additional special-case evidence Unique constraint on report_id enforces
+one appeal per case.
+
+11.22 SpecialCase - id - report_id - circumstance_type -
+student_description - review_status - reviewer_comments - created_at -
+updated_at
+
+11.23 SpecialCaseEvidence - id - special_case_id - original_filename -
+stored_filename or generated identifier - storage_path - MIME type -
+size_bytes - uploaded_by - uploaded_at - access classification Only
+permitted special-case documents belong here. Do not use this table for
+attendance screenshots or routine CAT/exam booklet scans.
+
+11.24 Notification - id - recipient_user_id - report_id or related
+entity reference - channel (IN_APP or EMAIL) - event_type - title -
+message - read_at - email_attempted_at - delivery_state if implemented -
+created_at
+
+11.25 AuditLog - id - actor_user_id (nullable for system tasks) -
+action - entity_type - entity_id - timestamp - request/correlation
+identifier where available - reason - previous_values and new_values
+where appropriate, with sensitive data excluded - metadata Audit records
+must not contain passwords, raw tokens, or unnecessary sensitive
+document contents.
+
+11.26 SystemSetting - id - key (unique) - value - updated_by -
+updated_at Examples: attendance threshold, lecturer/COD deadlines,
+upload limits, login lockout values, draft retention, maintenance mode,
+session validity defaults.
+
+11.27 Relationships overview - Department has many CourseUnits and
+users/lecturers as appropriate. - Student User has one StudentProfile
+and many UnitEnrollments. - Lecturer User has one LecturerProfile and
+many LecturerUnitAssignments. - CourseUnit has many enrollments,
+assessments, attendance sessions, and reports. - AttendanceSession has
+many AttendanceRecords. - AttendanceRecord belongs to one student and
+one session. - AttendanceHistory references a successful
+AttendanceRecord. - Assessment has CAT submission records and/or
+examination attendance records. - MissingMarkReport belongs to one
+student and one unit, and may relate to an assessment. -
+MissingMarkReport has comments, decisions, audit events, optional
+SpecialCase, and at most one Appeal. - SpecialCase has permitted
+evidence documents. - Notification belongs to a recipient and may
+reference a related report or event. - AuditLog records important events
+across modules.
+
+Database integrity requirements: - Foreign keys for relationships. -
+Unique constraints for registration numbers, case references,
+session/student attendance, examination attendance, and appeal/report. -
+Index frequently filtered fields: report status, assigned lecturer,
+department, unit, student, created/submitted date, attendance
+session/student, notification recipient/read state. - Use transactions
+for critical multi-record operations where available, especially report
+submission + audit + notification creation and attendance creation +
+history + audit consistency.
+
+12. API DESIGN
+
+12.1 Conventions - Base path: /api/v1 - Transport: HTTPS in deployed
+environments. - Format: JSON. - Authentication: JWT access/refresh
+tokens through HttpOnly cookies. - Validate incoming request bodies,
+query parameters, and path parameters with Zod. - Backend must enforce
+role and data scope. - Use server-side pagination and filtering. - Keep
+error messages safe; do not expose stack traces, secrets, raw SQL, or
+internal paths.
+
+Success response concept: { “success”: true, “message”: “Operation
+completed successfully”, “data”: {} }
+
+Error response concept: { “success”: false, “message”: “The request
+could not be completed”, “error”: { “code”: “VALIDATION_ERROR”,
+“details”: [] } }
+
+Common HTTP status codes: - 200 OK: successful read or operation. - 201
+Created: resource created. - 400 Bad Request: malformed request. - 401
+Unauthorized: authentication missing/invalid. - 403 Forbidden:
+authenticated but not permitted. - 404 Not Found: resource not found or
+intentionally hidden due to access policy. - 409 Conflict: duplicate or
+incompatible state transition. - 422 Unprocessable Entity:
+validation/business-rule failure. - 429 Too Many Requests: rate limit or
+authentication throttling. - 500 Internal Server Error: unexpected
+server failure.
+
+12.2 Proposed route groups Authentication: - POST
+/api/v1/auth/register - POST /api/v1/auth/login - POST
+/api/v1/auth/logout - POST /api/v1/auth/refresh - POST
+/api/v1/auth/password-reset/request - POST
+/api/v1/auth/password-reset/confirm - GET /api/v1/auth/me - POST
+/api/v1/auth/2fa/verify (administrator workflow)
+
+Users and academic structure: - GET/POST /api/v1/users (admin scope for
+management) - PATCH /api/v1/users/:id - GET/POST /api/v1/departments -
+GET/POST /api/v1/units - GET/POST /api/v1/enrollments - GET/POST
+/api/v1/lecturer-assignments
+
+Missing-mark reports: - POST /api/v1/reports/drafts - PATCH
+/api/v1/reports/drafts/:id - POST /api/v1/reports - GET
+/api/v1/reports - GET /api/v1/reports/:id - PATCH /api/v1/reports/:id
+(student only while Pending) - POST /api/v1/reports/:id/withdraw - POST
+/api/v1/reports/:id/start-review - POST /api/v1/reports/:id/comments -
+POST /api/v1/reports/:id/decisions - POST /api/v1/reports/:id/assign -
+POST /api/v1/reports/:id/reopen (authorized admin workflow)
+
+Appeals: - POST /api/v1/reports/:id/appeal - GET /api/v1/appeals - GET
+/api/v1/appeals/:id - POST /api/v1/appeals/:id/decision
+
+Attendance: - POST /api/v1/attendance/sessions - GET
+/api/v1/attendance/sessions - GET /api/v1/attendance/sessions/:id - POST
+/api/v1/attendance/sessions/:id/close - POST
+/api/v1/attendance/sessions/:id/attempt - GET
+/api/v1/attendance/history - GET /api/v1/attendance/records/:id - POST
+/api/v1/attendance/records/:id/corrections - POST
+/api/v1/attendance/discrepancies - GET
+/api/v1/attendance/discrepancies - POST
+/api/v1/attendance/discrepancies/:id/resolve - POST
+/api/v1/attendance/discrepancies/:id/escalate
+
+Assessments/CAT: - POST /api/v1/assessments - GET /api/v1/assessments -
+GET /api/v1/assessments/:id - POST
+/api/v1/assessments/:id/cat-sessions - POST
+/api/v1/cat-submissions/:id/confirm - POST
+/api/v1/cat-submissions/:id/verify - GET
+/api/v1/assessments/:id/cat-submissions
+
+Examination attendance: - POST
+/api/v1/assessments/:id/exam-qr-references - POST
+/api/v1/examination-attendance/scan - GET
+/api/v1/assessments/:id/examination-attendance
+
+Special cases and evidence: - POST /api/v1/reports/:id/special-case -
+POST /api/v1/special-cases/:id/evidence - GET
+/api/v1/special-cases/:id/evidence - DELETE
+/api/v1/special-cases/:id/evidence/:evidenceId (only where policy
+permits and before the applicable lock/retention point)
+
+Notifications: - GET /api/v1/notifications - PATCH
+/api/v1/notifications/:id/read - PATCH /api/v1/notifications/read-all
+
+Reporting/admin: - GET /api/v1/reports/exports/pdf - GET
+/api/v1/reports/exports/excel - GET /api/v1/admin/audit-logs - GET
+/api/v1/admin/settings - PATCH /api/v1/admin/settings - POST
+/api/v1/admin/maintenance-mode - POST
+/api/v1/admin/attendance-history/:id/delete - GET
+/api/v1/admin/archived-records - POST
+/api/v1/admin/archived-records/:id/access
+
+This is a route proposal, not a claim that endpoints already exist. The
+team must finalize request/response schemas, pagination shape, error
+codes, and role permissions in OpenAPI before parallel implementation.
+
+13. LOCATION, LINK, AND QR SECURITY
+
+-   Link/QR access does not replace authentication or authorization.
+-   Require a valid authenticated user and enrollment in the relevant
+    unit.
+-   Validate that the session exists, is open, and is within its
+    validity window.
+-   Use high-entropy opaque references; do not put student personal data
+    in QR payloads.
+-   Validate all important conditions on the backend.
+-   Prevent duplicate attendance with a database constraint as well as
+    service-level checks.
+-   Treat browser-provided location as an input, not unquestionable
+    proof of physical presence.
+-   Location verification uses the configured classroom coordinates and
+    acceptable boundary.
+-   A failed location check rejects the attempt but does not
+    automatically record the student absent.
+-   Do not expose precise classroom coordinates or other students’
+    location attempts to ordinary users.
+-   Record necessary verification outcomes for attendance decisions
+    while minimizing retained location data.
+-   Use HTTPS in deployed environments.
+-   Consider token expiry/revocation and prevent replay where the
+    session design requires it.
+
+14. SECURITY AND PRIVACY REQUIREMENTS
+
+-   Enforce least privilege and server-side role-based authorization.
+-   Use bcrypt password hashing; never store plaintext passwords.
+-   Use HttpOnly and Secure cookies in HTTPS environments, appropriate
+    SameSite policy, and CSRF protections where required by the
+    cookie/authentication design.
+-   Validate request data with Zod and reject invalid identifiers,
+    coordinates, statuses, and state transitions.
+-   Rate-limit login and sensitive endpoints; implement configurable
+    lockout.
+-   Do not expose secrets in source control. Commit .env.example with
+    placeholders only.
+-   Validate file MIME type, extension, size, and generated storage
+    filename. Do not trust the client filename.
+-   Store uploaded files outside publicly served static directories and
+    serve them only through authorized endpoints.
+-   Avoid path traversal, unsafe file names, executable uploads, and
+    accidental public file access.
+-   Use generic safe error messages and centralized error handling.
+-   Audit administrative actions, decisions, corrections, account
+    changes, evidence access, and security events.
+-   Do not put passwords, raw tokens, reset links, or unnecessary
+    sensitive content in logs.
+-   Use role-scoped queries to prevent insecure direct object reference
+    (IDOR) vulnerabilities.
+-   Use mock data for development and demonstrations unless authorized
+    real data access has been established.
+-   Restrict exports and archived records by role.
+-   Preserve historical records on account deactivation.
+-   Audit administrator deletion of attendance history.
+-   Minimize collection and retention of precise location information.
+-   Do not automatically modify official university results.
+-   Obtain appropriate approval before any real institutional deployment
+    or integration.
+
+15. NON-FUNCTIONAL REQUIREMENTS
+
+Security: - All protected operations require backend authentication and
+authorization. - Sensitive records are visible only to authorized
+roles. - Critical decisions and corrections are traceable.
+
+Reliability and integrity: - Invalid/expired sessions and duplicate
+attendance attempts are rejected. - Case transitions follow the allowed
+state machine. - Critical operations keep related database records
+consistent. - The UI does not display attendance success before backend
+confirmation.
+
+Usability: - Responsive layouts support desktop and mobile browsers. -
+Status, required actions, rejection reasons, and eligibility
+explanations are clear. - Forms provide understandable validation
+feedback. - Loading, empty, success, and error states are handled.
+
+Maintainability: - Separate routes, controllers, services, and data
+access. - Use consistent naming, linting/formatting where configured,
+and shared API contracts. - Document environment variables, database
+migrations, and setup. - Avoid unnecessary dependencies and premature
+microservices.
+
+Performance: - Database-side filtering and server-side pagination. -
+Index common search/filter columns. - Avoid fetching all cases/history
+at once. - File and export operations enforce permissions and configured
+limits.
+
+Compatibility: - Modern desktop and mobile browsers. - API and frontend
+use documented JSON contracts. - The initial platform is a responsive
+web application.
+
+Auditability: - Important actions record actor, timestamp, action,
+affected entity, and previous/new values where applicable.
+
+16. REPORT ASSIGNMENT AND CASE SLA RULES
+
+-   When the student selects a unit, the system uses unit/lecturer
+    mapping data to assign the relevant lecturer where available.
+-   If mapping is missing, the case must enter an assignment queue
+    rather than inventing a lecturer.
+-   If lecturer reassignment is permitted, record old assignee, new
+    assignee, actor, timestamp, and reason.
+-   Lecturer default deadline is 3 working days.
+-   COD default deadline is 5 working days.
+-   Overdue is a flag, not a separate case status.
+-   Overdue cases trigger notifications and may be reassigned/escalated
+    by authorized roles.
+-   All deadlines are configurable.
+-   Do not fabricate live academic or lecturer mapping data.
+
+17. FRONTEND INFORMATION ARCHITECTURE
+
+Public routes: - / - /login - /register - /forgot-password - /help
+
+Student routes: - /student/dashboard - /student/reports -
+/student/reports/new - /student/reports/:id -
+/student/reports/:id/appeal - /student/attendance -
+/student/attendance-history - /student/cat-submissions -
+/student/notifications - /student/profile
+
+Lecturer routes: - /lecturer/dashboard - /lecturer/reports -
+/lecturer/reports/:id - /lecturer/attendance-sessions -
+/lecturer/attendance-sessions/new - /lecturer/attendance-history -
+/lecturer/attendance-discrepancies - /lecturer/assessments -
+/lecturer/cat-submissions - /lecturer/examination-attendance
+
+COD routes: - /cod/dashboard - /cod/reports - /cod/reports/:id -
+/cod/appeals - /cod/attendance-discrepancies - /cod/reports-and-exports
+
+Admin routes: - /admin/dashboard - /admin/users - /admin/departments -
+/admin/units - /admin/enrollments - /admin/assignments -
+/admin/settings - /admin/audit-logs - /admin/notifications -
+/admin/archives - /admin/reports
+
+Route names are proposed; the frontend team may adjust them while
+preserving the module and permission boundaries.
+
+18. REPOSITORY ORGANIZATION AND GIT WORKFLOW
+
+Suggested repository structure:
+
+missing-marks-management-system/ .github/ ISSUE_TEMPLATE/
+pull_request_template.md docs/ requirements/ system-requirements.txt
+design/ system-design.txt database-design.txt api-contracts.txt
+workflows.txt meeting-notes/ user-guide/ testing/ frontend/ README.md
+backend/ README.md tests/ README.md .env.example .gitignore
+CONTRIBUTING.md README.md
+
+The team uses two permanent branches: - main: stable, tested release. -
+develop: integrated development baseline.
+
+Each contributor creates a feature branch from the latest develop,
+commits a focused change, pushes it, and opens a pull request targeting
+develop. The team leader reviews and merges it. Do not commit directly
+to main or develop. Merge develop into main only when the integrated
+system passes the release checks.
+
+Suggested branch names: - feature/authentication -
+feature/missing-mark-workflow - feature/class-attendance -
+feature/cat-submissions - feature/examination-attendance -
+feature/student-dashboard - feature/admin-reporting - docs/system-design
+
+Pull requests should explain purpose, scope, tests performed,
+screenshots if relevant, database migration impact, and API contract
+changes. Coordinate changes to shared schema, authentication, API
+contracts, and common UI components before parallel work.
+
+19. TEAM RESPONSIBILITIES
+
+Member 1 — Backend/API and core workflow: - Authentication and
+authorization foundations. - API conventions and error handling. -
+Missing-mark reports, assignment, comments, status transitions,
+decisions, appeals. - Eligibility service integration. - Shared
+database/API reviews.
+
+Member 2 — Attendance: - Classroom configuration and location
+verification. - Class attendance sessions, links, and QR codes. -
+Attendance records/history. - CAT attendance and submission
+confirmation/verification. - Examination QR attendance. - Attendance
+discrepancies and special-case evidence integration.
+
+Member 3 — Frontend: - React application foundation, routing, layouts,
+shared components. - Student dashboard, report submission/tracking,
+attendance history. - Lecturer dashboard and workflow screens. - COD
+interface and API integration. - Responsive and accessible UI states.
+
+Member 4 — Administration, quality, integration, documentation: - Admin
+dashboard and account/configuration interfaces. - Search, reporting,
+exports, audit views. - Test strategy, test cases, integration tests,
+and bug tracking. - OpenAPI/Postman support, user guide, technical
+documentation. - Release-readiness checks.
+
+All members participate in design reviews, API contract agreement,
+testing, code review, and final integration. Responsibilities are an
+initial allocation and can be adjusted by the team leader based on
+workload and skills.
+
+20. IMPLEMENTATION PLAN — EIGHT WEEKS
+
+Week 1: Foundation and design - Review/freeze core requirements. - Agree
+on workflows, architecture, database entities, and API contracts. -
+Create repository, branch protection, contribution guide, issue board,
+and .env.example. - Initialize React, Express, Prisma, PostgreSQL,
+validation, and testing setup. - Build authentication foundation.
+
+Week 2: Identity and academic structure - Registration/login/password
+reset/lockout. - Roles and authorization middleware. - Departments,
+units, enrollments, lecturer mapping. - Initial migrations and seed only
+mock data.
+
+Week 3: Class attendance - Classroom configuration and location
+boundaries. - Attendance sessions, links, QR codes, validity windows. -
+Location validation, duplicate prevention, attendance records/history. -
+Lecturer attendance interface and student history.
+
+Week 4: CAT, examination, and discrepancies - CAT assessment/session
+creation. - Student CAT submission confirmation and lecturer
+verification. - Examination booklet QR attendance. - Attendance
+discrepancy reports and audited corrections. - Special-case evidence
+upload.
+
+Week 5: Missing-mark reports and eligibility - Drafts and submission. -
+Duplicate active-case validation and human-readable references. -
+Eligibility calculation and Normal/Special classification. - Student
+report list/details and status history.
+
+Week 6: Lecturer/COD workflows - Assignment/reassignment. - Lecturer
+investigation, comments, approval/rejection. - COD review, appeals,
+final decisions. - Overdue flag and basic escalation.
+
+Week 7: Administration and reporting - Notifications and mock email
+service. - Dashboards, search/filtering, server-side pagination. -
+PDF/Excel exports. - Audit views, configuration, archive controls,
+maintenance mode. - Integration and permission review.
+
+Week 8: Quality and delivery - End-to-end tests and role-based security
+tests. - Fix defects and review usability. - Verify README, OpenAPI,
+Postman collection, user guide, technical docs. - Prepare demonstration
+with mock data. - Merge approved release into main and tag a version.
+
+The plan is ambitious for eight weeks. If time is limited, prioritize a
+working, secure end-to-end missing-mark case lifecycle and the required
+attendance workflows before optional reporting polish.
+
+21. TESTING STRATEGY
+
+21.1 Unit tests - Eligibility threshold calculations. - Required CAT
+attendance checks. - Special-case classification routing. - Allowed
+report state transitions. - Appeal limit enforcement. - Duplicate active
+report detection. - Attendance session validity. - Duplicate attendance
+prevention. - Location-boundary calculations. - CAT submission state
+transitions. - Mark maximum validation. - Role/permission helper
+functions. - Overdue deadline calculations.
+
+21.2 API integration tests - Student registration/login/logout/password
+reset. - Protected route access and role restrictions. - Report draft
+create/update/submit/withdraw. - Student cannot edit after review
+starts. - Lecturer assigned-case review and rejection reason
+requirement. - COD review and final decision. - One appeal per case. -
+Attendance requires authentication and enrollment. - Expired/closed
+sessions reject attendance. - Failed location check does not create
+successful attendance. - Duplicate class attendance is blocked. -
+Successful attendance creates authoritative record and history
+consistently. - Student cannot read another student’s attendance
+history. - Lecturer/COD scope is enforced. - Only admin can delete
+attendance-history entries. - CAT confirmation and lecturer verification
+remain separate. - Examination QR is validated server-side. -
+Special-case file validation and access control. - Exports follow role
+scope. - Archived record access requires admin authorization and a
+reason.
+
+21.3 Frontend tests/manual checks - Login and role-specific redirect. -
+Forms, field validation, loading/error/success states. - Responsive
+dashboard layouts. - Case timeline and status display. - Attendance
+location permission denied/unavailable. - QR link on mobile browser. -
+Notification read/unread. - Pagination and filters. - Upload validation
+feedback. - Accessibility basics: keyboard use, labels, contrast, clear
+errors.
+
+21.4 Acceptance tests - Student can submit and track a report. -
+Lecturer can investigate and decide with required rejection reason. -
+COD can review and close a case. - Student can appeal once where
+permitted. - Eligibility checks 80% class attendance, configured CAT
+requirements, and examination attendance. - Special cases can include
+permitted supporting documents. - Attendance link/QR requires
+authentication, enrollment, valid session, location verification, and
+duplicate prevention. - Failed location validation does not
+automatically mark absence. - CAT attendance, student submission
+confirmation, and lecturer verification are separate. - Examination QR
+attendance is server-validated. - Role-based record access is
+enforced. - Audit records capture important actions. - The full
+demonstration works using local/mock data.
+
+22. IMPORTANT BUSINESS RULES
+
+1.  One active missing-mark report per student/unit/assessment.
+
+2.  A new report may be submitted after prior resolution/closure,
+    subject to the duplicate rule.
+
+3.  Withdrawal while Pending does not block resubmission.
+
+4.  Students can edit/withdraw only while Pending.
+
+5.  Original report content locks when lecturer review starts.
+
+6.  One appeal per case; appeal reason is mandatory.
+
+7.  Lecturer rejection requires a reason.
+
+8.  Lecturer comments become immutable once COD review starts; new
+    comments may still be added.
+
+9.  Final COD decision locks when case closes.
+
+10. A manually entered mark cannot exceed the configured assessment
+    maximum.
+
+11. Class attendance cannot be duplicated for the same student/session.
+
+12. Only enrolled students can record attendance.
+
+13. Class attendance uses a unique link and QR code, not OTP.
+
+14. Closed/expired sessions reject attendance attempts.
+
+15. Lecturer attendance corrections require audit records and a reason.
+
+16. Examination attendance is recorded through validated examination
+    booklet QR workflow.
+
+17. Routine attendance evidence and CAT/examination booklet uploads are
+    not allowed.
+
+18. Special-case supporting-document uploads remain available.
+
+19. System classification does not automatically decide special-case
+    validity.
+
+20. The application does not automatically update official university
+    results.
+
+21. Authorization is enforced by the backend.
+
+22. Archived records are read-only; administrator archive access
+    requires a reason.
+
+23. Deactivated users retain historical records.
+
+24. Overdue is a flag, not a primary status.
+
+25. Attendance discrepancy handling starts with the lecturer; COD is
+    notified on escalation.
+
+26. A notification email must exist before the student’s first
+    missing-mark submission.
+
+27. Notification email need not be the university email.
+
+28. Official university email is used for password reset in the
+    configured account data.
+
+29. SMS, AI, payments, real-time updates, native mobile app, live
+    integration, cloud storage, and automated backups are out of the
+    initial scope.
+
+30. A failed location check does not prove the student was absent.
+
+31. Attendance records are written by the backend, not trusted from
+    client-side state.
+
+32. Students see only their own attendance history; lecturer/COD access
+    is scoped; admins have system-wide history access.
+
+33. Only administrators can permanently delete attendance-history
+    entries.
+
+34. CAT attendance and CAT submission confirmation/verification are
+    separate records.
+
+35. CAT attendance and submission can occur in either order during the
+    same class.
+
+36. Examination QR scan counts only after backend validation.
+
+37. Location coordinates and QR references are validated server-side.
+
+38. Do not invent external academic data or lecturer mappings.
+
+39. CONFIGURATION AND ENVIRONMENT VARIABLES
+
+Create .env.example with placeholder values only. Expected configuration
+categories include: - NODE_ENV - PORT - DATABASE_URL -
+ACCESS_TOKEN_SECRET - REFRESH_TOKEN_SECRET - ACCESS_TOKEN_TTL -
+REFRESH_TOKEN_TTL - FRONTEND_URL - API_BASE_URL - EMAIL_PROVIDER and
+development/mock email settings - FILE_STORAGE_PATH -
+MAX_SPECIAL_CASE_UPLOAD_BYTES - ATTENDANCE_THRESHOLD_PERCENT (default
+80) - DEFAULT_LECTURER_DEADLINE_WORKING_DAYS (default 3) -
+DEFAULT_COD_DEADLINE_WORKING_DAYS (default 5) -
+LOGIN_MAX_FAILED_ATTEMPTS (default 5) - LOGIN_LOCKOUT_MINUTES (default
+30) - DEFAULT_ATTENDANCE_SESSION_DURATION -
+DEFAULT_DRAFT_RETENTION_PERIOD - MAINTENANCE_MODE - COOKIE_SECURE -
+COOKIE_SAME_SITE
+
+Use a secrets manager or secure deployment environment for real secrets.
+Never commit a real .env file. Validate required environment variables
+when the backend starts and fail with a safe, clear configuration error
+if a required value is missing.
+
+24. LOGGING, AUDITING, AND RETENTION
+
+Technical logging: - Initial version may use console logging with a
+consistent structured format. - Do not log passwords, reset tokens, raw
+authentication tokens, sensitive document contents, or unnecessary
+precise location data.
+
+Audit logging: - Record report creation/edit/withdrawal, status changes,
+assignments, comments, decisions, appeals, evidence access, user/account
+changes, login/logout/lockout, session creation/closure, attendance
+creation/correction, location-verification outcome needed for the
+decision, CAT confirmation/verification, examination QR attendance,
+discrepancy handling, exports where appropriate, archive access,
+maintenance changes, and administrator history deletion. - Include
+actor, timestamp, entity, action, reason, and previous/new values where
+applicable. - Audit records should be append-only to ordinary users and
+inaccessible outside authorized roles.
+
+Retention: - Exact retention periods require applicable institutional
+policy. - Reports and audit logs may have separate retention periods. -
+Deactivated users do not cause associated records to be deleted. -
+Archived records are read-only. - Archive access is administrator-only
+with a reason. - Attendance history follows the specific rule that only
+administrators may permanently delete entries; record the deletion
+action where technically possible.
+
+25. KNOWN RISKS AND MITIGATIONS
+
+Risk: Eight weeks is a short development period. Mitigation: Freeze the
+minimum scope, implement end-to-end flows early, avoid unnecessary
+dependencies, and test continuously.
+
+Risk: No access to live university data. Mitigation: Use clearly labeled
+local/mock data and never invent official records.
+
+Risk: Inaccurate GPS or unavailable location permissions. Mitigation:
+Reject the attempt without automatically marking the student absent;
+provide discrepancy workflow and lecturer review.
+
+Risk: QR/link sharing or replay. Mitigation: Authentication, enrollment
+checks, high-entropy references, session validity, server-side
+validation, expiry, and duplicate prevention.
+
+Risk: Unauthorized record access. Mitigation: Backend authorization,
+scoped database queries, role tests, secure cookies, and audit logs.
+
+Risk: Integration conflicts across four developers. Mitigation: Shared
+database/API contracts, small feature branches, pull-request review, and
+regular integration into develop.
+
+Risk: File upload abuse. Mitigation: Restrict upload purpose, allowed
+formats, size, generated names, storage location, and authorized
+retrieval.
+
+Risk: Email provider unavailable. Mitigation: Mock email in development
+and isolate email delivery behind a provider interface.
+
+Risk: Attendance history inconsistent with authoritative attendance.
+Mitigation: Only create history after server success; use transactions
+or consistency checks and test the relationship.
+
+Risk: Unapproved academic decision-making. Mitigation: Eligibility
+engine provides classification/explanation only; lecturers/CODs make
+authorized academic decisions.
+
+26. DELIVERABLES
+
+-   Responsive web application.
+-   PostgreSQL database and Prisma schema.
+-   Prisma migrations and mock seed data.
+-   Versioned REST API.
+-   React frontend.
+-   Student, lecturer, COD, and administrator dashboards.
+-   Class attendance link/QR and location verification.
+-   CAT attendance and submission verification.
+-   Examination booklet QR attendance.
+-   Attendance history and discrepancy workflow.
+-   Missing-mark case lifecycle and one-time appeal mechanism.
+-   Special-case review and permitted evidence uploads.
+-   In-app/email notification abstraction.
+-   Audit trail.
+-   Search/filtering/pagination.
+-   PDF and Excel exports.
+-   OpenAPI/Swagger documentation.
+-   Postman collection.
+-   Automated tests.
+-   User guide.
+-   Technical documentation.
+-   Final academic project report and demonstration.
+
+27. SUCCESS CRITERIA
+
+The project is successful when: - Eligible users can authenticate and
+access only authorized functions. - Students can create and track
+missing-mark reports. - Report references, statuses, comments,
+decisions, and history are retained. - Lecturer and COD workflows
+operate with valid transitions and mandatory rejection reasons. - The
+one-appeal limit is enforced. - The eligibility engine checks the 80%
+attendance threshold, configured CAT conditions, and examination
+attendance. - Special cases are routed for human review and permitted
+evidence can be securely uploaded. - Class attendance link/QR requires
+authentication, enrollment, valid session, location verification, and
+duplicate prevention. - Failed location verification does not
+automatically mark a student absent. - Successful attendance is
+persisted by the backend and reflected in attendance history. - Students
+cannot access other students’ histories. - CAT attendance, student
+submission confirmation, and lecturer verification are separate. -
+Examination QR attendance is validated on the backend. - Attendance
+discrepancies can be investigated, corrected, and audited. -
+Notifications are generated for key events. - Authorized reports can be
+filtered and exported. - Administrative actions are traceable. - The
+end-to-end workflow can be demonstrated with local/mock data without
+live university integration.
+
+28. DECISIONS TO CONFIRM BEFORE CODING
+
+The requirements provide the baseline, but the team should explicitly
+settle the following in a design meeting and record decisions in
+docs/meeting-notes: 1. Exact account creation and identity verification
+process for each role in the demo environment. 2. Exact fields required
+on a missing-mark report, including whether every report must reference
+a specific assessment. 3. Exact state transitions and which rejection
+states allow the single appeal. 4. Whether lecturer approval always
+requires COD review (the current baseline says yes). 5. How to represent
+a case that is awaiting assignment because lecturer mapping is
+unavailable. 6. Exact classroom boundary method and radius; do not
+hard-code a value without agreement. 7. Whether location coordinates are
+stored after verification or only the outcome/distance; minimize
+retention. 8. Exact CAT requirement configuration and the rule for
+Late/Excused. 9. Whether assessment records and student-specific
+examination QR codes are needed, or an assessment-level opaque QR
+reference is sufficient. 10. Whether attendance history is stored as a
+separate table or derived from attendance records. The baseline calls
+for a distinct persisted history entry. 11. Exact mark entry/correction
+behavior and COD approval workflow; no official results integration. 12.
+Exact evidence retention and deletion policy. 13. Working-day deadline
+calculation and holiday calendar behavior. 14. Production email
+provider; mock email is acceptable during development. 15. PDF/Excel
+library choices. 16. Test coverage and merge approval policy. 17.
+Whether admin-only 2FA is feasible within the time; if deferred,
+document the approved change. 18. Final schema naming convention and
+route request/response contracts.
+
+Do not let unresolved details silently become conflicting
+implementations. Record a decision, update the design/API contract, and
+notify all contributors.
+
+29. FIRST IMPLEMENTATION MILESTONES
+
+Milestone 1: Team agreement - Review this document together. - Create
+GitHub Issues for the design decisions above. - Assign one owner per
+module. - Agree on branch/PR workflow.
+
+Milestone 2: Architecture contract - Finalize Prisma conceptual model
+and first migration. - Define role enum, report status enum, attendance
+status enum, and allowed transitions. - Define API response/error
+format. - Define auth cookie/session behavior. - Publish OpenAPI starter
+contract.
+
+Milestone 3: Vertical slice Build one complete thin workflow: - Seed
+mock student, lecturer, COD, unit, and enrollment. - Student logs in and
+submits a missing-mark report. - Backend stores the report and audit
+event. - Lecturer sees assigned report and adds a decision. - COD
+reviews and closes it. - Student sees status and notification. This
+proves the architecture before all modules are built.
+
+Milestone 4: Attendance integration - Build and test class attendance
+session and server-side validation. - Add history persistence and
+discrepancy workflow. - Add CAT and examination workflows. - Connect
+eligibility service to the case flow.
+
+Milestone 5: Release readiness - Run integration/security tests. -
+Verify role scope and audit events. - Confirm docs and mock data. -
+Merge develop into main only after approval.
+
+30. FINAL DESIGN SUMMARY
+
+The system is a modular monolith composed of a React frontend, Express
+REST API, Prisma ORM, and PostgreSQL. It supports four roles and
+centralizes missing-mark reporting, attendance, assessment
+participation, special-case review, appeals, notifications, reporting,
+administration, and auditing.
+
+The core design principles are: - Human academic decisions remain with
+authorized staff. - The backend is authoritative for authentication,
+authorization, attendance validation, and workflow transitions. -
+Eligibility classification is explanatory, not an automatic academic
+verdict. - Attendance records are not replaced by file uploads. -
+Special-case documents remain supported with restricted access. -
+Official university results and external registers are not modified. -
+The initial system uses local/mock data. - The implementation stays
+within a maintainable modular monolith suitable for four contributors
+and an approximately two-month schedule. - develop is the integration
+branch; main contains stable releases. - Changes to shared architecture
+and business rules are documented, reviewed, tested, and merged
+deliberately.
+
+END OF DOCUMENT
