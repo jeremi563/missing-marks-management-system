@@ -239,7 +239,7 @@ A task is done when **all** are true:
 
 ## 11. Code style
 
-- Language: JavaScript (Node.js), CommonJS modules *(subject to decision P-01 in the meeting notes)*.
+- Language: JavaScript (Node.js) with ES modules: `import`/`export`, `"type": "module"`, and the `.js` extension on relative imports (decision P-01).
 - ESLint + Prettier enforce formatting — don't argue style in reviews, let the tools decide.
 - Names: `camelCase` variables/functions, `PascalCase` classes/Prisma models, `kebab-case` file names (`report.service.js`), `UPPER_SNAKE_CASE` constants and enum values, `snake_case` database columns (mapped in Prisma).
 - File naming per module: `<module>.routes.js`, `<module>.controller.js`, `<module>.service.js`, `<module>.schema.js` (Zod), `<module>.test.js`.
@@ -267,7 +267,9 @@ A task is done when **all** are true:
 - Require branches to be up to date before merging
 - Block force pushes and deletions
 
-> Branch protection on private repositories can depend on your GitHub plan. If unavailable, the rule is enforced by team discipline — nobody pushes to `main`/`develop`.
+> The repository is currently public, so branch protection is available. If it becomes private later, check that your GitHub plan still supports it; if not, the rule is enforced by team discipline — nobody pushes to `main`/`develop`.
+
+**Public repository warning:** everything committed is visible to everyone, including history. Never commit secrets or real data; if one slips in, rotate it immediately (deleting the commit is not enough).
 
 **Other settings:** allow *squash merging* (default to PR title), disable plain merge commits for `develop` (keep for `main` releases), enable *auto-delete head branches*.
 

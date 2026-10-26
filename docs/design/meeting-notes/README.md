@@ -66,9 +66,9 @@ Every design decision that affects more than one person is recorded here. If it 
 
 | ID | Question | Proposed default | Needed by | Status |
 |---|---|---|---|---|
-| P-01 | Language and module system | **JavaScript + CommonJS**, ESLint + Prettier, Jest. (TypeScript is possible but adds setup time and Jest/ts config; decide now or never) | Day 1 | Proposed |
+| P-01 | Language and module system | **JavaScript with ES modules (ES6 `import`/`export`)**, `"type": "module"`, ESLint + Prettier, Jest run with `--experimental-vm-modules`. File imports need the `.js` extension | Day 1 | **Decided** (2026-10-26) |
 | P-02 | Auth cookie and CSRF design | Access 15 min + refresh 7 days (rotated), HttpOnly, SameSite=Lax, strict CORS, JSON-only mutations (see `api-contracts.md` §1.7) | Day 1 | Proposed |
-| P-03 | Closing a rejected case when the student does not appeal | `appeal_window_days` setting (default 7). Student may also click "Accept decision". A scheduled job (Phase 4) auto-closes after the window; before that, admin/COD may close manually | Day 1 | Proposed |
+| P-03 | Closing a rejected case when the student does not appeal | `appeal_window_days` setting (default 7). Student may also click "Accept decision". A scheduled job (Phase 4) auto-closes after the window; before that, admin/COD may close manually | Day 1 | **Decided** (2026-10-26) — 7-day window accepted |
 | P-04 | Drafts | Separate `report_drafts` table, built in **Phase 3** (MVP submits directly) | Phase 3 | Proposed |
 | P-05 | Who can be assigned/reassigned to a report | A lecturer with an active assignment to that unit; a COD may also assign any lecturer in their department; admin any lecturer | Phase 1 | Proposed |
 | P-06 | Can students comment? | Only to reply to a lecturer/COD `REQUEST_FOR_INFORMATION` comment | Phase 1 | Proposed |

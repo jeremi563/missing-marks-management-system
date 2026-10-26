@@ -31,7 +31,7 @@ stateDiagram-v2
     CLOSED --> UNDER_COD_REVIEW: admin reopens (reason)
 ```
 
-> **Proposed — confirm in meeting (D-03, P-03):** the exact closing path after a rejection and the appeal window. The diagram is the working baseline for Phase 1.
+> **Appeal window decided (P-03): 7 days** (setting `appeal_window_days`); the student may also accept the decision. Exact appeal points still to confirm in D-03. The diagram is the working baseline for Phase 1.
 
 ### 1.1 Transition table (implement as one state-machine module + unit tests)
 

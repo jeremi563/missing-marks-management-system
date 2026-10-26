@@ -106,7 +106,7 @@ Index: (`recipient_id`, `read_at`).
 Never store passwords, tokens or document contents. Index: (`entity_type`,`entity_id`), `actor_id`, `created_at`, `action`.
 
 **SystemSetting** — `id` · `key` (unique) · `value` (JSON/text) · `updated_by?` · `updated_at`
-P1 seeds defaults (attendance threshold 80, deadlines 3/5, lockout 5/30, upload limit). Admin edit endpoints arrive in P4.
+P1 seeds defaults (attendance threshold 80, deadlines 3/5, lockout 5/30, upload limit, `appeal_window_days` 7). Admin edit endpoints arrive in P4.
 
 ### 3.4 Attendance (Phase 2)
 

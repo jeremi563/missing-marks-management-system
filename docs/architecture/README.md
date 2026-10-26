@@ -98,7 +98,7 @@ Each module folder: `<module>.routes.js`, `<module>.controller.js`, `<module>.se
 | Area | Choice | Notes |
 |---|---|---|
 | Runtime / framework | Node.js LTS + Express | REST + JSON, versioned `/api/v1` |
-| Language | JavaScript (CommonJS) | Decision P-01 in meeting notes |
+| Language | JavaScript, ES modules (`import`/`export`) | Decision P-01 (decided) |
 | ORM / DB | Prisma + PostgreSQL | Prisma Migrate for schema changes |
 | Validation | Zod | |
 | Auth | `jsonwebtoken`, `bcrypt`, `cookie-parser` | |
@@ -106,7 +106,7 @@ Each module folder: `<module>.routes.js`, `<module>.controller.js`, `<module>.se
 | Uploads (P3) | Multer | Special-case evidence only |
 | QR (P2) | `qrcode` | Server generates QR image of the session link |
 | PDF / Excel (P4) | `pdfkit` / `exceljs` | Decision D-15 |
-| Testing | Jest + Supertest | Separate test database |
+| Testing | Jest + Supertest | Separate test database; Jest runs ESM via `node --experimental-vm-modules` |
 | Lint / format | ESLint + Prettier | Enforced in CI |
 | Frontend (later) | React, React Router, Axios, CSS Modules, `useState`/`useContext` | No Redux/Zustand/TanStack Query initially |
 
