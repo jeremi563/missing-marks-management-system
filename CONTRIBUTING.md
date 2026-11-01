@@ -90,6 +90,8 @@ The following files affect the whole application and must not be changed indepen
 
 The team lead coordinates the Prisma schema and migration integration unless the team explicitly assigns another maintainer. Contributors should raise a proposed change, agree on its fields/relations/interface, then implement it in a coordinated branch or PR.
 
+Use `docs/DATABASE.md` as the shared data reference. Before parallel module work, read the approved schema and API contract on `develop`, install from the committed lockfile, and coordinate changes to auth, middleware, app/server entry points and shared services with the team lead.
+
 ## 6. Pull-request requirements
 
 A PR should:

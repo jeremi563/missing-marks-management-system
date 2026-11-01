@@ -1,0 +1,28 @@
+{
+  "name": "missing-mark-system",
+  "version": "1.0.0",
+  "description": "A web-based system for managing missing-mark reports, attendance-related verification and the review process involving students, lecturers, academic officers (CODs) and system administrators.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeremi563/missing-marks-management-system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/jeremi563/missing-marks-management-system/issues"
+  },
+  "homepage": "https://github.com/jeremi563/missing-marks-management-system#readme",
+  "dependencies": {
+    "@prisma/client": "^7.10.1",
+    "dotenv": "^18.0.9"
+  }
+}

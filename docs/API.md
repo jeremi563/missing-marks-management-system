@@ -4,6 +4,8 @@
 
 This document defines the initial REST API conventions and proposed role-based route layout. The routes below are starting points for team discussion; they are not final until the team confirms request bodies, response fields, permissions and workflow rules.
 
+The shared Express application now implements the health endpoint and the initial authentication contract below. Role-module routes remain proposals until their owners finalize resource payloads and permissions.
+
 ## 2. Base path
 
 All backend endpoints should be versioned under:
@@ -44,7 +46,14 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 | POST | `/api/v1/auth/logout` | End the authenticated session/token where supported. |
 | GET | `/api/v1/auth/me` | Return the authenticated user's permitted profile summary. |
 
-Final authentication routes depend on the agreed authentication design.
+### Implemented authentication baseline
+
+- `POST /api/v1/auth/login` accepts `{ "email": "...", "password": "..." }` and sets a 15-minute JWT in the `access_token` HttpOnly, SameSite=Strict cookie. The cookie is Secure in production.
+- `POST /api/v1/auth/logout` clears the cookie. This is stateless logout; an already copied token remains valid until expiry.
+- `GET /api/v1/auth/me` returns the authenticated user's ID, email, display name and database roles.
+- Protected middleware also accepts a Bearer token for non-browser clients. Roles are reloaded from PostgreSQL on each protected request, so role changes take effect immediately.
+- Passwords are stored as bcrypt hashes. Set `JWT_SECRET` to a random secret of at least 32 characters. Never put the secret in source control.
+- Account registration, password reset, lockout policy, refresh tokens, and session revocation are not yet implemented; agree their requirements before adding them.
 
 ### Student
 
@@ -108,7 +117,7 @@ Additional routes for attendance, CAT, examination attendance, notifications, sp
 - Administrative permissions must not be interpreted as permission to change official marks.
 - Return an appropriate unauthorised or forbidden response without leaking private record details.
 
-The exact token/session strategy and role model will be documented after the authentication foundation is agreed.
+The current token strategy is the implementation baseline described above. Role names remain database records rather than a Prisma enum; the initial seed uses `student`, `lecturer`, `cod`, and `administrator`.
 
 ## 6. Response format
 
@@ -153,6 +162,7 @@ Use status codes consistently:
 ## 8. Validation and errors
 
 - Validate path parameters, query parameters and request bodies.
+- Request-body validation uses Zod at the route boundary.
 - Reject unknown or disallowed fields where appropriate.
 - Do not trust role, student ID, lecturer ID or department scope supplied by the client; derive identity and permissions from the authenticated user and database relationships.
 - Return useful messages without exposing stack traces, SQL details, secrets or internal implementation information.
@@ -171,3 +181,10 @@ Before changing a route, payload or response:
 3. Identify frontend and backend consumers.
 4. Keep changes backward-compatible where practical.
 5. Include example requests/responses and tests in the PR.
+
+## 11. Shared API bootstrap
+
+- `GET /health` returns `{ "success": true, "data": { "status": "ok" } }` and does not query the database.
+- Unknown routes return a consistent JSON error response.
+- `backend/src/app.js` owns middleware and route mounting; `backend/src/server.js` owns process startup and shutdown.
+- Errors use `{ "success": false, "message": "..." }`, with validation details only for client input errors. Internal exceptions are logged server-side and are not returned to clients.
