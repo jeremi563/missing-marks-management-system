@@ -68,7 +68,7 @@ Read these before implementing a feature:
 
 ### 3. Set up the backend
 
-Follow the instructions in [`backend/README.md`](backend/README.md). Do not create your own database schema or migrations before the team agrees on the shared Prisma schema.
+Follow [`backend/README.md`](backend/README.md). Use the shared Prisma schema and migrations; do not create a separate database or independent schema for a role module.
 
 ### 4. Set up the frontend
 

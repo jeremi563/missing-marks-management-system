@@ -4,6 +4,8 @@
 
 This document describes the proposed end-to-end flow for a missing-mark report and related processes. The exact statuses, decision authority, deadlines and academic rules must be confirmed before implementation.
 
+The database stores current report status plus append-only status, assignment and comment history. It does not define the allowed state machine: services must enforce the transitions agreed in this document and the open-questions register.
+
 ## 2. Missing-mark report: proposed lifecycle
 
 A report may follow this general sequence:
