@@ -102,6 +102,7 @@ Module ownership reduces overlap; it does not create separate applications or se
 - [`docs/API.md`](docs/API.md) — API conventions and initial endpoint contract.
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md) — report lifecycle and related workflows.
 - [`docs/CONTRIBUTION.md`](docs/CONTRIBUTION.md) — contribution and collaboration process.
+- [`docs/TEAM_ONBOARDING.md`](docs/TEAM_ONBOARDING.md) — concise step-by-step team onboarding and contribution guide.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — short contributor entry point.
 
 ## Questions and changes
