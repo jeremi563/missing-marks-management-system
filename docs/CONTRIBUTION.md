@@ -58,6 +58,8 @@ Coordinate before changing:
 
 The team lead coordinates shared schema and migration integration unless the team explicitly changes this assignment. Never merge two competing schema changes without reconciling them against the latest `develop`.
 
+The shared database reference is `docs/DATABASE.md`. Before starting parallel module work, read the approved schema and API contract on `develop`, use the committed lockfile, and do not generate migrations from a divergent schema. Coordinate changes to auth, app/server entry points, middleware and shared services with the team lead.
+
 ## 6. Review and merge
 
 The team lead or assigned reviewer checks:

@@ -38,11 +38,9 @@ backend/
 
 ## Prerequisites
 
-Install a supported Node.js LTS release, npm and PostgreSQL. The exact versions and scripts should be agreed by the team and recorded in `package.json`.
+Use Node.js 20.19+ and npm, plus PostgreSQL for migrations and database-backed features. Prisma CLI and Prisma Client versions are pinned together in `package.json`.
 
 ## Setup
-
-The project is still establishing its shared Prisma schema and authentication foundation. Do not assume the commands below are ready until the team lead has added the corresponding scripts and environment variables.
 
 ```bash
 cd backend
@@ -50,20 +48,32 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with your own local development database connection. Do not share or commit your `.env` file.
+Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts. Do not share or commit `.env`.
 
-Once the Prisma schema and scripts have been agreed and committed, use the commands documented by the team lead. Typical Prisma commands may include:
+Validate the shared schema and generate Prisma Client:
 
 ```bash
-npx prisma generate
-npx prisma migrate dev
+npm run db:validate
+npm run db:generate
 ```
 
-Do not run migrations against a shared or production database unless explicitly authorised.
+Apply the committed initial migration to a local development database:
+
+```bash
+npm run db:migrate:dev
+```
+
+Seed synthetic development data after the migration:
+
+```bash
+npm run db:seed
+```
+
+Never run development migrations against production or an unapproved shared database. The team lead coordinates schema and migration changes.
 
 ## Development
 
-The team will add the agreed scripts to `package.json`, for example:
+The shared scripts include:
 
 ```bash
 npm run dev
@@ -96,6 +106,8 @@ Use the actual scripts present in `package.json`; do not invent local scripts th
 ## Testing
 
 Place tests in the matching `tests/` module folder. Test both successful requests and important failure cases, including unauthorised access, invalid input, missing records and invalid workflow transitions.
+
+The current shared tests use Node's built-in test runner (`node --test`) and do not require a live database. Database integration tests should use a dedicated local test database and must never target production.
 
 ## API documentation
 

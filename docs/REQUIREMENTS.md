@@ -6,6 +6,8 @@ The Missing Marks Management System is intended to provide a structured process 
 
 This document describes the initial functional scope for development. It is not a substitute for formal university policy. Where a rule is uncertain, record it as an open question and obtain team/stakeholder agreement before implementation.
 
+The implemented database tables and their relationships are documented in [DATABASE.md](DATABASE.md). Its flexible status fields and optional relations intentionally preserve the open decisions listed below; do not infer policy from a database default.
+
 ## 2. Project objectives
 
 - Provide a consistent way for students to report missing marks.
