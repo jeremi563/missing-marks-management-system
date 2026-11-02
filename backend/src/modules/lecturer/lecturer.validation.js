@@ -3,7 +3,8 @@ import { z } from 'zod';
 export const reportIdSchema = z.object({
   reportId: z.string().uuid('A valid report UUID is required.'),
 });
-//feature 3:: report investigation and comments
+
+// Feature 3: Report investigation and comments
 export const createCommentSchema = z.object({
   body: z
     .string()
@@ -12,8 +13,7 @@ export const createCommentSchema = z.object({
     .max(2000, 'Comment cannot exceed 2000 characters.'),
 });
 
-//  feature 4: Report decision submission
-
+// Feature 4: Report decision submission
 export const submitDecisionSchema = z.object({
   decision: z.enum(
     ['APPROVE', 'REJECT'],

@@ -36,7 +36,6 @@ router.get(
   validate(reportIdSchema, 'params'),
   getReportById
 );
-// feature 3: get report investigation and comments for a specific report
 
 // GET /api/v1/lecturer/reports/:reportId/comments
 router.get(
@@ -56,9 +55,6 @@ router.post(
   validate(createCommentSchema, 'body'),
   addComment
 );
-
-// Feature 4: Submit decision for a specific report
-
 
 // POST /api/v1/lecturer/reports/:reportId/decision
 router.post(

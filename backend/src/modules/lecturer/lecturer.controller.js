@@ -1,4 +1,3 @@
-
 import {
   getAssignedReports,
   getAssignedReportById,
@@ -47,7 +46,7 @@ export const getReports = async (req, res, next) => {
   }
 };
 
-//individual missing marks details  :: feature 2
+// Feature 2: Retrieve individual missing-mark report details
 export const getReportById = async (req, res, next) => {
   try {
     const lecturerUserId = req.user?.id;
@@ -83,9 +82,8 @@ export const getReportById = async (req, res, next) => {
     next(error);
   }
 };
-// feature 3: get report investigation and comments for a specific report
-// Feature 3: Retrieve comments for an assigned report
 
+// Feature 3: Retrieve comments for an assigned report
 export const getComments = async (req, res, next) => {
   try {
     const lecturerUserId = req.user?.id;
@@ -124,7 +122,6 @@ export const getComments = async (req, res, next) => {
 };
 
 // Feature 3: Add a comment to an assigned report
-
 export const addComment = async (req, res, next) => {
   try {
     const lecturerUserId = req.user?.id;
@@ -163,7 +160,6 @@ export const addComment = async (req, res, next) => {
 };
 
 // Feature 4: Submit a lecturer decision on an assigned report
-
 export const submitDecision = async (req, res, next) => {
   try {
     const lecturerUserId = req.user?.id;
