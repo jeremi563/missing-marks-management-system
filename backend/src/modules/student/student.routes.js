@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
-import { getProfile, getReports, getReportById, createReport, getAttendance, getNotifications } from "./student.controller.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody } from "./student.validation.js";
+import { getProfile, getReports, getReportById, createReport, getAttendance, getNotifications, updateReport, withdrawReport, getReportComments, submitAppeal } from "./student.controller.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody } from "./student.validation.js";
 
 const router = Router();
 
@@ -10,6 +10,11 @@ router.get("/profile", authenticate, authorize("student"), getProfile);
 router.get("/reports", authenticate, authorize("student"), validateReportListQuery, getReports);
 router.post("/reports", authenticate, authorize("student"), validateCreateReportBody, createReport);
 router.get("/reports/:reportId", authenticate, authorize("student"), validateStudentReportId, getReportById);
+router.get("/reports/:reportId/comments", authenticate, authorize("student"), validateStudentReportId, getReportComments);
+router.patch("/reports/:reportId", authenticate, authorize("student"), validateStudentReportId, validateUpdateReportBody, updateReport);
+router.post("/reports/:reportId/withdraw", authenticate, authorize("student"), validateStudentReportId, withdrawReport);
+router.post("/reports/:reportId/appeal", authenticate, authorize("student"), validateStudentReportId, validateCreateAppealBody, submitAppeal);
+router.post("/reports/:reportId/appeals", authenticate, authorize("student"), validateStudentReportId, validateCreateAppealBody, submitAppeal);
 router.get("/attendance", authenticate, authorize("student"), validateReportListQuery, getAttendance);
 router.get("/notifications", authenticate, authorize("student"), validateReportListQuery, getNotifications);
 
