@@ -9,11 +9,13 @@ import {
   getReportById,
   getComments,
   addComment,
+  submitDecision,
 } from './lecturer.controller.js';
 
 import {
   reportIdSchema,
   createCommentSchema,
+  submitDecisionSchema,
 } from './lecturer.validation.js';
 
 const router = express.Router();
@@ -34,7 +36,6 @@ router.get(
   validate(reportIdSchema, 'params'),
   getReportById
 );
-// feature 3: get report investigation and comments for a specific report
 
 // GET /api/v1/lecturer/reports/:reportId/comments
 router.get(
@@ -54,4 +55,15 @@ router.post(
   validate(createCommentSchema, 'body'),
   addComment
 );
+
+// POST /api/v1/lecturer/reports/:reportId/decision
+router.post(
+  '/reports/:reportId/decision',
+  authenticate,
+  authorize('lecturer'),
+  validate(reportIdSchema, 'params'),
+  validate(submitDecisionSchema, 'body'),
+  submitDecision
+);
+
 export default router;

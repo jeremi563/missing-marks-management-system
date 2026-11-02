@@ -7,6 +7,7 @@ import {
   getAssignedReportById,
   getReportComments,
   createReportComment,
+  submitReportDecision,
 } from '../../src/modules/lecturer/lecturer.service.js';
 
 const createMockPrisma = ({
@@ -366,4 +367,245 @@ test('rejects lecturers without profiles when creating comments', async () => {
   );
 
   assert.equal(calls.commentCreateArgs, undefined);
+});
+
+
+// Feature 4: Lecturer report decision tests
+
+const createDecisionPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  report = {
+    id: 'report-1',
+    reference: 'MM-001',
+    status: 'pending',
+  },
+  updateCount = 1,
+  historyFailure = null,
+} = {}) => {
+  const calls = {};
+
+  const transaction = {
+    missingMarkReport: {
+      updateMany: async (args) => {
+        calls.updateArgs = args;
+        return { count: updateCount };
+      },
+    },
+
+    reportStatusHistory: {
+      create: async (args) => {
+        calls.historyArgs = args;
+
+        if (historyFailure) {
+          throw historyFailure;
+        }
+
+        return {
+          id: 'history-1',
+          previousStatus: args.data.previousStatus,
+          newStatus: args.data.newStatus,
+          reason: args.data.reason,
+          createdAt: new Date('2026-11-02T09:00:00.000Z'),
+        };
+      },
+    },
+  };
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => lecturer,
+    },
+
+    missingMarkReport: {
+      findFirst: async (args) => {
+        calls.findFirstArgs = args;
+        return report;
+      },
+    },
+
+    $transaction: async (callback) => {
+      calls.transactionStarted = true;
+      return callback(transaction);
+    },
+  };
+
+  return { prisma, calls };
+};
+
+test('approves a pending report and records audit history', async () => {
+  const { prisma, calls } = createDecisionPrisma();
+
+  const result = await submitReportDecision(
+    prisma,
+    'user-1',
+    'report-1',
+    'APPROVE',
+    'The submitted evidence confirms the missing mark.'
+  );
+
+  assert.equal(result.status, 'APPROVED');
+  assert.equal(result.decision, 'APPROVE');
+  assert.equal(result.history.newStatus, 'APPROVED');
+  assert.equal(result.history.previousStatus, 'pending');
+
+  assert.deepEqual(calls.updateArgs.where, {
+    id: 'report-1',
+    assignedLecturerProfileId: 'lecturer-1',
+    status: 'pending',
+  });
+
+  assert.deepEqual(calls.historyArgs.data, {
+    reportId: 'report-1',
+    actorUserId: 'user-1',
+    previousStatus: 'pending',
+    newStatus: 'APPROVED',
+    reason: 'The submitted evidence confirms the missing mark.',
+  });
+
+  assert.equal(calls.transactionStarted, true);
+});
+
+test('rejects a pending report and records audit history', async () => {
+  const { prisma } = createDecisionPrisma();
+
+  const result = await submitReportDecision(
+    prisma,
+    'user-1',
+    'report-1',
+    'REJECT',
+    'The submitted evidence is insufficient.'
+  );
+
+  assert.equal(result.status, 'REJECTED');
+  assert.equal(result.decision, 'REJECT');
+  assert.equal(result.history.newStatus, 'REJECTED');
+});
+
+test('supports uppercase pending report status', async () => {
+  const { prisma } = createDecisionPrisma({
+    report: {
+      id: 'report-1',
+      reference: 'MM-001',
+      status: 'PENDING',
+    },
+  });
+
+  const result = await submitReportDecision(
+    prisma,
+    'user-1',
+    'report-1',
+    'APPROVE',
+    'Evidence verified.'
+  );
+
+  assert.equal(result.status, 'APPROVED');
+});
+
+test('rejects lecturers without profiles when submitting decisions', async () => {
+  const { prisma, calls } = createDecisionPrisma({
+    lecturer: null,
+  });
+
+  await assert.rejects(
+    () => submitReportDecision(
+      prisma,
+      'user-2',
+      'report-1',
+      'APPROVE',
+      'Evidence verified.'
+    ),
+    {
+      message: 'Lecturer profile not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.findFirstArgs, undefined);
+});
+
+test('rejects decisions for unassigned or nonexistent reports', async () => {
+  const { prisma, calls } = createDecisionPrisma({
+    report: null,
+  });
+
+  await assert.rejects(
+    () => submitReportDecision(
+      prisma,
+      'user-1',
+      'report-2',
+      'APPROVE',
+      'Evidence verified.'
+    ),
+    {
+      message: 'Missing-mark report not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects decisions on reports that are no longer pending', async () => {
+  const { prisma, calls } = createDecisionPrisma({
+    report: {
+      id: 'report-1',
+      reference: 'MM-001',
+      status: 'APPROVED',
+    },
+  });
+
+  await assert.rejects(
+    () => submitReportDecision(
+      prisma,
+      'user-1',
+      'report-1',
+      'REJECT',
+      'Change decision.'
+    ),
+    {
+      statusCode: 409,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects concurrent decisions when the conditional update affects no row', async () => {
+  const { prisma, calls } = createDecisionPrisma({
+    updateCount: 0,
+  });
+
+  await assert.rejects(
+    () => submitReportDecision(
+      prisma,
+      'user-1',
+      'report-1',
+      'APPROVE',
+      'Evidence verified.'
+    ),
+    {
+      statusCode: 409,
+    }
+  );
+
+  assert.equal(calls.historyArgs, undefined);
+});
+
+test('does not complete the transaction when audit history creation fails', async () => {
+  const { prisma } = createDecisionPrisma({
+    historyFailure: new Error('Audit history failure'),
+  });
+
+  await assert.rejects(
+    () => submitReportDecision(
+      prisma,
+      'user-1',
+      'report-1',
+      'APPROVE',
+      'Evidence verified.'
+    ),
+    {
+      message: 'Audit history failure',
+    }
+  );
 });

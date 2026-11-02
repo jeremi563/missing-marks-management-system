@@ -93,3 +93,40 @@ test('applies authentication, authorization, UUID validation and body validation
   assert.equal(typeof handlers[3].handle, 'function');
   assert.equal(typeof handlers[4].handle, 'function');
 });
+
+// Feature 4: Report decision routes
+
+test('registers POST /reports/:reportId/decision', () => {
+  const decisionRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/reports/:reportId/decision' &&
+      layer.route.methods.post
+  );
+
+  assert.ok(
+    decisionRoute,
+    'POST decision route should exist'
+  );
+
+  assert.equal(decisionRoute.route.methods.post, true);
+});
+
+test('applies authentication, authorization, UUID validation and decision body validation', () => {
+  const decisionRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/reports/:reportId/decision' &&
+      layer.route.methods.post
+  );
+
+  assert.ok(decisionRoute);
+
+  const handlers = decisionRoute.route.stack;
+
+  // authenticate, authorize, validate params,
+  // validate body, controller
+  assert.equal(handlers.length, 5);
+
+  for (const handler of handlers) {
+    assert.equal(typeof handler.handle, 'function');
+  }
+});
