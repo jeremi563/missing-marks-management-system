@@ -184,7 +184,10 @@ Before changing a route, payload or response:
 
 ## 11. Shared API bootstrap
 
-- `GET /health` returns `{ "success": true, "data": { "status": "ok" } }` and does not query the database.
+- `GET /health` is a liveness check. It returns `{ "success": true, "data": { "status": "ok" } }` and does not query the database.
+- `GET /health/ready` checks PostgreSQL with a read-only `SELECT 1`. It returns HTTP `200` with database status `connected` when ready, or HTTP `503` with status `unavailable` if the database cannot be reached. Error details and connection information are not exposed.
 - Unknown routes return a consistent JSON error response.
 - `backend/src/app.js` owns middleware and route mounting; `backend/src/server.js` owns process startup and shutdown.
 - Errors use `{ "success": false, "message": "..." }`, with validation details only for client input errors. Internal exceptions are logged server-side and are not returned to clients.
+- Application logs are structured JSON written to stdout/stderr. HTTP request completion logs include request ID, method, route, status, and duration; request bodies, query strings, and credentials are not logged. Set `LOG_LEVEL` to `debug`, `info`, `warn`, or `error` (default `info`).
+- Startup and shutdown events, initial database connection success/failure, readiness failures, and unexpected server errors are logged. A database outage does not stop the API process; readiness remains `503` while liveness can remain `200`.
