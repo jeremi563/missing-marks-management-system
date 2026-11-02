@@ -1,4 +1,4 @@
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications } from "./student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {
@@ -139,6 +139,99 @@ export async function getNotifications(req, res, next) {
 			unreadCount: result.unreadCount,
 			data: result.notifications,
 			pagination: result.pagination,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function updateReport(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const report = await updateStudentReport(prisma, userId, req.params.reportId, req.validatedBody);
+		return res.status(200).json({
+			success: true,
+			message: "Missing-mark report updated successfully.",
+			data: report,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function withdrawReport(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const report = await withdrawStudentReport(prisma, userId, req.params.reportId);
+		return res.status(200).json({
+			success: true,
+			message: "Missing-mark report withdrawn successfully.",
+			data: report,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function getReportComments(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const comments = await getStudentReportComments(prisma, userId, req.params.reportId);
+		return res.status(200).json({
+			success: true,
+			message: "Student report comments retrieved successfully.",
+			count: comments.length,
+			data: comments,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function submitAppeal(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const appeal = await submitStudentAppeal(prisma, userId, req.params.reportId, req.validatedBody);
+		return res.status(201).json({
+			success: true,
+			message: "Appeal submitted successfully.",
+			data: appeal,
 		});
 	} catch (error) {
 		return next(error);

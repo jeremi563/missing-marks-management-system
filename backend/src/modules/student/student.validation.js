@@ -17,6 +17,17 @@ const createReportBodySchema = z.object({
 	description: z.string().trim().min(1).max(5000),
 }).strict();
 
+const updateReportBodySchema = z.object({
+	assessmentId: z.string().uuid().optional(),
+	assessmentComponent: z.string().trim().min(1).max(100).optional(),
+	description: z.string().trim().min(1).max(5000).optional(),
+}).strict();
+
+const createAppealBodySchema = z.object({
+	reason: z.string().trim().min(1).max(5000),
+	comments: z.string().trim().max(2000).optional(),
+}).strict();
+
 export function validateReportListQuery(req, res, next) {
 	const result = reportListQuerySchema.safeParse(req.query);
 	if (!result.success) {
@@ -42,9 +53,33 @@ export function validateStudentReportId(req, res, next) {
 	req.validatedParams = result.data;
 	return next();
 }
+export function validateUpdateReportBody(req, res, next) {
+	const result = updateReportBodySchema.safeParse(req.body);
+	if (!result.success) {
+		return next(Object.assign(new Error("Request validation failed"), {
+			statusCode: 400,
+			details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
+		}));
+	}
 
+	req.validatedBody = result.data;
+	return next();
+}
 export function validateCreateReportBody(req, res, next) {
 	const result = createReportBodySchema.safeParse(req.body);
+	if (!result.success) {
+		return next(Object.assign(new Error("Request validation failed"), {
+			statusCode: 400,
+			details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
+		}));
+	}
+
+	req.validatedBody = result.data;
+	return next();
+}
+
+export function validateCreateAppealBody(req, res, next) {
+	const result = createAppealBodySchema.safeParse(req.body);
 	if (!result.success) {
 		return next(Object.assign(new Error("Request validation failed"), {
 			statusCode: 400,
