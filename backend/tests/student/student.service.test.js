@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getStudentProfile, getStudentReports } from "../../src/modules/student/student.service.js";
+import { getStudentProfile } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;

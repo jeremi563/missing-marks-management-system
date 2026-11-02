@@ -3,6 +3,7 @@ import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
 import { getProfile, getReports } from "./student.controller.js";
 import { validateReportListQuery } from "./student.validation.js";
+import { getProfile } from "./student.controller.js";
 
 const router = Router();
 

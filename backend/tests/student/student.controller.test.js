@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getProfile, getReports } from "../../src/modules/student/student.controller.js";
+import { getProfile } from "../../src/modules/student/student.controller.js";
 
 function createResponse() {
 	return {

@@ -1,4 +1,5 @@
 import { getStudentProfile, getStudentReports } from "./student.service.js";
+import { getStudentProfile } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {

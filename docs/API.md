@@ -69,6 +69,7 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 | GET | `/api/v1/student/attendance` | View own permitted attendance information. |
 
 `GET /api/v1/student/profile` and `GET /api/v1/student/reports` are implemented. Both require the `student` role and derive ownership from the authenticated user ID; clients cannot choose another student ID. The reports endpoint accepts optional `page` (default `1`) and `limit` (default `10`, maximum `100`) query parameters and returns pagination metadata. Other student routes remain planned until implemented and tested.
+`GET /api/v1/student/profile` is implemented. It requires the `student` role and derives the profile lookup from the authenticated user ID; clients cannot choose another student ID. The other student routes remain planned until implemented and tested.
 
 ### Lecturer
 
