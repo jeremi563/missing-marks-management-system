@@ -2,6 +2,7 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { codRoutes } from "./modules/cod/cod.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { prisma } from "./config/database.js";
 import lecturerRoutes from "./modules/lecturer/lecturer.routes.js";
@@ -39,6 +40,8 @@ app.get("/health/ready", async (req, res) => {
 apiRouter.use("/auth", authRoutes);
 apiRouter.use("/student", studentRoutes);
 apiRouter.use("/lecturer", lecturerRoutes);
+apiRouter.use("/cod", codRoutes);
+
 app.use("/api/v1", apiRouter);
 
 app.use(notFoundHandler);
