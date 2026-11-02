@@ -57,7 +57,6 @@ test("validates student report IDs as UUIDs", () => {
 	validateStudentReportId({ params: { reportId: "bad-id" } }, {}, (error) => { invalidError = error; });
 	assert.equal(invalidError.statusCode, 400);
 });
-
 test("student-role middleware rejects other roles", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
 	const authorizeStudent = profileRoute.route.stack[1].handle;
