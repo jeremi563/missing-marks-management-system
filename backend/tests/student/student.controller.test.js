@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getProfile, getReports, getReportById, createReport, getAttendance } from "../../src/modules/student/student.controller.js";
+import { getProfile, getReports, getReportById, createReport, getAttendance, getNotifications } from "../../src/modules/student/student.controller.js";
 
 function createResponse() {
 	return {
@@ -170,4 +170,25 @@ test("returns the authenticated student's attendance history and pagination", as
 	assert.equal(res.body.count, 1);
 	assert.deepEqual(res.body.data, [record]);
 	assert.deepEqual(res.body.pagination, { page: 1, limit: 10, total: 1, totalPages: 1 });
+});
+
+test("returns the authenticated user's notifications, unread count, and pagination", async () => {
+	const notification = { id: "notice-1", title: "Report update", readAt: null };
+	const prisma = {
+		notification: {
+			findMany: async () => [notification],
+			count: async ({ where }) => where.readAt === null ? 3 : 7,
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+	const req = { user: { id: "user-1" }, app: { locals: { prisma } }, validatedQuery: { page: 1, limit: 10 } };
+	const res = createResponse();
+
+	await getNotifications(req, res, (error) => { throw error; });
+
+	assert.equal(res.statusCode, 200);
+	assert.equal(res.body.count, 1);
+	assert.equal(res.body.unreadCount, 3);
+	assert.deepEqual(res.body.data, [notification]);
+	assert.deepEqual(res.body.pagination, { page: 1, limit: 10, total: 7, totalPages: 1 });
 });

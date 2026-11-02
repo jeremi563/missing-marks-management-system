@@ -1,4 +1,4 @@
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory } from "./student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {
@@ -112,6 +112,32 @@ export async function getAttendance(req, res, next) {
 			message: "Student attendance history retrieved successfully.",
 			count: result.records.length,
 			data: result.records,
+			pagination: result.pagination,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function getNotifications(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const result = await getStudentNotifications(prisma, userId, req.validatedQuery);
+		return res.status(200).json({
+			success: true,
+			message: "Student notifications retrieved successfully.",
+			count: result.notifications.length,
+			unreadCount: result.unreadCount,
+			data: result.notifications,
 			pagination: result.pagination,
 		});
 	} catch (error) {
