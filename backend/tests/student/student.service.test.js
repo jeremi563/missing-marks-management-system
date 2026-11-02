@@ -77,7 +77,15 @@ test("does not query reports when the authenticated user has no student profile"
 });
 
 test("loads report details only when both report ID and student profile match", async () => {
-	const report = { id: "report-1", reference: "MM-001", status: "Submitted" };
+	const report = {
+		id: "report-1",
+		reference: "MM-001",
+		status: "Under Review",
+		statusHistory: [
+			{ previousStatus: null, newStatus: "Submitted", createdAt: new Date("2026-01-01T10:00:00Z") },
+			{ previousStatus: "Submitted", newStatus: "Under Review", createdAt: new Date("2026-01-02T10:00:00Z") },
+		],
+	};
 	let reportQuery;
 	const prisma = {
 		studentProfile: { findUnique: async () => ({ id: "student-profile-1" }) },
@@ -89,6 +97,12 @@ test("loads report details only when both report ID and student profile match", 
 	const result = await getStudentReportById(prisma, "user-1", "report-1");
 
 	assert.deepEqual(reportQuery.where, { id: "report-1", studentProfileId: "student-profile-1" });
+	assert.deepEqual(reportQuery.select.statusHistory, {
+		select: { previousStatus: true, newStatus: true, createdAt: true },
+		orderBy: { createdAt: "asc" },
+	});
+	assert.equal("reason" in reportQuery.select.statusHistory.select, false);
+	assert.equal("actor" in reportQuery.select.statusHistory.select, false);
 	assert.deepEqual(result, report);
 });
 
