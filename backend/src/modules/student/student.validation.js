@@ -9,6 +9,14 @@ const studentReportIdSchema = z.object({
 	reportId: z.string().uuid("A valid report UUID is required."),
 });
 
+const createReportBodySchema = z.object({
+	courseUnitId: z.string().uuid(),
+	academicPeriodId: z.string().uuid(),
+	assessmentId: z.string().uuid().optional(),
+	assessmentComponent: z.string().trim().min(1).max(100),
+	description: z.string().trim().min(1).max(5000),
+}).strict();
+
 export function validateReportListQuery(req, res, next) {
 	const result = reportListQuerySchema.safeParse(req.query);
 	if (!result.success) {
@@ -32,5 +40,18 @@ export function validateStudentReportId(req, res, next) {
 	}
 
 	req.validatedParams = result.data;
+	return next();
+}
+
+export function validateCreateReportBody(req, res, next) {
+	const result = createReportBodySchema.safeParse(req.body);
+	if (!result.success) {
+		return next(Object.assign(new Error("Request validation failed"), {
+			statusCode: 400,
+			details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
+		}));
+	}
+
+	req.validatedBody = result.data;
 	return next();
 }

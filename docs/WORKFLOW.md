@@ -27,6 +27,7 @@ This is a conceptual flow, not a final enum list. The team must agree on exact s
 - A student creates a report for the relevant unit, academic period and assessment component.
 - The API validates that the student is authenticated and is entitled to report the selected academic record.
 - The student submits the report.
+- Current implementation: submission creates the report directly in `Submitted`; there is no draft flow yet. Duplicate submissions are allowed until the team agrees and documents a duplicate policy.
 - The student can track the status and view permitted messages or decisions.
 - Editing or withdrawal is allowed only in states approved by the team.
 - An appeal is accepted only when the policy and report state allow it. The previously discussed rule is a maximum of one appeal per report; confirm and enforce it server-side.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getStudentProfile, getStudentReports, getStudentReportById } from "../../src/modules/student/student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -101,4 +101,89 @@ test("returns the same not-found error for reports outside the student's scope",
 		statusCode: 404,
 		message: "Missing-mark report not found.",
 	});
+});
+
+test("submits an enrolled student's report with status history and audit atomically", async () => {
+	const input = {
+		courseUnitId: "unit-1",
+		academicPeriodId: "period-1",
+		assessmentId: "assessment-1",
+		assessmentComponent: "CAT 1",
+		description: "My CAT mark is missing.",
+	};
+	let reportData;
+	const transactionCalls = [];
+	const report = { id: "report-1", reference: "MM-2026-ABCDEF0123", status: "Submitted" };
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		unitEnrollment: {
+			findUnique: async ({ where }) => {
+				assert.deepEqual(where.studentProfileId_courseUnitId_academicPeriodId, {
+					studentProfileId: "student-1",
+					courseUnitId: "unit-1",
+					academicPeriodId: "period-1",
+				});
+				return { id: "enrollment-1" };
+			},
+		},
+		assessment: { findFirst: async () => ({ id: "assessment-1" }) },
+		$transaction: async (callback) => callback({
+			missingMarkReport: { create: async ({ data }) => { reportData = data; return report; } },
+			reportStatusHistory: { create: async ({ data }) => { transactionCalls.push({ type: "history", data }); } },
+			auditLog: { create: async ({ data }) => { transactionCalls.push({ type: "audit", data }); } },
+		}),
+	};
+
+	const result = await submitMissingMarkReport(prisma, "user-1", input);
+
+	assert.equal(result, report);
+	assert.equal(reportData.studentProfileId, "student-1");
+	assert.equal(reportData.status, "Submitted");
+	assert.match(reportData.reference, /^MM-\d{4}-[A-F0-9]{10}$/);
+	assert.equal(reportData.assessmentId, "assessment-1");
+	assert.equal(transactionCalls.length, 2);
+	assert.deepEqual(transactionCalls[0].data, {
+		reportId: "report-1",
+		actorUserId: "user-1",
+		newStatus: "Submitted",
+		reason: "Report submitted by student.",
+	});
+	assert.equal(transactionCalls[1].data.action, "REPORT_SUBMITTED");
+	assert.equal(transactionCalls[1].data.entityId, "report-1");
+});
+
+test("rejects report submission when the student is not enrolled", async () => {
+	let transactionStarted = false;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		unitEnrollment: { findUnique: async () => null },
+		$transaction: async () => { transactionStarted = true; },
+	};
+
+	await assert.rejects(submitMissingMarkReport(prisma, "user-1", {
+		courseUnitId: "unit-1",
+		academicPeriodId: "period-1",
+		assessmentComponent: "CAT 1",
+		description: "Missing mark",
+	}), { statusCode: 422 });
+	assert.equal(transactionStarted, false);
+});
+
+test("rejects an assessment that does not belong to the selected unit", async () => {
+	let transactionStarted = false;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		unitEnrollment: { findUnique: async () => ({ id: "enrollment-1" }) },
+		assessment: { findFirst: async () => null },
+		$transaction: async () => { transactionStarted = true; },
+	};
+
+	await assert.rejects(submitMissingMarkReport(prisma, "user-1", {
+		courseUnitId: "unit-1",
+		academicPeriodId: "period-1",
+		assessmentId: "assessment-elsewhere",
+		assessmentComponent: "CAT 1",
+		description: "Missing mark",
+	}), { statusCode: 422 });
+	assert.equal(transactionStarted, false);
 });

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getProfile, getReports, getReportById } from "../../src/modules/student/student.controller.js";
+import { getProfile, getReports, getReportById, createReport } from "../../src/modules/student/student.controller.js";
 
 function createResponse() {
 	return {
@@ -119,4 +119,34 @@ test("passes report-detail not-found errors to shared error handling", async () 
 
 	await getReportById(req, createResponse(), (error) => { capturedError = error; });
 	assert.equal(capturedError, expectedError);
+});
+
+test("creates a report using authenticated identity and returns 201", async () => {
+	let receivedUserId;
+	const report = { id: "report-1", status: "Submitted" };
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		unitEnrollment: { findUnique: async () => ({ id: "enrollment-1" }) },
+		$transaction: async (callback) => callback({
+			missingMarkReport: { create: async () => report },
+			reportStatusHistory: { create: async () => ({}) },
+			auditLog: { create: async () => ({}) },
+		}),
+	};
+	const req = {
+		user: { id: "user-1" },
+		app: { locals: { prisma } },
+		validatedBody: {
+			courseUnitId: "unit-1",
+			academicPeriodId: "period-1",
+			assessmentComponent: "CAT 1",
+			description: "My mark is missing.",
+		},
+	};
+	const res = createResponse();
+
+	await createReport(req, res, (error) => { throw error; });
+
+	assert.equal(res.statusCode, 201);
+	assert.deepEqual(res.body.data, report);
 });

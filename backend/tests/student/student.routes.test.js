@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
-import { validateReportListQuery, validateStudentReportId } from "../../src/modules/student/student.validation.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody } from "../../src/modules/student/student.validation.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
@@ -56,6 +56,31 @@ test("validates student report IDs as UUIDs", () => {
 	let invalidError;
 	validateStudentReportId({ params: { reportId: "bad-id" } }, {}, (error) => { invalidError = error; });
 	assert.equal(invalidError.statusCode, 400);
+});
+
+test("registers POST /reports with auth, student-role, and body validation", () => {
+	const reportsRoute = router.stack.find((layer) => layer.route?.path === "/reports" && layer.route.methods.post);
+	assert.equal(reportsRoute.route.methods.post, true);
+	assert.equal(reportsRoute.route.stack.length, 4);
+});
+
+test("validates report submission fields and rejects client identity fields", () => {
+	const req = {
+		body: {
+			courseUnitId: "550e8400-e29b-41d4-a716-446655440000",
+			academicPeriodId: "550e8400-e29b-41d4-a716-446655440001",
+			assessmentComponent: "CAT 1",
+			description: "My CAT mark is missing.",
+		},
+	};
+	let validationError;
+	validateCreateReportBody(req, {}, (error) => { validationError = error; });
+	assert.equal(validationError, undefined);
+	assert.equal(req.validatedBody.assessmentId, undefined);
+
+	let identityError;
+	validateCreateReportBody({ body: { ...req.body, studentProfileId: "forged" } }, {}, (error) => { identityError = error; });
+	assert.equal(identityError.statusCode, 400);
 });
 test("student-role middleware rejects other roles", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
