@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getProfile, getReports } from "../../src/modules/student/student.controller.js";
+import { getProfile, getReports, getReportById } from "../../src/modules/student/student.controller.js";
 
 function createResponse() {
 	return {
@@ -80,5 +80,43 @@ test("passes report-list service errors to shared error handling", async () => {
 	let capturedError;
 
 	await getReports(req, createResponse(), (error) => { capturedError = error; });
+	assert.equal(capturedError, expectedError);
+});
+
+test("returns the authenticated student's report detail", async () => {
+	const report = { id: "report-1", reference: "MM-001", status: "Submitted" };
+	let receivedArguments;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-profile-1" }) },
+		missingMarkReport: { findFirst: async () => report },
+	};
+	const req = {
+		user: { id: "user-1" },
+		app: { locals: { prisma } },
+		params: { reportId: "report-1" },
+	};
+	const res = createResponse();
+
+	await getReportById(req, res, (error) => { receivedArguments = error; });
+
+	assert.equal(receivedArguments, undefined);
+	assert.equal(res.statusCode, 200);
+	assert.deepEqual(res.body.data, report);
+});
+
+test("passes report-detail not-found errors to shared error handling", async () => {
+	const expectedError = Object.assign(new Error("Missing-mark report not found."), { statusCode: 404 });
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-profile-1" }) },
+		missingMarkReport: { findFirst: async () => { throw expectedError; } },
+	};
+	const req = {
+		user: { id: "user-1" },
+		app: { locals: { prisma } },
+		params: { reportId: "report-1" },
+	};
+	let capturedError;
+
+	await getReportById(req, createResponse(), (error) => { capturedError = error; });
 	assert.equal(capturedError, expectedError);
 });

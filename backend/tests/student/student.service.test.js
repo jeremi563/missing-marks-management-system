@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getStudentProfile, getStudentReports } from "../../src/modules/student/student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -74,4 +74,31 @@ test("does not query reports when the authenticated user has no student profile"
 
 	await assert.rejects(getStudentReports(prisma, "user-1"), { statusCode: 404 });
 	assert.equal(reportQueryCalled, false);
+});
+
+test("loads report details only when both report ID and student profile match", async () => {
+	const report = { id: "report-1", reference: "MM-001", status: "Submitted" };
+	let reportQuery;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-profile-1" }) },
+		missingMarkReport: {
+			findFirst: async (query) => { reportQuery = query; return report; },
+		},
+	};
+
+	const result = await getStudentReportById(prisma, "user-1", "report-1");
+
+	assert.deepEqual(reportQuery.where, { id: "report-1", studentProfileId: "student-profile-1" });
+	assert.deepEqual(result, report);
+});
+
+test("returns the same not-found error for reports outside the student's scope", async () => {
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-profile-1" }) },
+		missingMarkReport: { findFirst: async () => null },
+	};
+	await assert.rejects(getStudentReportById(prisma, "user-1", "other-student-report"), {
+		statusCode: 404,
+		message: "Missing-mark report not found.",
+	});
 });
