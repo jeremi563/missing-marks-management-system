@@ -68,6 +68,8 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 | POST | `/api/v1/student/reports/:id/appeals` | Submit an appeal where permitted. |
 | GET | `/api/v1/student/attendance` | View own permitted attendance information. |
 
+`GET /api/v1/student/profile` is implemented. It requires the `student` role and derives the profile lookup from the authenticated user ID; clients cannot choose another student ID. The other student routes remain planned until implemented and tested.
+
 ### Lecturer
 
 | Method | Path | Purpose |
