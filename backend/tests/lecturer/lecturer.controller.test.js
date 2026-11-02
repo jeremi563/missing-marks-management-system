@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import {
   getReports,
   getReportById,
+  getComments,
+  addComment,
 } from '../../src/modules/lecturer/lecturer.controller.js';
 
 const createResponse = () => {
@@ -203,6 +205,214 @@ test('passes report details service errors to the error handler', async () => {
   let capturedError;
 
   await getReportById(req, res, (error) => {
+    capturedError = error;
+  });
+
+  assert.equal(capturedError, expectedError);
+});
+// Feature 3: Report comments controller tests
+
+const createCommentControllerPrisma = () => ({
+  lecturerProfile: {
+    findUnique: async () => ({ id: 'lecturer-1' }),
+  },
+
+  missingMarkReport: {
+    findFirst: async () => ({ id: 'report-1' }),
+  },
+
+  reportComment: {
+    findMany: async () => [
+      {
+        id: 'comment-1',
+        body: 'Please clarify the missing mark.',
+        createdAt: new Date('2026-11-02T08:00:00.000Z'),
+        author: {
+          id: 'user-1',
+          displayName: 'Demo Lecturer',
+          roles: [
+  {
+    role: {
+      name: 'lecturer',
+    },
+  },
+],
+        },
+      },
+    ],
+
+    create: async ({ data }) => ({
+      id: 'comment-2',
+      body: data.body,
+      createdAt: new Date('2026-11-02T09:00:00.000Z'),
+      author: {
+        id: data.authorUserId,
+        displayName: 'Demo Lecturer',
+        roles: [
+  {
+    role: {
+      name: 'lecturer',
+    },
+  },
+],
+      },
+    }),
+  },
+});
+
+test('returns 401 when comment retrieval authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+  };
+
+  const res = createResponse();
+
+  await getComments(req, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.success, false);
+});
+
+test('returns 500 when Prisma is unavailable for comment retrieval', async () => {
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+  };
+
+  const res = createResponse();
+
+  await getComments(req, res, () => {});
+
+  assert.equal(res.statusCode, 500);
+});
+
+test('retrieves report comments successfully', async () => {
+  const prisma = createCommentControllerPrisma();
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { reportId: 'report-1' },
+  };
+
+  const res = createResponse();
+
+  await getComments(req, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.count, 1);
+  assert.equal(
+    res.body.data[0].body,
+    'Please clarify the missing mark.'
+  );
+});
+
+test('passes comment retrieval errors to the error handler', async () => {
+  const expectedError = new Error('Database failure');
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => {
+        throw expectedError;
+      },
+    },
+  };
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { reportId: 'report-1' },
+  };
+
+  const res = createResponse();
+  let capturedError;
+
+  await getComments(req, res, (error) => {
+    capturedError = error;
+  });
+
+  assert.equal(capturedError, expectedError);
+});
+
+test('returns 401 when comment creation authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+    body: { body: 'Please clarify the missing mark.' },
+  };
+
+  const res = createResponse();
+
+  await addComment(req, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+});
+
+test('returns 500 when Prisma is unavailable for comment creation', async () => {
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+    body: { body: 'Please clarify the missing mark.' },
+  };
+
+  const res = createResponse();
+
+  await addComment(req, res, () => {});
+
+  assert.equal(res.statusCode, 500);
+});
+
+test('creates a report comment successfully', async () => {
+  const prisma = createCommentControllerPrisma();
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { reportId: 'report-1' },
+    body: { body: 'Please clarify the missing mark.' },
+  };
+
+  const res = createResponse();
+
+  await addComment(req, res, () => {});
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.success, true);
+  assert.equal(
+    res.body.data.body,
+    'Please clarify the missing mark.'
+  );
+  assert.equal(res.body.data.author.id, 'user-1');
+});
+
+test('passes comment creation errors to the error handler', async () => {
+  const expectedError = new Error('Database failure');
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => {
+        throw expectedError;
+      },
+    },
+  };
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { reportId: 'report-1' },
+    body: { body: 'Please clarify the missing mark.' },
+  };
+
+  const res = createResponse();
+  let capturedError;
+
+  await addComment(req, res, (error) => {
     capturedError = error;
   });
 

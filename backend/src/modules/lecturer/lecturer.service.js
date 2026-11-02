@@ -177,3 +177,136 @@ export const getAssignedReportById = async (
 
   return report;
 };
+//feature 3:: report investigation and comments
+// Feature 3: Report investigation and comments
+
+const getAssignedReportForComments = async (
+  prisma,
+  lecturerUserId,
+  reportId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: {
+      userId: lecturerUserId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const report = await prisma.missingMarkReport.findFirst({
+    where: {
+      id: reportId,
+      assignedLecturerProfileId: lecturer.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!report) {
+    const error = new Error('Missing-mark report not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return report;
+};
+
+const commentAuthorSelection = {
+  id: true,
+  displayName: true,
+  roles: {
+    select: {
+      role: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  },
+};
+
+export const getReportComments = async (
+  prisma,
+  lecturerUserId,
+  reportId
+) => {
+  const report = await getAssignedReportForComments(
+    prisma,
+    lecturerUserId,
+    reportId
+  );
+
+  const comments = await prisma.reportComment.findMany({
+    where: {
+      reportId: report.id,
+    },
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      author: {
+        select: commentAuthorSelection,
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+
+  return comments.map((comment) => ({
+    ...comment,
+    author: {
+      ...comment.author,
+      roles: comment.author.roles.map(
+        (userRole) => userRole.role.name
+      ),
+    },
+  }));
+};
+
+export const createReportComment = async (
+  prisma,
+  lecturerUserId,
+  reportId,
+  body
+) => {
+  const report = await getAssignedReportForComments(
+    prisma,
+    lecturerUserId,
+    reportId
+  );
+
+  const comment = await prisma.reportComment.create({
+    data: {
+      reportId: report.id,
+      authorUserId: lecturerUserId,
+      body,
+    },
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      author: {
+        select: commentAuthorSelection,
+      },
+    },
+  });
+
+  return {
+    ...comment,
+    author: {
+      ...comment.author,
+      roles: comment.author.roles.map(
+        (userRole) => userRole.role.name
+      ),
+    },
+  };
+};
