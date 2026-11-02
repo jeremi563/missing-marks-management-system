@@ -18,3 +18,15 @@ test("student profile route is mounted and requires authentication", async () =>
 		await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 	}
 });
+
+test("student reports route is mounted and requires authentication", async () => {
+	const server = app.listen(0);
+	try {
+		const address = server.address();
+		const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/student/reports`);
+		assert.equal(response.status, 401);
+		assert.equal((await response.json()).success, false);
+	} finally {
+		await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+	}
+});
