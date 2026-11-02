@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
-import { validateReportListQuery } from "../../src/modules/student/student.validation.js";
+import { validateReportListQuery, validateStudentReportId } from "../../src/modules/student/student.validation.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
@@ -39,6 +39,24 @@ test("rejects out-of-range and unknown report-list query parameters", () => {
 	}
 });
 
+test("registers GET /reports/:reportId with auth, student-role, and UUID validation", () => {
+	const reportRoute = router.stack.find((layer) => layer.route?.path === "/reports/:reportId");
+	assert.ok(reportRoute);
+	assert.equal(reportRoute.route.methods.get, true);
+	assert.equal(reportRoute.route.stack.length, 4);
+});
+
+test("validates student report IDs as UUIDs", () => {
+	let validError;
+	const validRequest = { params: { reportId: "550e8400-e29b-41d4-a716-446655440000" } };
+	validateStudentReportId(validRequest, {}, (error) => { validError = error; });
+	assert.equal(validError, undefined);
+	assert.deepEqual(validRequest.validatedParams, validRequest.params);
+
+	let invalidError;
+	validateStudentReportId({ params: { reportId: "bad-id" } }, {}, (error) => { invalidError = error; });
+	assert.equal(invalidError.statusCode, 400);
+});
 test("student-role middleware rejects other roles", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
 	const authorizeStudent = profileRoute.route.stack[1].handle;
