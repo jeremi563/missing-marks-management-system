@@ -8,6 +8,7 @@ import {
   getReportById,
   getComments,
   addComment,
+  submitDecision,
 } from '../../src/modules/lecturer/lecturer.controller.js';
 
 const createResponse = () => {
@@ -413,6 +414,125 @@ test('passes comment creation errors to the error handler', async () => {
   let capturedError;
 
   await addComment(req, res, (error) => {
+    capturedError = error;
+  });
+
+  assert.equal(capturedError, expectedError);
+});
+
+// Feature 4: Report decision controller tests
+
+const createDecisionControllerPrisma = () => ({
+  lecturerProfile: {
+    findUnique: async () => ({ id: 'lecturer-1' }),
+  },
+
+  missingMarkReport: {
+    findFirst: async () => ({
+      id: 'report-1',
+      reference: 'MM-001',
+      status: 'pending',
+    }),
+  },
+
+  $transaction: async (callback) =>
+    callback({
+      missingMarkReport: {
+        updateMany: async () => ({ count: 1 }),
+      },
+
+      reportStatusHistory: {
+        create: async ({ data }) => ({
+          id: 'history-1',
+          previousStatus: data.previousStatus,
+          newStatus: data.newStatus,
+          reason: data.reason,
+          createdAt: new Date(),
+        }),
+      },
+    }),
+});
+
+test('returns 401 when decision authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+    body: { decision: 'APPROVE', reason: 'Verified.' },
+  };
+
+  const res = createResponse();
+
+  await submitDecision(req, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+});
+
+test('returns 500 when Prisma is unavailable for a decision', async () => {
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+    body: { decision: 'APPROVE', reason: 'Verified.' },
+  };
+
+  const res = createResponse();
+
+  await submitDecision(req, res, () => {});
+
+  assert.equal(res.statusCode, 500);
+});
+
+test('submits an approval decision successfully', async () => {
+  const prisma = createDecisionControllerPrisma();
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { reportId: 'report-1' },
+    body: {
+      decision: 'APPROVE',
+      reason: 'The submitted evidence has been verified.',
+    },
+  };
+
+  const res = createResponse();
+
+  await submitDecision(req, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.data.decision, 'APPROVE');
+  assert.equal(res.body.data.status, 'APPROVED');
+  assert.equal(res.body.data.history.reason,
+    'The submitted evidence has been verified.');
+});
+
+test('passes decision submission errors to the error handler', async () => {
+  const expectedError = new Error('Database failure');
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => {
+        throw expectedError;
+      },
+    },
+  };
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { reportId: 'report-1' },
+    body: {
+      decision: 'REJECT',
+      reason: 'The evidence is insufficient.',
+    },
+  };
+
+  const res = createResponse();
+  let capturedError;
+
+  await submitDecision(req, res, (error) => {
     capturedError = error;
   });
 

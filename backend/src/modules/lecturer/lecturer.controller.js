@@ -4,6 +4,7 @@ import {
   getAssignedReportById,
   getReportComments,
   createReportComment,
+  submitReportDecision,
 } from './lecturer.service.js';
 
 export const getReports = async (req, res, next) => {
@@ -155,6 +156,48 @@ export const addComment = async (req, res, next) => {
       success: true,
       message: 'Report comment added successfully.',
       data: comment,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Feature 4: Submit a lecturer decision on an assigned report
+
+export const submitDecision = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const { decision, reason } = req.body;
+
+    const result = await submitReportDecision(
+      prisma,
+      lecturerUserId,
+      req.params.reportId,
+      decision,
+      reason
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Report decision submitted successfully.',
+      data: result,
     });
   } catch (error) {
     next(error);

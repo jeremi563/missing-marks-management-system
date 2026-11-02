@@ -9,11 +9,13 @@ import {
   getReportById,
   getComments,
   addComment,
+  submitDecision,
 } from './lecturer.controller.js';
 
 import {
   reportIdSchema,
   createCommentSchema,
+  submitDecisionSchema,
 } from './lecturer.validation.js';
 
 const router = express.Router();
@@ -54,4 +56,18 @@ router.post(
   validate(createCommentSchema, 'body'),
   addComment
 );
+
+// Feature 4: Submit decision for a specific report
+
+
+// POST /api/v1/lecturer/reports/:reportId/decision
+router.post(
+  '/reports/:reportId/decision',
+  authenticate,
+  authorize('lecturer'),
+  validate(reportIdSchema, 'params'),
+  validate(submitDecisionSchema, 'body'),
+  submitDecision
+);
+
 export default router;
