@@ -8,6 +8,7 @@ import {
   getReportComments,
   createReportComment,
   submitReportDecision,
+  submitMarkCorrection,
 } from '../../src/modules/lecturer/lecturer.service.js';
 
 const createMockPrisma = ({
@@ -608,4 +609,270 @@ test('does not complete the transaction when audit history creation fails', asyn
       message: 'Audit history failure',
     }
   );
+});
+
+// Feature 5: Mark-correction proposal test helper
+
+const createCorrectionPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  report = {
+    id: 'report-1',
+    reference: 'MM-001',
+    status: 'APPROVED',
+    assessment: {
+      maximumMarks: 100,
+    },
+  },
+  existingCorrection = null,
+  createFailure = null,
+} = {}) => {
+  const calls = {};
+
+  const transaction = {
+    markCorrection: {
+      findFirst: async (args) => {
+        calls.existingCorrectionArgs = args;
+        return existingCorrection;
+      },
+
+      create: async (args) => {
+        calls.correctionCreateArgs = args;
+
+        if (createFailure) {
+          throw createFailure;
+        }
+
+        return {
+          id: 'correction-1',
+          ...args.data,
+          createdAt: new Date('2026-11-02T09:00:00.000Z'),
+        };
+      },
+    },
+  };
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => lecturer,
+    },
+
+    missingMarkReport: {
+      findFirst: async (args) => {
+        calls.findFirstArgs = args;
+        return report;
+      },
+    },
+
+    $transaction: async (callback) => {
+      calls.transactionStarted = true;
+      return callback(transaction);
+    },
+  };
+
+  return { prisma, calls };
+};
+
+// Feature 5: Mark-correction proposal tests
+
+test('submits a correction proposal for an approved assigned report', async () => {
+  const { prisma, calls } = createCorrectionPrisma();
+
+  const result = await submitMarkCorrection(
+    prisma,
+    'user-1',
+    'report-1',
+    75.50,
+    'The original mark was recorded incorrectly.'
+  );
+
+  assert.equal(result.reportId, 'report-1');
+  assert.equal(result.reference, 'MM-001');
+  assert.equal(result.correction.status, 'PENDING_REVIEW');
+  assert.equal(result.correction.proposedValue, 75.50);
+
+  assert.equal(
+    calls.correctionCreateArgs.data.proposedByLecturerId,
+    'lecturer-1'
+  );
+
+  assert.equal(calls.correctionCreateArgs.data.originalValue, null);
+  assert.equal(calls.transactionStarted, true);
+});
+
+test('rejects correction proposals when the lecturer profile does not exist', async () => {
+  const { prisma, calls } = createCorrectionPrisma({
+    lecturer: null,
+  });
+
+  await assert.rejects(
+    () => submitMarkCorrection(
+      prisma,
+      'user-2',
+      'report-1',
+      75,
+      'Correction required.'
+    ),
+    {
+      message: 'Lecturer profile not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.findFirstArgs, undefined);
+});
+
+test('rejects correction proposals for unassigned or nonexistent reports', async () => {
+  const { prisma, calls } = createCorrectionPrisma({
+    report: null,
+  });
+
+  await assert.rejects(
+    () => submitMarkCorrection(
+      prisma,
+      'user-1',
+      'report-2',
+      75,
+      'Correction required.'
+    ),
+    {
+      message: 'Missing-mark report not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects correction proposals for reports that are not approved', async () => {
+  const { prisma, calls } = createCorrectionPrisma({
+    report: {
+      id: 'report-1',
+      reference: 'MM-001',
+      status: 'PENDING',
+      assessment: { maximumMarks: 100 },
+    },
+  });
+
+  await assert.rejects(
+    () => submitMarkCorrection(
+      prisma,
+      'user-1',
+      'report-1',
+      75,
+      'Correction required.'
+    ),
+    {
+      message: 'Mark corrections can only be proposed for approved reports.',
+      statusCode: 409,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects proposals exceeding the assessment maximum mark', async () => {
+  const { prisma, calls } = createCorrectionPrisma();
+
+  await assert.rejects(
+    () => submitMarkCorrection(
+      prisma,
+      'user-1',
+      'report-1',
+      105,
+      'Correction required.'
+    ),
+    {
+      message: 'Proposed mark cannot exceed the assessment maximum.',
+      statusCode: 400,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects proposals when the assessment maximum mark is unavailable', async () => {
+  const { prisma, calls } = createCorrectionPrisma({
+    report: {
+      id: 'report-1',
+      reference: 'MM-001',
+      status: 'APPROVED',
+      assessment: { maximumMarks: null },
+    },
+  });
+
+  await assert.rejects(
+    () => submitMarkCorrection(
+      prisma,
+      'user-1',
+      'report-1',
+      75,
+      'Correction required.'
+    ),
+    {
+      message: 'The assessment maximum mark is unavailable.',
+      statusCode: 422,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects a second outstanding correction proposal', async () => {
+  const { prisma, calls } = createCorrectionPrisma({
+    existingCorrection: { id: 'correction-existing' },
+  });
+
+  await assert.rejects(
+    () => submitMarkCorrection(
+      prisma,
+      'user-1',
+      'report-1',
+      80,
+      'Another correction required.'
+    ),
+    {
+      message: 'An outstanding correction proposal already exists for this report.',
+      statusCode: 409,
+    }
+  );
+
+  assert.equal(calls.transactionStarted, true);
+  assert.equal(calls.correctionCreateArgs, undefined);
+});
+
+test('allows a new proposal after the previous proposal was rejected', async () => {
+  const { prisma, calls } = createCorrectionPrisma({
+    existingCorrection: null,
+  });
+
+  const result = await submitMarkCorrection(
+    prisma,
+    'user-1',
+    'report-1',
+    85,
+    'Submitting a revised correction proposal.'
+  );
+
+  assert.equal(result.correction.status, 'PENDING_REVIEW');
+  assert.equal(calls.correctionCreateArgs.data.proposedValue, 85);
+});
+
+test('rejects negative and non-finite proposed marks', async () => {
+  for (const proposedValue of [-1, NaN, Infinity, -Infinity]) {
+    const { prisma } = createCorrectionPrisma();
+
+    await assert.rejects(
+      () => submitMarkCorrection(
+        prisma,
+        'user-1',
+        'report-1',
+        proposedValue,
+        'Correction required.'
+      ),
+      {
+        message: 'Invalid proposed mark.',
+        statusCode: 400,
+      }
+    );
+  }
 });

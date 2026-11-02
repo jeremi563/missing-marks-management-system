@@ -6,6 +6,7 @@ import {
   reportIdSchema,
   createCommentSchema,
   submitDecisionSchema,
+  submitCorrectionSchema,
 } from '../../src/modules/lecturer/lecturer.validation.js';
 
 test('accepts a valid report UUID', () => {
@@ -172,6 +173,105 @@ test('accepts a decision reason containing exactly 2000 characters', () => {
 test('rejects a decision reason exceeding 2000 characters', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'APPROVE',
+    reason: 'a'.repeat(2001),
+  });
+
+  assert.equal(result.success, false);
+});
+// Feature 5: Mark-correction proposal validation
+
+test('accepts a valid mark-correction proposal', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75.50,
+    reason: 'The original mark was recorded incorrectly.',
+  });
+
+  assert.equal(result.success, true);
+});
+
+test('accepts a whole-number proposed mark', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75,
+    reason: 'Verified against the assessment records.',
+  });
+
+  assert.equal(result.success, true);
+});
+
+test('accepts a proposed mark with two decimal places', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75.25,
+    reason: 'Verified correction.',
+  });
+
+  assert.equal(result.success, true);
+});
+
+test('rejects a negative proposed mark', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: -5,
+    reason: 'Correction required.',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a proposed mark with more than two decimal places', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75.255,
+    reason: 'Correction required.',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a non-numeric proposed mark', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: '75',
+    reason: 'Correction required.',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a missing proposed mark', () => {
+  const result = submitCorrectionSchema.safeParse({
+    reason: 'Correction required.',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a missing correction reason', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75,
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects an empty correction reason', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75,
+    reason: '',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('trims whitespace around a correction reason', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75,
+    reason: '  Verified correction.  ',
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(result.data.reason, 'Verified correction.');
+});
+
+test('rejects a correction reason exceeding 2000 characters', () => {
+  const result = submitCorrectionSchema.safeParse({
+    proposedValue: 75,
     reason: 'a'.repeat(2001),
   });
 

@@ -423,3 +423,138 @@ export const submitReportDecision = async (
     };
   });
 };
+
+// Feature 5: Mark-correction proposal submission
+
+export const submitMarkCorrection = async (
+  prisma,
+  lecturerUserId,
+  reportId,
+  proposedValue,
+  reason
+) => {
+  if (
+    typeof proposedValue !== 'number' ||
+    !Number.isFinite(proposedValue) ||
+    proposedValue < 0
+  ) {
+    const error = new Error('Invalid proposed mark.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: {
+      userId: lecturerUserId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const report = await prisma.missingMarkReport.findFirst({
+    where: {
+      id: reportId,
+      assignedLecturerProfileId: lecturer.id,
+    },
+    select: {
+      id: true,
+      reference: true,
+      status: true,
+      assessment: {
+        select: {
+          maximumMarks: true,
+        },
+      },
+    },
+  });
+
+  if (!report) {
+    const error = new Error('Missing-mark report not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (
+    typeof report.status !== 'string' ||
+    report.status.toUpperCase() !== 'APPROVED'
+  ) {
+    const error = new Error(
+      'Mark corrections can only be proposed for approved reports.'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const maximumMarks = report.assessment?.maximumMarks;
+
+  if (maximumMarks === null || maximumMarks === undefined) {
+    const error = new Error(
+      'The assessment maximum mark is unavailable.'
+    );
+    error.statusCode = 422;
+    throw error;
+  }
+
+  if (proposedValue > Number(maximumMarks)) {
+    const error = new Error(
+      'Proposed mark cannot exceed the assessment maximum.'
+    );
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const existingCorrection =
+      await transaction.markCorrection.findFirst({
+        where: {
+          reportId: report.id,
+          status: 'PENDING_REVIEW',
+        },
+        select: {
+          id: true,
+        },
+      });
+
+    if (existingCorrection) {
+      const error = new Error(
+        'An outstanding correction proposal already exists for this report.'
+      );
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const correction = await transaction.markCorrection.create({
+      data: {
+        reportId: report.id,
+        proposedByLecturerId: lecturer.id,
+        originalValue: null,
+        proposedValue,
+        status: 'PENDING_REVIEW',
+        reason,
+      },
+      select: {
+        id: true,
+        reportId: true,
+        proposedByLecturerId: true,
+        originalValue: true,
+        proposedValue: true,
+        status: true,
+        reason: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      reportId: report.id,
+      reference: report.reference,
+      correction,
+    };
+  });
+};
