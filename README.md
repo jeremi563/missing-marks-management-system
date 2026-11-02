@@ -49,14 +49,102 @@ See `backend/README.md` for backend setup instructions and `docs/CONTRIBUTION.md
 
 ## Getting started
 
-### 1. Clone the repository
+### 1. Clone the repository and prepare PostgreSQL
 
 ```bash
 git clone <repository-url>
 cd missing-marks-management-system
 ```
 
-### 2. Read the project guides
+Install Node.js 20.19 or newer, npm, and PostgreSQL. Start PostgreSQL and create a local development database named `missing_marks`. On Linux, macOS, or Windows where PostgreSQL's command-line tools are on `PATH`, run `createdb missing_marks`; on Windows the executable may be named `createdb.exe`. Alternatively, create the database in pgAdmin. Do not use a production or shared database for local development.
+
+### 2. Configure and install the backend
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+```
+
+The commands above work in Linux/macOS shells and Windows PowerShell, except the file-copy command. In PowerShell, use:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `backend/.env` and set:
+
+- `DATABASE_URL` to your local PostgreSQL connection. URL-encode special characters in the username or password.
+- `JWT_SECRET` to a private random value of at least 32 characters.
+- `PORT` if port `3000` is already in use.
+- `DEMO_SEED_PASSWORD` to a non-production password of at least 12 characters if you plan to seed demo accounts.
+
+Never commit or share `.env`. It is ignored by Git.
+
+### 3. Apply the database migrations
+
+From the `backend/` directory, validate the schema, generate Prisma Client, check migration status, then apply the committed migrations to your local development database:
+
+```bash
+npm run db:validate
+npm run db:generate
+npm run db:migrate:status
+npm run db:migrate:dev
+```
+
+The first migration creates the shared database tables. When `migrate dev` reports that the database is up to date, migrations are applied. Do not edit the database manually or create a separate schema for your role module. Coordinate future schema changes and migrations with the team lead.
+
+### 4. Add synthetic demo data (optional)
+
+After setting `DEMO_SEED_PASSWORD` in `.env`, run:
+
+```bash
+npm run db:seed
+```
+
+The seed creates clearly labelled demo accounts, department, unit, period, lecturer mapping and student enrollment. The demo accounts use the password you set in `DEMO_SEED_PASSWORD`. Never seed real student information.
+
+### 5. Start and check the API
+
+From `backend/`:
+
+```bash
+npm run dev
+```
+
+The API listens at `http://localhost:3000` by default. In another terminal, check the health endpoint:
+
+```bash
+curl http://localhost:3000/health
+```
+
+In Windows PowerShell, use either:
+
+```powershell
+Invoke-RestMethod http://localhost:3000/health
+```
+
+or `curl.exe http://localhost:3000/health` to call the Windows curl executable explicitly.
+
+Expected response:
+
+```json
+{"success":true,"data":{"status":"ok"}}
+```
+
+The shared API foundation currently includes health and authentication routes (`/api/v1/auth/login`, `/logout`, `/me`). Role-specific student, lecturer, COD and administrator workflows are still being developed; the complete product is not yet available end to end.
+
+### 6. Run tests
+
+From `backend/`:
+
+```bash
+npm test
+```
+
+For deployment, use `npx prisma migrate deploy` to apply committed migrations. Never use `migrate dev` against production.
+
+### 7. Read the project guides
 
 Read these before implementing a feature:
 
@@ -66,13 +154,7 @@ Read these before implementing a feature:
 4. `docs/DATABASE.md`
 5. `CONTRIBUTING.md`
 
-### 3. Set up the backend
-
-Follow [`backend/README.md`](backend/README.md). Use the shared Prisma schema and migrations; do not create a separate database or independent schema for a role module.
-
-### 4. Set up the frontend
-
-Frontend setup instructions will be added when the React application is initialized.
+See [`backend/README.md`](backend/README.md) for additional backend details. The frontend is maintained separately; its setup instructions will be added when the React application is initialized.
 
 ## Team module ownership
 
