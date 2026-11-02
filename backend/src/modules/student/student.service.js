@@ -1,3 +1,5 @@
+import { generateReference } from "../../shared/utils/generate-reference.js";
+
 export async function getStudentProfile(prisma, userId) {
 	const profile = await prisma.studentProfile.findUnique({
 		where: { userId },
@@ -115,4 +117,96 @@ export async function getStudentReportById(prisma, userId, reportId) {
 	}
 
 	return report;
+}
+
+export async function submitMissingMarkReport(prisma, userId, input) {
+	const student = await prisma.studentProfile.findUnique({
+		where: { userId },
+		select: { id: true },
+	});
+
+	if (!student) {
+		const error = new Error("Student profile not found.");
+		error.statusCode = 404;
+		throw error;
+	}
+
+	const enrollment = await prisma.unitEnrollment.findUnique({
+		where: {
+			studentProfileId_courseUnitId_academicPeriodId: {
+				studentProfileId: student.id,
+				courseUnitId: input.courseUnitId,
+				academicPeriodId: input.academicPeriodId,
+			},
+		},
+		select: { id: true },
+	});
+
+	if (!enrollment) {
+		const error = new Error("You are not enrolled in the selected course unit and academic period.");
+		error.statusCode = 422;
+		throw error;
+	}
+
+	if (input.assessmentId) {
+		const assessment = await prisma.assessment.findFirst({
+			where: { id: input.assessmentId, courseUnitId: input.courseUnitId },
+			select: { id: true },
+		});
+		if (!assessment) {
+			const error = new Error("The selected assessment does not belong to the selected course unit.");
+			error.statusCode = 422;
+			throw error;
+		}
+	}
+
+	const submittedAt = new Date();
+	return prisma.$transaction(async (transaction) => {
+		const report = await transaction.missingMarkReport.create({
+			data: {
+				reference: generateReference(submittedAt),
+				studentProfileId: student.id,
+				courseUnitId: input.courseUnitId,
+				academicPeriodId: input.academicPeriodId,
+				assessmentId: input.assessmentId,
+				assessmentComponent: input.assessmentComponent,
+				description: input.description,
+				status: "Submitted",
+				submittedAt,
+			},
+			select: {
+				id: true,
+				reference: true,
+				assessmentComponent: true,
+				description: true,
+				status: true,
+				submittedAt: true,
+				createdAt: true,
+				courseUnit: { select: { id: true, code: true, name: true } },
+				academicPeriod: { select: { id: true, code: true, name: true } },
+				assessment: { select: { id: true, code: true, name: true, type: true } },
+			},
+		});
+
+		await transaction.reportStatusHistory.create({
+			data: {
+				reportId: report.id,
+				actorUserId: userId,
+				newStatus: "Submitted",
+				reason: "Report submitted by student.",
+			},
+		});
+
+		await transaction.auditLog.create({
+			data: {
+				actorId: userId,
+				action: "REPORT_SUBMITTED",
+				entityType: "MissingMarkReport",
+				entityId: report.id,
+				metadata: { reference: report.reference },
+			},
+		});
+
+		return report;
+	});
 }
