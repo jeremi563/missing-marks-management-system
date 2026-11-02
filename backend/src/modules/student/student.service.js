@@ -104,6 +104,14 @@ export async function getStudentReportById(prisma, userId, reportId) {
 			submittedAt: true,
 			createdAt: true,
 			updatedAt: true,
+			statusHistory: {
+				select: {
+					previousStatus: true,
+					newStatus: true,
+					createdAt: true,
+				},
+				orderBy: { createdAt: "asc" },
+			},
 			courseUnit: { select: { id: true, code: true, name: true } },
 			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
 			assessment: { select: { id: true, code: true, name: true, type: true } },
