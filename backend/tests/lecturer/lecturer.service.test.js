@@ -2,7 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { getAssignedReports } from '../../src/modules/lecturer/lecturer.service.js';
+import {
+  getAssignedReports,
+  getAssignedReportById,
+} from '../../src/modules/lecturer/lecturer.service.js';
 
 const createMockPrisma = ({
   lecturer = { id: 'lecturer-1' },
@@ -34,6 +37,36 @@ const createMockPrisma = ({
   return { prisma, calls };
 };
 
+// Test cases for feature 2 :: Retrieve individual missing mark report
+const createReportDetailsPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  report = {
+    id: 'report-1',
+    reference: 'MM-001',
+    status: 'PENDING',
+    student: { studentNumber: 'STU-001' },
+    courseUnit: { code: 'CSC101', name: 'Programming' },
+    academicPeriod: { name: '2026 Semester 1' },
+    assessment: { name: 'CAT 1', type: 'CAT' },
+  },
+} = {}) => {
+  const calls = {};
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => lecturer,
+    },
+
+    missingMarkReport: {
+      findFirst: async (args) => {
+        calls.findFirstArgs = args;
+        return report;
+      },
+    },
+  };
+
+  return { prisma, calls };
+};
 test('retrieves reports assigned to the lecturer', async () => {
   const reports = [
     { id: 'report-1', reference: 'MM-001', status: 'PENDING' },
@@ -96,6 +129,54 @@ test('rejects users without lecturer profiles', async () => {
 
   await assert.rejects(
     () => getAssignedReports(prisma, 'user-2'),
+    {
+      message: 'Lecturer profile not found.',
+      statusCode: 404,
+    }
+  );
+});
+test('retrieves details of a report assigned to the lecturer', async () => {
+  const { prisma, calls } = createReportDetailsPrisma();
+
+  const result = await getAssignedReportById(
+    prisma,
+    'user-1',
+    'report-1'
+  );
+
+  assert.equal(result.reference, 'MM-001');
+  assert.equal(result.student.studentNumber, 'STU-001');
+  assert.equal(result.courseUnit.code, 'CSC101');
+  assert.equal(result.academicPeriod.name, '2026 Semester 1');
+  assert.equal(result.assessment.name, 'CAT 1');
+
+  assert.deepEqual(calls.findFirstArgs.where, {
+    id: 'report-1',
+    assignedLecturerProfileId: 'lecturer-1',
+  });
+});
+
+test('returns 404 when report does not exist or is not assigned', async () => {
+  const { prisma } = createReportDetailsPrisma({
+    report: null,
+  });
+
+  await assert.rejects(
+    () => getAssignedReportById(prisma, 'user-1', 'report-2'),
+    {
+      message: 'Missing-mark report not found.',
+      statusCode: 404,
+    }
+  );
+});
+
+test('rejects users without lecturer profiles when retrieving report details', async () => {
+  const { prisma } = createReportDetailsPrisma({
+    lecturer: null,
+  });
+
+  await assert.rejects(
+    () => getAssignedReportById(prisma, 'user-2', 'report-1'),
     {
       message: 'Lecturer profile not found.',
       statusCode: 404,

@@ -91,3 +91,89 @@ export const getAssignedReports = async (
     },
   };
 };
+
+//individual missing marks details  :: feature 2
+
+export const getAssignedReportById = async (
+  prisma,
+  lecturerUserId,
+  reportId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: {
+      userId: lecturerUserId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const report = await prisma.missingMarkReport.findFirst({
+    where: {
+      id: reportId,
+      assignedLecturerProfileId: lecturer.id,
+    },
+    select: {
+      id: true,
+      reference: true,
+      assessmentComponent: true,
+      description: true,
+      status: true,
+      submittedAt: true,
+      createdAt: true,
+      updatedAt: true,
+
+      student: {
+        select: {
+          id: true,
+          studentNumber: true,
+        },
+      },
+
+      courseUnit: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+
+      academicPeriod: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          startsAt: true,
+          endsAt: true,
+        },
+      },
+
+      assessment: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          assessmentDate: true,
+          maximumMarks: true,
+        },
+      },
+    },
+  });
+
+  if (!report) {
+    const error = new Error(
+      'Missing-mark report not found.'
+    );
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return report;
+};
