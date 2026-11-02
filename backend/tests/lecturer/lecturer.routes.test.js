@@ -130,3 +130,40 @@ test('applies authentication, authorization, UUID validation and decision body v
     assert.equal(typeof handler.handle, 'function');
   }
 });
+
+// Feature 5: Mark-correction proposal route tests
+
+test('registers POST /reports/:reportId/corrections', () => {
+  const correctionRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/reports/:reportId/corrections' &&
+      layer.route.methods.post
+  );
+
+  assert.ok(
+    correctionRoute,
+    'POST correction route should exist'
+  );
+
+  assert.equal(correctionRoute.route.methods.post, true);
+});
+
+test('applies authentication, authorization, UUID validation and correction body validation', () => {
+  const correctionRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/reports/:reportId/corrections' &&
+      layer.route.methods.post
+  );
+
+  assert.ok(correctionRoute);
+
+  const handlers = correctionRoute.route.stack;
+
+  // authenticate, authorize, validate params,
+  // validate body, controller
+  assert.equal(handlers.length, 5);
+
+  for (const handler of handlers) {
+    assert.equal(typeof handler.handle, 'function');
+  }
+});

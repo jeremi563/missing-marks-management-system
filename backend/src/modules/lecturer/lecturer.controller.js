@@ -4,6 +4,7 @@ import {
   getReportComments,
   createReportComment,
   submitReportDecision,
+  submitMarkCorrection,
 } from './lecturer.service.js';
 
 export const getReports = async (req, res, next) => {
@@ -193,6 +194,47 @@ export const submitDecision = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Report decision submitted successfully.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Feature 5: Submit a mark-correction proposal
+export const submitCorrection = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const { proposedValue, reason } = req.body;
+
+    const result = await submitMarkCorrection(
+      prisma,
+      lecturerUserId,
+      req.params.reportId,
+      proposedValue,
+      reason
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Mark-correction proposal submitted successfully.',
       data: result,
     });
   } catch (error) {

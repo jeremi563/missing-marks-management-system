@@ -10,12 +10,14 @@ import {
   getComments,
   addComment,
   submitDecision,
+  submitCorrection,
 } from './lecturer.controller.js';
 
 import {
   reportIdSchema,
   createCommentSchema,
   submitDecisionSchema,
+  submitCorrectionSchema,
 } from './lecturer.validation.js';
 
 const router = express.Router();
@@ -65,5 +67,15 @@ router.post(
   validate(submitDecisionSchema, 'body'),
   submitDecision
 );
+//feature 5: Mark-correction proposal submission
 
+// POST /api/v1/lecturer/reports/:reportId/corrections
+router.post(
+  '/reports/:reportId/corrections',
+  authenticate,
+  authorize('lecturer'),
+  validate(reportIdSchema, 'params'),
+  validate(submitCorrectionSchema, 'body'),
+  submitCorrection
+);
 export default router;
