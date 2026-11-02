@@ -210,3 +210,65 @@ export async function submitMissingMarkReport(prisma, userId, input) {
 		return report;
 	});
 }
+
+export async function getStudentAttendanceHistory(prisma, userId, pagination = {}) {
+	const student = await prisma.studentProfile.findUnique({
+		where: { userId },
+		select: { id: true },
+	});
+
+	if (!student) {
+		const error = new Error("Student profile not found.");
+		error.statusCode = 404;
+		throw error;
+	}
+
+	const page = pagination.page ?? 1;
+	const limit = pagination.limit ?? 10;
+	const where = { studentProfileId: student.id };
+	const skip = (page - 1) * limit;
+
+	const [records, total] = await prisma.$transaction([
+		prisma.attendanceHistory.findMany({
+			where,
+			skip,
+			take: limit,
+			select: {
+				id: true,
+				courseUnitCode: true,
+				courseUnitName: true,
+				sessionStartedAt: true,
+				status: true,
+				locationVerified: true,
+				signedAt: true,
+				createdAt: true,
+				attendanceRecord: {
+					select: {
+						corrections: {
+							select: {
+								originalStatus: true,
+							correctedStatus: true,
+							reason: true,
+							createdAt: true,
+							lecturer: { select: { staffNumber: true } },
+							},
+							orderBy: { createdAt: "desc" },
+						},
+					},
+				},
+			},
+			orderBy: { signedAt: "desc" },
+		}),
+		prisma.attendanceHistory.count({ where }),
+	]);
+
+	return {
+		records,
+		pagination: {
+			page,
+			limit,
+			total,
+			totalPages: Math.ceil(total / limit),
+		},
+	};
+}

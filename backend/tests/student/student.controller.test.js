@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getProfile, getReports, getReportById, createReport } from "../../src/modules/student/student.controller.js";
+import { getProfile, getReports, getReportById, createReport, getAttendance } from "../../src/modules/student/student.controller.js";
 
 function createResponse() {
 	return {
@@ -149,4 +149,25 @@ test("creates a report using authenticated identity and returns 201", async () =
 
 	assert.equal(res.statusCode, 201);
 	assert.deepEqual(res.body.data, report);
+});
+
+test("returns the authenticated student's attendance history and pagination", async () => {
+	const record = { id: "history-1", courseUnitCode: "UNIT101", status: "Present" };
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		attendanceHistory: {
+			findMany: async () => [record],
+			count: async () => 1,
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+	const req = { user: { id: "user-1" }, app: { locals: { prisma } }, validatedQuery: { page: 1, limit: 10 } };
+	const res = createResponse();
+
+	await getAttendance(req, res, (error) => { throw error; });
+
+	assert.equal(res.statusCode, 200);
+	assert.equal(res.body.count, 1);
+	assert.deepEqual(res.body.data, [record]);
+	assert.deepEqual(res.body.pagination, { page: 1, limit: 10, total: 1, totalPages: 1 });
 });

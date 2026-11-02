@@ -64,6 +64,13 @@ test("registers POST /reports with auth, student-role, and body validation", () 
 	assert.equal(reportsRoute.route.stack.length, 4);
 });
 
+test("registers GET /attendance with auth, student-role, and pagination validation", () => {
+	const attendanceRoute = router.stack.find((layer) => layer.route?.path === "/attendance");
+	assert.ok(attendanceRoute);
+	assert.equal(attendanceRoute.route.methods.get, true);
+	assert.equal(attendanceRoute.route.stack.length, 4);
+});
+
 test("validates report submission fields and rejects client identity fields", () => {
 	const req = {
 		body: {

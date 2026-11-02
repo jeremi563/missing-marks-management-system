@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport } from "../../src/modules/student/student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -186,4 +186,49 @@ test("rejects an assessment that does not belong to the selected unit", async ()
 		description: "Missing mark",
 	}), { statusCode: 422 });
 	assert.equal(transactionStarted, false);
+});
+
+test("lists only the authenticated student's attendance history with corrections and pagination", async () => {
+	const records = [{ id: "history-1", courseUnitCode: "UNIT101", status: "Present" }];
+	let historyQuery;
+	let countQuery;
+	const prisma = {
+		studentProfile: {
+			findUnique: async ({ where }) => {
+				assert.deepEqual(where, { userId: "user-1" });
+				return { id: "student-1" };
+			},
+		},
+		attendanceHistory: {
+			findMany: async (query) => { historyQuery = query; return records; },
+			count: async (query) => { countQuery = query; return 12; },
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+
+	const result = await getStudentAttendanceHistory(prisma, "user-1", { page: 2, limit: 5 });
+
+	assert.deepEqual(historyQuery.where, { studentProfileId: "student-1" });
+	assert.deepEqual(countQuery.where, historyQuery.where);
+	assert.equal(historyQuery.skip, 5);
+	assert.equal(historyQuery.take, 5);
+	assert.deepEqual(historyQuery.orderBy, { signedAt: "desc" });
+	assert.ok(historyQuery.select.attendanceRecord.select.corrections);
+	assert.deepEqual(result.records, records);
+	assert.deepEqual(result.pagination, { page: 2, limit: 5, total: 12, totalPages: 3 });
+});
+
+test("does not query attendance history when no student profile exists", async () => {
+	let historyQueryCalled = false;
+	const prisma = {
+		studentProfile: { findUnique: async () => null },
+		attendanceHistory: {
+			findMany: async () => { historyQueryCalled = true; return []; },
+			count: async () => { historyQueryCalled = true; return 0; },
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+
+	await assert.rejects(getStudentAttendanceHistory(prisma, "user-1"), { statusCode: 404 });
+	assert.equal(historyQueryCalled, false);
 });
