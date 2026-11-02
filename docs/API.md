@@ -67,12 +67,15 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 | POST | `/api/v1/student/reports/:id/withdraw` | Request/perform withdrawal where permitted. |
 | POST | `/api/v1/student/reports/:id/appeals` | Submit an appeal where permitted. |
 | GET | `/api/v1/student/attendance` | View own permitted attendance information. |
+| GET | `/api/v1/student/notifications` | List own notifications and unread count. |
 
-`GET /api/v1/student/profile`, `GET /api/v1/student/reports`, `GET /api/v1/student/reports/:reportId`, `POST /api/v1/student/reports`, and `GET /api/v1/student/attendance` are implemented. They require the `student` role and derive ownership from the authenticated user ID; clients cannot choose another student ID. Report details are queried by both report ID and owner profile ID, so another student's report is returned as not found. Report details include a chronological status timeline containing only previous status, new status and timestamp. Lecturer comments are not included until student visibility rules are agreed. Reports and attendance history accept optional `page` (default `1`) and `limit` (default `10`, maximum `100`) query parameters and return pagination metadata.
+`GET /api/v1/student/profile`, `GET /api/v1/student/reports`, `GET /api/v1/student/reports/:reportId`, `POST /api/v1/student/reports`, `GET /api/v1/student/attendance`, and `GET /api/v1/student/notifications` are implemented. They require the `student` role and derive ownership from the authenticated user ID; clients cannot choose another student ID. Report details are queried by both report ID and owner profile ID, so another student's report is returned as not found. Report details include a chronological status timeline containing only previous status, new status and timestamp. Lecturer comments are not included until student visibility rules are agreed. Reports, attendance history, and notifications accept optional `page` (default `1`) and `limit` (default `10`, maximum `100`) query parameters and return pagination metadata.
 
 Report submission accepts `courseUnitId`, `academicPeriodId`, `assessmentComponent`, and `description`, with optional `assessmentId`. The backend verifies the student's enrollment in the selected unit and period and, when provided, that the assessment belongs to the unit. It immediately creates the report as `Submitted` and records initial status history and an audit event atomically. Duplicate submissions are currently allowed; duplicate policy and the broader status state machine remain open decisions. Other student routes remain planned until implemented and tested.
 
 Student attendance reads the separate `AttendanceHistory` snapshot records for the authenticated student's profile, ordered by most recent sign-in. It includes available correction history and does not expose another student's attendance records.
+
+Student notifications are queried by the authenticated user's ID and returned newest-first with `readAt` and an unread count. This endpoint is read-only; a mark-as-read endpoint is not yet implemented.
 
 ### Lecturer
 

@@ -280,3 +280,41 @@ export async function getStudentAttendanceHistory(prisma, userId, pagination = {
 		},
 	};
 }
+
+export async function getStudentNotifications(prisma, userId, pagination = {}) {
+	const page = pagination.page ?? 1;
+	const limit = pagination.limit ?? 10;
+	const where = { userId };
+	const skip = (page - 1) * limit;
+	const unreadWhere = { userId, readAt: null };
+
+	const [notifications, total, unreadCount] = await prisma.$transaction([
+		prisma.notification.findMany({
+			where,
+			skip,
+			take: limit,
+			select: {
+				id: true,
+				title: true,
+				message: true,
+				readAt: true,
+				createdAt: true,
+				report: { select: { id: true, reference: true, status: true } },
+			},
+			orderBy: { createdAt: "desc" },
+		}),
+		prisma.notification.count({ where }),
+		prisma.notification.count({ where: unreadWhere }),
+	]);
+
+	return {
+		notifications,
+		unreadCount,
+		pagination: {
+			page,
+			limit,
+			total,
+			totalPages: Math.ceil(total / limit),
+		},
+	};
+}

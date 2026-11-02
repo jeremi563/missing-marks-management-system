@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory } from "../../src/modules/student/student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -245,4 +245,28 @@ test("does not query attendance history when no student profile exists", async (
 
 	await assert.rejects(getStudentAttendanceHistory(prisma, "user-1"), { statusCode: 404 });
 	assert.equal(historyQueryCalled, false);
+});
+
+test("lists only the authenticated user's notifications with pagination and unread count", async () => {
+	const notifications = [{ id: "notice-1", title: "Report update", readAt: null }];
+	const notificationQueries = [];
+	const prisma = {
+		notification: {
+			findMany: async (query) => { notificationQueries.push(query); return notifications; },
+			count: async (query) => { notificationQueries.push(query); return query.where.readAt === null ? 2 : 8; },
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+
+	const result = await getStudentNotifications(prisma, "user-1", { page: 2, limit: 3 });
+
+	assert.deepEqual(notificationQueries[0].where, { userId: "user-1" });
+	assert.equal(notificationQueries[0].skip, 3);
+	assert.equal(notificationQueries[0].take, 3);
+	assert.deepEqual(notificationQueries[0].orderBy, { createdAt: "desc" });
+	assert.deepEqual(notificationQueries[1].where, { userId: "user-1" });
+	assert.deepEqual(notificationQueries[2].where, { userId: "user-1", readAt: null });
+	assert.deepEqual(result.notifications, notifications);
+	assert.equal(result.unreadCount, 2);
+	assert.deepEqual(result.pagination, { page: 2, limit: 3, total: 8, totalPages: 3 });
 });
