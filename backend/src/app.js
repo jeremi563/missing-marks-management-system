@@ -5,6 +5,7 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { prisma } from "./config/database.js";
 import lecturerRoutes from "./modules/lecturer/lecturer.routes.js";
+import studentRoutes from "./modules/student/student.routes.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { logger } from "./shared/utils/logger.js";
 
@@ -36,6 +37,7 @@ app.get("/health/ready", async (req, res) => {
 	}
 });
 apiRouter.use("/auth", authRoutes);
+apiRouter.use("/student", studentRoutes);
 apiRouter.use("/lecturer", lecturerRoutes);
 app.use("/api/v1", apiRouter);
 
