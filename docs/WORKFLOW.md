@@ -51,6 +51,15 @@ This is a conceptual flow, not a final enum list. The team must agree on exact s
 - Decisions must include the actor, timestamp and reason.
 - The final authority for each case type must be agreed and documented.
 
+### Feature 4: lecturer escalation and COD final decision
+
+- A lecturer may escalate only a report assigned to their authenticated lecturer profile after recording `APPROVED` or `REJECTED`.
+- Escalation changes the current status to `ESCALATED`, records the reason, and appends status history and a `REPORT_ESCALATED` audit event transactionally.
+- CODs list escalated reports through the department-scoped report listing and may review the original lecturer decision, escalation reason, report history, linked academic application records, report-scoped audit events and safe evidence metadata available for that report.
+- A COD may make a final `APPROVE` or `REJECT` decision only while the report is `ESCALATED` and within the COD's authorized department membership. The final status history records actor, reason and time; the `COD_REPORT_DECISION_RECORDED` audit event is written in the same transaction.
+- Status history preserves the lecturer decision, escalation and COD final decision as separate entries. Evidence files are not uploaded, viewed or retrieved by this workflow; only metadata may be returned, without `storageKey`, until a storage approach is agreed.
+- Existing separate issue: student submission creates `Submitted`, while the lecturer decision endpoint expects `PENDING`; no transition was identified. Student and lecturer decision behavior is unchanged by Feature 4.
+
 ## 6. Attendance-related workflow
 
 The project discussions have included attendance sessions created by lecturers and attendance records associated with students. A QR code or link and location validation have been considered.

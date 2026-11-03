@@ -4,6 +4,7 @@ import {
   getReportComments,
   createReportComment,
   submitReportDecision,
+  escalateAssignedReport,
   submitMarkCorrection,
   createAttendanceSession,
   getAttendanceSessions,
@@ -197,6 +198,36 @@ export const submitDecision = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Report decision submitted successfully.',
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Feature 4: Escalate a completed lecturer decision to COD review
+export const escalateReportController = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+    if (!lecturerUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const prisma = req.app.locals.prisma;
+    if (!prisma) {
+      return res.status(500).json({ success: false, message: 'Database service is not configured.' });
+    }
+
+    const result = await escalateAssignedReport(
+      prisma,
+      lecturerUserId,
+      req.params.reportId,
+      req.body.reason
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Report escalated for COD review.',
       data: result,
     });
   } catch (error) {

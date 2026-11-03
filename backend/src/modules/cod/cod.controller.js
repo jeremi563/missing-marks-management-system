@@ -1,5 +1,5 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
-import { addCodReportComment, assignReportToLecturer, getCodReportDetails, listCodReportComments, listEligibleLecturers, listDepartmentReports } from "./cod.service.js";
+import { addCodReportComment, assignReportToLecturer, decideEscalatedReport, getCodReportDetails, listCodReportComments, listEligibleLecturers, listDepartmentReports } from "./cod.service.js";
 
 export async function getCodReport(req, res, next) {
   try {
@@ -67,6 +67,20 @@ export async function assignCodReport(req, res, next) {
       reason: req.body.reason,
     });
     return sendSuccess(res, "Report assigned successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function decideCodReport(req, res, next) {
+  try {
+    const result = await decideEscalatedReport({
+      actorUserId: req.user.id,
+      reportId: req.params.id,
+      decision: req.body.decision,
+      reason: req.body.reason,
+    });
+    return sendSuccess(res, "Final report decision recorded successfully", result);
   } catch (error) {
     return next(error);
   }

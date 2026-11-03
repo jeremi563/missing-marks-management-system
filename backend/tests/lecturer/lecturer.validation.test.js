@@ -6,6 +6,7 @@ import {
   reportIdSchema,
   createCommentSchema,
   submitDecisionSchema,
+  escalateReportSchema,
   submitCorrectionSchema,
   createAttendanceSessionSchema,
   attendanceSessionIdSchema,
@@ -179,6 +180,19 @@ test('rejects a decision reason exceeding 2000 characters', () => {
   });
 
   assert.equal(result.success, false);
+});
+
+// Feature 4: Lecturer escalation validation
+test('accepts and trims a valid escalation reason', () => {
+  const result = escalateReportSchema.safeParse({ reason: '  Needs COD review.  ' });
+  assert.equal(result.success, true);
+  assert.equal(result.data.reason, 'Needs COD review.');
+});
+
+test('rejects missing, empty, whitespace-only, and oversized escalation reasons', () => {
+  for (const value of [{}, { reason: '' }, { reason: '   ' }, { reason: 'x'.repeat(2001) }]) {
+    assert.equal(escalateReportSchema.safeParse(value).success, false);
+  }
 });
 // Feature 5: Mark-correction proposal validation
 
