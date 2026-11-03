@@ -167,3 +167,102 @@ test('applies authentication, authorization, UUID validation and correction body
     assert.equal(typeof handler.handle, 'function');
   }
 });
+
+// Feature 6: Unified attendance session route tests
+
+test('registers POST /attendance/sessions', () => {
+  const attendanceRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions' &&
+      layer.route.methods.post
+  );
+
+  assert.ok(
+    attendanceRoute,
+    'POST /attendance/sessions route should exist'
+  );
+
+  assert.equal(attendanceRoute.route.methods.post, true);
+});
+
+test('applies authentication, authorization and attendance body validation', () => {
+  const attendanceRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions' &&
+      layer.route.methods.post
+  );
+
+  assert.ok(attendanceRoute);
+
+  const handlers = attendanceRoute.route.stack;
+
+  // authenticate, authorize, validate body, controller
+  assert.equal(handlers.length, 4);
+
+  for (const handler of handlers) {
+    assert.equal(typeof handler.handle, 'function');
+  }
+});
+
+test('registers GET /attendance/sessions', () => {
+  const attendanceRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions' &&
+      layer.route.methods.get
+  );
+
+  assert.ok(
+    attendanceRoute,
+    'GET /attendance/sessions route should exist'
+  );
+
+  assert.equal(attendanceRoute.route.methods.get, true);
+});
+
+test('applies authentication and authorization to GET attendance sessions', () => {
+  const attendanceRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions' &&
+      layer.route.methods.get
+  );
+
+  assert.ok(attendanceRoute);
+
+  const handlers = attendanceRoute.route.stack;
+
+  // authenticate, authorize, controller
+  assert.equal(handlers.length, 3);
+
+  for (const handler of handlers) {
+    assert.equal(typeof handler.handle, 'function');
+  }
+});
+
+// Feature 6: Individual attendance session retrieval route tests
+
+test('registers GET /attendance/sessions/:sessionId', () => {
+  const sessionRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions/:sessionId'
+  );
+
+  assert.ok(
+    sessionRoute,
+    'GET /attendance/sessions/:sessionId route should exist'
+  );
+
+  assert.equal(sessionRoute.route.methods.get, true);
+});
+
+test('applies authentication, authorization and UUID validation to individual attendance retrieval', () => {
+  const sessionRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions/:sessionId'
+  );
+
+  assert.ok(sessionRoute);
+
+  const handlers = sessionRoute.route.stack;
+
+  assert.equal(handlers.length, 4);
+});

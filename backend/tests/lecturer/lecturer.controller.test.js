@@ -10,6 +10,9 @@ import {
   addComment,
   submitDecision,
   submitCorrection,
+  createAttendanceSessionController,
+  getAttendanceSessionsController,
+  getAttendanceSessionByIdController,
 } from '../../src/modules/lecturer/lecturer.controller.js';
 
 const createResponse = () => {
@@ -661,6 +664,377 @@ test('passes correction submission errors to the error handler', async () => {
   await submitCorrection(req, res, (error) => {
     capturedError = error;
   });
+
+  assert.equal(capturedError, expectedError);
+});
+
+// Feature 6: Attendance session controller tests
+
+const createAttendanceControllerPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  assignment = { id: 'assignment-1' },
+  classroom = { id: 'classroom-1' },
+  createdSession = {
+    id: 'session-1',
+    status: 'scheduled',
+  },
+} = {}) => ({
+  lecturerProfile: {
+    findUnique: async () => lecturer,
+  },
+  courseUnitLecturer: {
+    findUnique: async () => assignment,
+  },
+  classroom: {
+    findFirst: async () => classroom,
+  },
+  attendanceSession: {
+    create: async () => createdSession,
+  },
+});
+
+const validAttendanceBody = {
+  sessionType: 'CLASS',
+  courseUnitId: '550e8400-e29b-41d4-a716-446655440000',
+  classroomId: '650e8400-e29b-41d4-a716-446655440000',
+  startsAt: '2026-11-02T09:00:00+03:00',
+};
+
+test('returns 401 when attendance session authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    body: validAttendanceBody,
+  };
+
+  const res = createResponse();
+
+  await createAttendanceSessionController(req, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.success, false);
+});
+
+test('returns 500 when Prisma is unavailable for attendance session creation', async () => {
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: {} },
+    body: validAttendanceBody,
+  };
+
+  const res = createResponse();
+
+  await createAttendanceSessionController(req, res, () => {});
+
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.body.success, false);
+});
+
+test('creates an attendance session successfully', async () => {
+  const prisma = createAttendanceControllerPrisma();
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    body: validAttendanceBody,
+  };
+
+  const res = createResponse();
+
+  await createAttendanceSessionController(req, res, () => {});
+
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.body.success, true);
+  assert.equal(
+    res.body.data.session.id,
+    'session-1'
+  );
+  assert.equal(
+    res.body.data.session.status,
+    'scheduled'
+  );
+
+  assert.equal(typeof res.body.data.qrToken, 'string');
+  assert.equal(res.body.data.qrToken.length, 64);
+});
+
+test('passes attendance session creation errors to the error handler', async () => {
+  const expectedError = new Error('Database failure');
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => {
+        throw expectedError;
+      },
+    },
+  };
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    body: validAttendanceBody,
+  };
+
+  const res = createResponse();
+  let capturedError;
+
+  await createAttendanceSessionController(
+    req,
+    res,
+    (error) => {
+      capturedError = error;
+    }
+  );
+
+  assert.equal(capturedError, expectedError);
+});
+
+// Feature 6: Attendance session listing controller tests
+
+const createAttendanceListingControllerPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  sessions = [{ id: 'session-1', sessionType: 'CLASS' }],
+  total = 1,
+} = {}) => {
+  const calls = {};
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async (args) => {
+        calls.lecturerArgs = args;
+        return lecturer;
+      },
+    },
+
+    attendanceSession: {
+      findMany: async (args) => {
+        calls.findManyArgs = args;
+        return sessions;
+      },
+
+      count: async (args) => {
+        calls.countArgs = args;
+        return total;
+      },
+    },
+
+    $transaction: async (operations) => Promise.all(operations),
+  };
+
+  return { prisma, calls };
+};
+
+test('returns 401 when attendance listing authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    query: {},
+  };
+
+  const res = createResponse();
+
+  await getAttendanceSessionsController(req, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.success, false);
+});
+
+test('returns 500 when Prisma is unavailable for attendance listing', async () => {
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: {} },
+    query: {},
+  };
+
+  const res = createResponse();
+
+  await getAttendanceSessionsController(req, res, () => {});
+
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.body.success, false);
+});
+
+test('retrieves attendance sessions successfully', async () => {
+  const sessions = [
+    { id: 'session-1', sessionType: 'CLASS' },
+    { id: 'session-2', sessionType: 'CAT' },
+  ];
+
+  const { prisma, calls } =
+    createAttendanceListingControllerPrisma({
+      sessions,
+      total: 2,
+    });
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    query: {
+      sessionType: 'CLASS',
+      page: '1',
+      limit: '10',
+    },
+  };
+
+  const res = createResponse();
+
+  await getAttendanceSessionsController(req, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.count, 2);
+  assert.deepEqual(res.body.data, sessions);
+  assert.equal(res.body.pagination.total, 2);
+
+  assert.equal(calls.findManyArgs.where.sessionType, 'CLASS');
+  assert.equal(
+    calls.findManyArgs.where.lecturerProfileId,
+    'lecturer-1'
+  );
+});
+
+test('passes attendance listing errors to the error handler', async () => {
+  const expectedError = new Error('Database failure');
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => {
+        throw expectedError;
+      },
+    },
+  };
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    query: {},
+  };
+
+  const res = createResponse();
+  let capturedError;
+
+  await getAttendanceSessionsController(
+    req,
+    res,
+    (error) => {
+      capturedError = error;
+    }
+  );
+
+  assert.equal(capturedError, expectedError);
+});
+
+// Feature 6: Individual attendance session controller tests
+
+const createAttendanceDetailControllerPrisma = ({
+  session = { id: 'session-1', sessionType: 'CLASS' },
+} = {}) => {
+  const calls = {};
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => ({ id: 'lecturer-1' }),
+    },
+
+    attendanceSession: {
+      findFirst: async (args) => {
+        calls.sessionArgs = args;
+        return session;
+      },
+    },
+  };
+
+  return { prisma, calls };
+};
+
+test('returns 401 when individual attendance retrieval authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    params: { sessionId: 'session-1' },
+  };
+
+  const res = createResponse();
+
+  await getAttendanceSessionByIdController(req, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.success, false);
+});
+
+test('returns 500 when Prisma is unavailable for individual attendance retrieval', async () => {
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: {} },
+    params: { sessionId: 'session-1' },
+  };
+
+  const res = createResponse();
+
+  await getAttendanceSessionByIdController(req, res, () => {});
+
+  assert.equal(res.statusCode, 500);
+  assert.equal(res.body.success, false);
+});
+
+test('retrieves an individual attendance session successfully', async () => {
+  const session = {
+    id: 'session-1',
+    sessionType: 'CLASS',
+    status: 'scheduled',
+  };
+
+  const { prisma, calls } = createAttendanceDetailControllerPrisma({
+    session,
+  });
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { sessionId: 'session-1' },
+  };
+
+  const res = createResponse();
+
+  await getAttendanceSessionByIdController(req, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.deepEqual(res.body.data, session);
+  assert.equal(calls.sessionArgs.where.id, 'session-1');
+  assert.equal(
+    calls.sessionArgs.where.lecturerProfileId,
+    'lecturer-1'
+  );
+});
+
+test('forwards individual attendance retrieval errors to the error handler', async () => {
+  const expectedError = new Error('Database failure');
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => {
+        throw expectedError;
+      },
+    },
+  };
+
+  const req = {
+    user: { id: 'user-1' },
+    app: { locals: { prisma } },
+    params: { sessionId: 'session-1' },
+  };
+
+  const res = createResponse();
+  let capturedError;
+
+  await getAttendanceSessionByIdController(
+    req,
+    res,
+    (error) => {
+      capturedError = error;
+    }
+  );
 
   assert.equal(capturedError, expectedError);
 });

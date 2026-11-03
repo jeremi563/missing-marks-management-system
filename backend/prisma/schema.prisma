@@ -240,6 +240,7 @@ model AttendanceSession {
   lecturerProfileId String    @map("lecturer_profile_id") @db.Uuid
   classroomId       String?   @map("classroom_id") @db.Uuid
   assessmentId      String?   @map("assessment_id") @db.Uuid
+  sessionType String @default("CLASS") @map("session_type")
   accessTokenHash   String?   @unique @map("access_token_hash")
   status            String    @default("scheduled")
   startsAt          DateTime  @map("starts_at")
