@@ -45,6 +45,8 @@ This is a conceptual flow, not a final enum list. The team must agree on exact s
 
 - The COD / Academic Officer sees reports within the authorised department or academic scope.
 - They may assign or reassign a case where permitted.
+- Academic information review is read-only: the COD can inspect linked application enrollment, assessment, CAT submission, and assessment-attendance records supported by the report's relationships. This review does not create an approval/rejection outcome or change report status. These application records are not independently verified official university records; missing records do not prove an event did not occur.
+- Report comments authored by a COD are staff-private and retained as append-only comments. Comment creation records an actor-attributed audit event transactionally with the comment.
 - They review lecturer actions, escalations, overdue cases, appeals and special cases.
 - Decisions must include the actor, timestamp and reason.
 - The final authority for each case type must be agreed and documented.
