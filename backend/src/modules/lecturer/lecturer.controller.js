@@ -5,6 +5,9 @@ import {
   createReportComment,
   submitReportDecision,
   submitMarkCorrection,
+  createAttendanceSession,
+  getAttendanceSessions,
+  getAttendanceSessionById,
 } from './lecturer.service.js';
 
 export const getReports = async (req, res, next) => {
@@ -236,6 +239,142 @@ export const submitCorrection = async (req, res, next) => {
       success: true,
       message: 'Mark-correction proposal submitted successfully.',
       data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Feature 6: Create a unified attendance session
+export const createAttendanceSessionController = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const result = await createAttendanceSession(
+      prisma,
+      lecturerUserId,
+      req.body
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Attendance session created successfully.',
+      data: {
+        session: result.session,
+        qrToken: result.qrToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Feature 6: Retrieve lecturer attendance sessions
+export const getAttendanceSessionsController = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const {
+      courseUnitId,
+      sessionType,
+      status,
+      page,
+      limit,
+    } = req.query;
+
+    const result = await getAttendanceSessions(
+      prisma,
+      lecturerUserId,
+      {
+        courseUnitId,
+        sessionType,
+        status,
+        page,
+        limit,
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance sessions retrieved successfully.',
+      count: result.sessions.length,
+      data: result.sessions,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Feature 6: Retrieve an individual attendance session
+export const getAttendanceSessionByIdController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const { sessionId } = req.params;
+
+    const session = await getAttendanceSessionById(
+      prisma,
+      lecturerUserId,
+      sessionId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance session retrieved successfully.',
+      data: session,
     });
   } catch (error) {
     next(error);
