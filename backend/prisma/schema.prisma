@@ -240,7 +240,6 @@ model AttendanceSession {
   lecturerProfileId String    @map("lecturer_profile_id") @db.Uuid
   classroomId       String?   @map("classroom_id") @db.Uuid
   assessmentId      String?   @map("assessment_id") @db.Uuid
-  sessionType String @default("CLASS") @map("session_type")
   accessTokenHash   String?   @unique @map("access_token_hash")
   status            String    @default("scheduled")
   startsAt          DateTime  @map("starts_at")
@@ -549,7 +548,6 @@ model ReportComment {
   reportId     String   @map("report_id") @db.Uuid
   authorUserId String   @map("author_user_id") @db.Uuid
   body         String
-  isStudentVisible Boolean @default(false) @map("is_student_visible")
   createdAt    DateTime @default(now()) @map("created_at")
 
   report MissingMarkReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
