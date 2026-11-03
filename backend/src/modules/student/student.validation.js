@@ -21,12 +21,20 @@ const updateReportBodySchema = z.object({
 	assessmentId: z.string().uuid().optional(),
 	assessmentComponent: z.string().trim().min(1).max(100).optional(),
 	description: z.string().trim().min(1).max(5000).optional(),
-}).strict();
+}).strict().refine((body) => Object.keys(body).length > 0, "At least one report field must be provided.");
 
 const createAppealBodySchema = z.object({
 	reason: z.string().trim().min(1).max(5000),
 	comments: z.string().trim().max(2000).optional(),
 }).strict();
+
+const studentCommentBodySchema = z.object({
+	body: z.string().trim().min(1).max(2000),
+}).strict();
+
+const studentNotificationIdSchema = z.object({
+	notificationId: z.string().uuid("A valid notification UUID is required."),
+});
 
 export function validateReportListQuery(req, res, next) {
 	const result = reportListQuerySchema.safeParse(req.query);
@@ -88,5 +96,31 @@ export function validateCreateAppealBody(req, res, next) {
 	}
 
 	req.validatedBody = result.data;
+	return next();
+}
+
+export function validateCreateStudentCommentBody(req, res, next) {
+	const result = studentCommentBodySchema.safeParse(req.body);
+	if (!result.success) {
+		return next(Object.assign(new Error("Request validation failed"), {
+			statusCode: 400,
+			details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
+		}));
+	}
+
+	req.validatedBody = result.data;
+	return next();
+}
+
+export function validateStudentNotificationId(req, res, next) {
+	const result = studentNotificationIdSchema.safeParse(req.params);
+	if (!result.success) {
+		return next(Object.assign(new Error("Request validation failed"), {
+			statusCode: 400,
+			details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
+		}));
+	}
+
+	req.validatedParams = result.data;
 	return next();
 }

@@ -261,14 +261,14 @@ test("updates a submitted report only when it belongs to the student and is stil
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
 		missingMarkReport: {
 			findUnique: async () => report,
-			update: async ({ data }) => ({ ...report, ...data }),
 		},
 		assessment: {
 			findFirst: async () => ({ id: "assessment-1", courseUnitId: "unit-1" }),
 		},
 		$transaction: async (callback) => callback({
 			missingMarkReport: {
-				update: async ({ data }) => ({ ...report, ...data }),
+				updateMany: async () => ({ count: 1 }),
+				findUnique: async ({ where }) => ({ ...report, ...where, assessmentComponent: "CAT 2", description: "Updated explanation" }),
 			},
 			reportStatusHistory: {
 				create: async () => ({ id: "history-1" }),
@@ -310,11 +310,10 @@ test("withdraws a submitted report and records a status transition", async () =>
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
 		missingMarkReport: {
 			findUnique: async () => report,
-			update: async ({ data }) => ({ ...report, ...data }),
 		},
 		$transaction: async (callback) => callback({
 			missingMarkReport: {
-				update: async ({ data }) => ({ ...report, ...data }),
+				updateMany: async () => ({ count: 1 }),
 			},
 			reportStatusHistory: {
 				create: async ({ data }) => data,
@@ -370,7 +369,10 @@ test("returns comments for only the authenticated student's own report and norma
 		} },
 		reportComment: {
 			findMany: async ({ where }) => {
-				assert.deepEqual(where, { reportId: "report-1" });
+				assert.deepEqual(where, {
+					reportId: "report-1",
+					OR: [{ isStudentVisible: true }, { authorUserId: "user-1" }],
+				});
 				return comments;
 			},
 		},
@@ -386,8 +388,9 @@ test("returns comments for only the authenticated student's own report and norma
 test("rejects an appeal when the report does not belong to the student or is not in a final state", async () => {
 	const prisma = {
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-2", status: "Rejected" }) },
-		appeal: { findFirst: async () => null },
+		$transaction: async (callback) => callback({
+			$queryRaw: async () => [],
+		}),
 	};
 
 	await assert.rejects(submitStudentAppeal(prisma, "user-1", "report-1", { reason: "I need a review." }), {
@@ -397,24 +400,30 @@ test("rejects an appeal when the report does not belong to the student or is not
 
 	const reviewPrisma = {
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "Submitted" }) },
-		appeal: { findFirst: async () => null },
+		$transaction: async (callback) => callback({
+			$queryRaw: async () => [{ id: "report-1" }],
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "Submitted" }) },
+		}),
 	};
 
 	await assert.rejects(submitStudentAppeal(reviewPrisma, "user-1", "report-1", { reason: "I need a review." }), {
 		statusCode: 409,
-		message: "Appeals are only allowed after a final report decision is recorded.",
+		message: "Appeals are only allowed after a report is rejected.",
 	});
 });
 
 test("submits a single appeal for a finalised report and stores the status history in the appeal record", async () => {
 	const prisma = {
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "Rejected" }) },
-		appeal: {
-			findFirst: async () => null,
-			create: async ({ data }) => ({ id: "appeal-1", ...data }),
-		},
+		$transaction: async (callback) => callback({
+			$queryRaw: async () => [{ id: "report-1" }],
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED" }) },
+			appeal: {
+				findFirst: async () => null,
+				create: async ({ data }) => ({ id: "appeal-1", ...data }),
+			},
+			auditLog: { create: async () => ({ id: "audit-1" }) },
+		}),
 	};
 
 	const result = await submitStudentAppeal(prisma, "user-1", "report-1", { reason: "I was not given enough time to submit my CAT." });
@@ -428,8 +437,11 @@ test("submits a single appeal for a finalised report and stores the status histo
 test("rejects a second appeal for the same report", async () => {
 	const prisma = {
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "Rejected" }) },
-		appeal: { findFirst: async () => ({ id: "appeal-1" }) },
+		$transaction: async (callback) => callback({
+			$queryRaw: async () => [{ id: "report-1" }],
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED" }) },
+			appeal: { findFirst: async () => ({ id: "appeal-1" }) },
+		}),
 	};
 
 	await assert.rejects(submitStudentAppeal(prisma, "user-1", "report-1", { reason: "Second attempt." }), {

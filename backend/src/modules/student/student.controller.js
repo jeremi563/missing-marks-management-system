@@ -1,4 +1,4 @@
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "./student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {
@@ -145,6 +145,29 @@ export async function getNotifications(req, res, next) {
 	}
 }
 
+export async function markNotificationRead(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const notification = await markStudentNotificationRead(prisma, userId, req.params.notificationId);
+		return res.status(200).json({
+			success: true,
+			message: "Notification marked as read.",
+			data: notification,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
 export async function updateReport(req, res, next) {
 	try {
 		const userId = req.user?.id;
@@ -209,6 +232,29 @@ export async function getReportComments(req, res, next) {
 			message: "Student report comments retrieved successfully.",
 			count: comments.length,
 			data: comments,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function addClarification(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const comment = await addStudentClarification(prisma, userId, req.params.reportId, req.validatedBody.body);
+		return res.status(201).json({
+			success: true,
+			message: "Clarification submitted successfully.",
+			data: comment,
 		});
 	} catch (error) {
 		return next(error);
