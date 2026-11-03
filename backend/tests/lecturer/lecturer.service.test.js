@@ -9,6 +9,9 @@ import {
   createReportComment,
   submitReportDecision,
   submitMarkCorrection,
+  createAttendanceSession,
+  getAttendanceSessions,
+  getAttendanceSessionById,
 } from '../../src/modules/lecturer/lecturer.service.js';
 
 const createMockPrisma = ({
@@ -875,4 +878,503 @@ test('rejects negative and non-finite proposed marks', async () => {
       }
     );
   }
+});
+
+
+const createAttendancePrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  assignment = { id: 'assignment-1' },
+  classroom = { id: 'classroom-1' },
+  assessment = { id: 'assessment-1' },
+  createdSession = {
+    id: 'session-1',
+    status: 'scheduled',
+  },
+} = {}) => {
+  const calls = {};
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => lecturer,
+    },
+
+    courseUnitLecturer: {
+      findUnique: async (args) => {
+        calls.assignmentArgs = args;
+        return assignment;
+      },
+    },
+
+    classroom: {
+      findFirst: async (args) => {
+        calls.classroomArgs = args;
+        return classroom;
+      },
+    },
+
+    assessment: {
+      findFirst: async (args) => {
+        calls.assessmentArgs = args;
+        return assessment;
+      },
+    },
+
+    attendanceSession: {
+      create: async (args) => {
+        calls.sessionCreateArgs = args;
+        return createdSession;
+      },
+    },
+  };
+
+  return { prisma, calls };
+};
+
+
+const validClassSession = {
+  sessionType: 'CLASS',
+  courseUnitId: '550e8400-e29b-41d4-a716-446655440000',
+  classroomId: '650e8400-e29b-41d4-a716-446655440000',
+  startsAt: '2026-11-02T09:00:00+03:00',
+};
+
+test('creates a CLASS attendance session without an assessment', async () => {
+  const { prisma, calls } = createAttendancePrisma();
+
+  const result = await createAttendanceSession(
+    prisma,
+    'user-1',
+    validClassSession
+  );
+
+  assert.equal(result.session.id, 'session-1');
+  assert.equal(typeof result.qrToken, 'string');
+  assert.equal(result.qrToken.length, 64);
+  assert.equal(calls.sessionCreateArgs.data.assessmentId, null);
+  assert.equal(calls.sessionCreateArgs.data.sessionType, 'CLASS');
+  assert.equal(
+    calls.sessionCreateArgs.data.accessTokenHash.length,
+    64
+  );
+  assert.notEqual(
+    calls.sessionCreateArgs.data.accessTokenHash,
+    result.qrToken
+  );
+  assert.equal(calls.assessmentArgs, undefined);
+});
+
+test('creates a CAT attendance session using a registered CAT assessment', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    assessment: { id: 'assessment-1' },
+
+  });
+  const result = await createAttendanceSession(
+    prisma,
+    'user-1',
+    {
+      ...validClassSession,
+      sessionType: 'CAT',
+      assessmentId: 'assessment-1',
+
+    }
+  );
+  assert.equal(result.session.id, 'session-1');
+  assert.equal(
+    calls.assessmentArgs.where.type,
+    'CAT'
+  );
+  assert.equal(
+    calls.sessionCreateArgs.data.assessmentId,
+    'assessment-1'
+  );
+  assert.equal(calls.sessionCreateArgs.data.sessionType, 'CAT');
+});
+
+test('creates an EXAM attendance session using a registered EXAM assessment', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    assessment: { id: 'assessment-1' },
+  });
+
+  const result = await createAttendanceSession(
+    prisma,
+    'user-1',
+    {
+      ...validClassSession,
+      sessionType: 'EXAM',
+      assessmentId: 'assessment-1',
+    }
+  );
+
+  assert.equal(result.session.id, 'session-1');
+  assert.equal(
+    calls.assessmentArgs.where.type,
+    'EXAM'
+  );
+  assert.equal(
+    calls.sessionCreateArgs.data.assessmentId,
+    'assessment-1'
+  );
+  assert.equal(calls.sessionCreateArgs.data.sessionType, 'EXAM');
+});
+
+
+test('rejects attendance session creation when lecturer profile is missing', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    lecturer: null,
+  });
+
+  await assert.rejects(
+    () => createAttendanceSession(
+      prisma,
+      'user-1',
+      validClassSession
+    ),
+    {
+      message: 'Lecturer profile not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.assignmentArgs, undefined);
+  assert.equal(calls.sessionCreateArgs, undefined);
+});
+
+test('rejects attendance session creation when lecturer is not assigned to course unit', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    assignment: null,
+  });
+
+  await assert.rejects(
+    () => createAttendanceSession(
+      prisma,
+      'user-1',
+      validClassSession
+    ),
+    {
+      message: 'You are not assigned to this course unit.',
+      statusCode: 403,
+    }
+  );
+
+  assert.equal(calls.classroomArgs, undefined);
+  assert.equal(calls.sessionCreateArgs, undefined);
+});
+
+test('rejects attendance session creation when classroom is inactive or missing', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    classroom: null,
+  });
+
+  await assert.rejects(
+    () => createAttendanceSession(
+      prisma,
+      'user-1',
+      validClassSession
+    ),
+    {
+      message: 'Active classroom not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.sessionCreateArgs, undefined);
+});
+
+test('rejects CAT session when its assessment is missing or mismatched', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    assessment: null,
+  });
+
+  await assert.rejects(
+    () => createAttendanceSession(
+      prisma,
+      'user-1',
+      {
+        ...validClassSession,
+        sessionType: 'CAT',
+        assessmentId: 'assessment-1',
+      }
+    ),
+    {
+      message:
+        'The assessment must exist, belong to the selected course unit, and match the session type.',
+      statusCode: 422,
+    }
+  );
+
+  assert.equal(calls.sessionCreateArgs, undefined);
+});
+
+test('rejects EXAM session when its assessment is missing or mismatched', async () => {
+  const { prisma, calls } = createAttendancePrisma({
+    assessment: null,
+  });
+
+  await assert.rejects(
+    () => createAttendanceSession(
+      prisma,
+      'user-1',
+      {
+        ...validClassSession,
+        sessionType: 'EXAM',
+        assessmentId: 'assessment-1',
+      }
+    ),
+    {
+      message:
+        'The assessment must exist, belong to the selected course unit, and match the session type.',
+      statusCode: 422,
+    }
+  );
+
+  assert.equal(calls.sessionCreateArgs, undefined);
+});
+
+test('rejects CLASS session when an assessment is supplied', async () => {
+  const { prisma, calls } = createAttendancePrisma();
+
+  await assert.rejects(
+    () => createAttendanceSession(
+      prisma,
+      'user-1',
+      {
+        ...validClassSession,
+        assessmentId: 'assessment-1',
+      }
+    ),
+    {
+      message: 'CLASS sessions must not reference an assessment.',
+      statusCode: 400,
+    }
+  );
+
+  assert.equal(calls.sessionCreateArgs, undefined);
+});
+
+// Mock Prisma client for attendance session listing tests
+const createAttendanceListingPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  sessions = [],
+  total = 0,
+} = {}) => {
+  const calls = {};
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async () => lecturer,
+    },
+
+    attendanceSession: {
+      findMany: async (args) => {
+        calls.findManyArgs = args;
+        return sessions;
+      },
+
+      count: async (args) => {
+        calls.countArgs = args;
+        return total;
+      },
+    },
+
+    $transaction: async (operations) => Promise.all(operations),
+  };
+
+  return { prisma, calls };
+};
+
+test('filters attendance sessions by CLASS session type', async () => {
+  const { prisma, calls } = createAttendanceListingPrisma();
+
+  await getAttendanceSessions(prisma, 'user-1', {
+    sessionType: 'CLASS',
+  });
+
+  assert.equal(
+    calls.findManyArgs.where.sessionType,
+    'CLASS'
+  );
+
+  assert.equal(
+    calls.findManyArgs.where.lecturerProfileId,
+    'lecturer-1'
+  );
+});
+
+test('filters attendance sessions by CAT session type', async () => {
+  const { prisma, calls } = createAttendanceListingPrisma();
+
+  await getAttendanceSessions(prisma, 'user-1', {
+    sessionType: 'CAT',
+  });
+
+  assert.equal(
+    calls.findManyArgs.where.sessionType,
+    'CAT'
+  );
+});
+
+test('filters attendance sessions by EXAM session type', async () => {
+  const { prisma, calls } = createAttendanceListingPrisma();
+
+  await getAttendanceSessions(prisma, 'user-1', {
+    sessionType: 'EXAM',
+  });
+
+  assert.equal(
+    calls.findManyArgs.where.sessionType,
+    'EXAM'
+  );
+});
+
+test('paginates attendance sessions correctly', async () => {
+  const sessions = [
+    { id: 'session-1' },
+    { id: 'session-2' },
+  ];
+
+  const { prisma, calls } = createAttendanceListingPrisma({
+    sessions,
+    total: 12,
+  });
+
+  const result = await getAttendanceSessions(prisma, 'user-1', {
+    page: '2',
+    limit: '5',
+  });
+
+  assert.equal(calls.findManyArgs.skip, 5);
+  assert.equal(calls.findManyArgs.take, 5);
+
+  assert.equal(result.pagination.page, 2);
+  assert.equal(result.pagination.limit, 5);
+  assert.equal(result.pagination.total, 12);
+  assert.equal(result.pagination.totalPages, 3);
+
+  assert.deepEqual(result.sessions, sessions);
+});
+
+test('rejects attendance session listing when lecturer profile is missing', async () => {
+  const { prisma, calls } = createAttendanceListingPrisma({
+    lecturer: null,
+  });
+
+  await assert.rejects(
+    () => getAttendanceSessions(prisma, 'user-1'),
+    {
+      message: 'Lecturer profile not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.findManyArgs, undefined);
+});
+
+// Feature 6: Individual attendance session retrieval tests
+
+const createAttendanceDetailPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  session = { id: 'session-1', sessionType: 'CLASS' },
+} = {}) => {
+  const calls = {};
+
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async (args) => {
+        calls.lecturerArgs = args;
+        return lecturer;
+      },
+    },
+
+    attendanceSession: {
+      findFirst: async (args) => {
+        calls.sessionArgs = args;
+        return session;
+      },
+    },
+  };
+
+  return { prisma, calls };
+};
+
+test('retrieves an attendance session belonging to the lecturer', async () => {
+  const session = {
+    id: 'session-1',
+    sessionType: 'CLASS',
+    status: 'scheduled',
+  };
+
+  const { prisma, calls } = createAttendanceDetailPrisma({
+    session,
+  });
+
+  const result = await getAttendanceSessionById(
+    prisma,
+    'user-1',
+    'session-1'
+  );
+
+  assert.deepEqual(result, session);
+
+  assert.equal(
+    calls.sessionArgs.where.id,
+    'session-1'
+  );
+
+  assert.equal(
+    calls.sessionArgs.where.lecturerProfileId,
+    'lecturer-1'
+  );
+});
+
+test('rejects individual attendance retrieval when lecturer profile is missing', async () => {
+  const { prisma, calls } = createAttendanceDetailPrisma({
+    lecturer: null,
+  });
+
+  await assert.rejects(
+    () => getAttendanceSessionById(
+      prisma,
+      'user-1',
+      'session-1'
+    ),
+    {
+      message: 'Lecturer profile not found.',
+      statusCode: 404,
+    }
+  );
+
+  assert.equal(calls.sessionArgs, undefined);
+});
+
+test('rejects retrieval when attendance session does not exist', async () => {
+  const { prisma } = createAttendanceDetailPrisma({
+    session: null,
+  });
+
+  await assert.rejects(
+    () => getAttendanceSessionById(
+      prisma,
+      'user-1',
+      'unknown-session'
+    ),
+    {
+      message: 'Attendance session not found.',
+      statusCode: 404,
+    }
+  );
+});
+
+test('prevents lecturer from retrieving another lecturer attendance session', async () => {
+  const { prisma, calls } = createAttendanceDetailPrisma();
+
+  await getAttendanceSessionById(
+    prisma,
+    'user-1',
+    'session-1'
+  );
+
+  assert.deepEqual(calls.sessionArgs.where, {
+    id: 'session-1',
+    lecturerProfileId: 'lecturer-1',
+  });
 });

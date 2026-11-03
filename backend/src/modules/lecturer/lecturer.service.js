@@ -1,4 +1,5 @@
 
+import { createHash, randomBytes } from 'node:crypto';
 export const getAssignedReports = async (
   prisma,
   lecturerUserId,
@@ -557,4 +558,368 @@ export const submitMarkCorrection = async (
       correction,
     };
   });
+};
+
+
+// Feature 6: Create a unified attendance session
+
+export const createAttendanceSession = async (
+  prisma,
+  lecturerUserId,
+  sessionData
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: {
+      userId: lecturerUserId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Verify that the lecturer is assigned to the selected course unit.
+  const assignment = await prisma.courseUnitLecturer.findUnique({
+    where: {
+      courseUnitId_lecturerProfileId: {
+        courseUnitId: sessionData.courseUnitId,
+        lecturerProfileId: lecturer.id,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!assignment) {
+    const error = new Error(
+      'You are not assigned to this course unit.'
+    );
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // Verify that the selected classroom exists and is active.
+  const classroom = await prisma.classroom.findFirst({
+    where: {
+      id: sessionData.classroomId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!classroom) {
+    const error = new Error('Active classroom not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // Validate assessment requirements for CAT and EXAM sessions.
+  let assessmentId = null;
+
+  if (sessionData.sessionType === 'CLASS') {
+    if (sessionData.assessmentId) {
+      const error = new Error(
+        'CLASS sessions must not reference an assessment.'
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+  } else if (
+    sessionData.sessionType === 'CAT' ||
+    sessionData.sessionType === 'EXAM'
+  ) {
+    if (!sessionData.assessmentId) {
+      const error = new Error(
+        'CAT and EXAM sessions require an assessment.'
+      );
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const assessment = await prisma.assessment.findFirst({
+      where: {
+        id: sessionData.assessmentId,
+        courseUnitId: sessionData.courseUnitId,
+        type: sessionData.sessionType,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!assessment) {
+      const error = new Error(
+        'The assessment must exist, belong to the selected course unit, and match the session type.'
+      );
+      error.statusCode = 422;
+      throw error;
+    }
+
+    assessmentId = assessment.id;
+  } else {
+    const error = new Error('Invalid attendance session type.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Generate a secure QR token and store only its SHA-256 hash.
+  const qrToken = randomBytes(32).toString('hex');
+
+  const accessTokenHash = createHash('sha256')
+    .update(qrToken)
+    .digest('hex');
+
+  const session = await prisma.attendanceSession.create({
+    data: {
+      courseUnitId: sessionData.courseUnitId,
+      lecturerProfileId: lecturer.id,
+      classroomId: classroom.id,
+      assessmentId,
+      sessionType: sessionData.sessionType,
+      accessTokenHash,
+      status: 'scheduled',
+      startsAt: new Date(sessionData.startsAt),
+      endsAt: sessionData.endsAt
+        ? new Date(sessionData.endsAt)
+        : null,
+    },
+    select: {
+      id: true,
+      courseUnitId: true,
+      lecturerProfileId: true,
+      classroomId: true,
+      assessmentId: true,
+      sessionType: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      createdAt: true,
+      courseUnit: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+      classroom: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      assessment: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+        },
+      },
+    },
+  });
+
+  return {
+    session,
+    qrToken,
+  };
+};
+
+// Feature 6: Retrieve attendance sessions assigned to the lecturer
+
+export const getAttendanceSessions = async (
+  prisma,
+  lecturerUserId,
+  filters = {}
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: {
+      userId: lecturerUserId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const page = Math.max(1, Number.parseInt(filters.page, 10) || 1);
+
+  const limit = Math.min(
+    100,
+    Math.max(1, Number.parseInt(filters.limit, 10) || 10)
+  );
+
+  const skip = (page - 1) * limit;
+
+  const where = {
+    lecturerProfileId: lecturer.id,
+  };
+
+  if (filters.courseUnitId) {
+    where.courseUnitId = filters.courseUnitId;
+  }
+
+  if (filters.sessionType) {
+    where.sessionType = filters.sessionType;
+}
+
+  if (filters.status) {
+    where.status = filters.status;
+  }
+
+  const [sessions, total] = await prisma.$transaction([
+    prisma.attendanceSession.findMany({
+      where,
+      skip,
+      take: limit,
+      select: {
+        id: true,
+        courseUnitId: true,
+        lecturerProfileId: true,
+        classroomId: true,
+        sessionType: true,
+        assessmentId: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        createdAt: true,
+
+        courseUnit: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+          },
+        },
+
+        classroom: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+
+        assessment: {
+          select: {
+            id: true,
+            code: true,
+            name: true,
+            type: true,
+          },
+        },
+
+        _count: {
+          select: {
+            records: true,
+          },
+        },
+      },
+      orderBy: {
+        startsAt: 'desc',
+      },
+    }),
+
+    prisma.attendanceSession.count({ where }),
+  ]);
+
+  return {
+    sessions,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    },
+  };
+};
+// Feature 6: Retrieve an individual attendance session
+export const getAttendanceSessionById = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: {
+      userId: lecturerUserId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+    select: {
+      id: true,
+      courseUnitId: true,
+      lecturerProfileId: true,
+      classroomId: true,
+      sessionType: true,
+      assessmentId: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      createdAt: true,
+      updatedAt: true,
+
+      courseUnit: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      },
+
+      classroom: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+
+      assessment: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+        },
+      },
+
+      _count: {
+        select: {
+          records: true,
+        },
+      },
+    },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return session;
 };

@@ -7,6 +7,8 @@ import {
   createCommentSchema,
   submitDecisionSchema,
   submitCorrectionSchema,
+  createAttendanceSessionSchema,
+  attendanceSessionIdSchema,
 } from '../../src/modules/lecturer/lecturer.validation.js';
 
 test('accepts a valid report UUID', () => {
@@ -274,6 +276,138 @@ test('rejects a correction reason exceeding 2000 characters', () => {
     proposedValue: 75,
     reason: 'a'.repeat(2001),
   });
+
+  assert.equal(result.success, false);
+});
+
+  // Feature 6: Unified attendance session validation
+
+const validAttendanceSession = {
+  sessionType: 'CLASS',
+  courseUnitId: '550e8400-e29b-41d4-a716-446655440000',
+  classroomId: '650e8400-e29b-41d4-a716-446655440000',
+  startsAt: '2026-11-02T09:00:00+03:00',
+};
+
+test('accepts a valid CLASS attendance session', () => {
+  const result = createAttendanceSessionSchema.safeParse(
+    validAttendanceSession
+  );
+
+  assert.equal(result.success, true);
+});
+
+test('accepts a valid CAT attendance session', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    sessionType: 'CAT',
+    assessmentId: '750e8400-e29b-41d4-a716-446655440000',
+  });
+
+  assert.equal(result.success, true);
+});
+
+test('accepts a valid EXAM attendance session', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    sessionType: 'EXAM',
+    assessmentId: '850e8400-e29b-41d4-a716-446655440000',
+  });
+
+  assert.equal(result.success, true);
+});
+
+test('rejects a CLASS session with an assessment', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    assessmentId: '750e8400-e29b-41d4-a716-446655440000',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a CAT session without an assessment', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    sessionType: 'CAT',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects an EXAM session without an assessment', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    sessionType: 'EXAM',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects an invalid session type', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    sessionType: 'QUIZ',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a missing classroom ID', () => {
+  const { classroomId, ...session } = validAttendanceSession;
+
+  const result = createAttendanceSessionSchema.safeParse(session);
+
+  assert.equal(result.success, false);
+});
+
+test('rejects an invalid course unit UUID', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    courseUnitId: 'invalid-id',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects an end time before the start time', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    endsAt: '2026-11-02T08:00:00+03:00',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects an end time equal to the start time', () => {
+  const result = createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    endsAt: validAttendanceSession.startsAt,
+  });
+
+  assert.equal(result.success, false);
+});
+
+// Feature 6: Attendance session ID validation tests
+
+test('accepts a valid attendance session UUID', () => {
+  const result = attendanceSessionIdSchema.safeParse({
+    sessionId: '550e8400-e29b-41d4-a716-446655440000',
+  });
+
+  assert.equal(result.success, true);
+});
+
+test('rejects an invalid attendance session UUID', () => {
+  const result = attendanceSessionIdSchema.safeParse({
+    sessionId: 'invalid-session-id',
+  });
+
+  assert.equal(result.success, false);
+});
+
+test('rejects a missing attendance session ID', () => {
+  const result = attendanceSessionIdSchema.safeParse({});
 
   assert.equal(result.success, false);
 });

@@ -11,6 +11,9 @@ import {
   addComment,
   submitDecision,
   submitCorrection,
+  createAttendanceSessionController,
+  getAttendanceSessionsController,
+  getAttendanceSessionByIdController,
 } from './lecturer.controller.js';
 
 import {
@@ -18,6 +21,8 @@ import {
   createCommentSchema,
   submitDecisionSchema,
   submitCorrectionSchema,
+  createAttendanceSessionSchema,
+  attendanceSessionIdSchema
 } from './lecturer.validation.js';
 
 const router = express.Router();
@@ -78,4 +83,32 @@ router.post(
   validate(submitCorrectionSchema, 'body'),
   submitCorrection
 );
+
+// Feature 6: Retrieve lecturer attendance sessions
+// GET /api/v1/lecturer/attendance/sessions
+router.get(
+  '/attendance/sessions',
+  authenticate,
+  authorize('lecturer'),
+  getAttendanceSessionsController
+);
+
+// GET /api/v1/lecturer/attendance/sessions/:sessionId
+router.get(
+  '/attendance/sessions/:sessionId',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  getAttendanceSessionByIdController
+);
+// Feature 6: Unified attendance session creation
+// POST /api/v1/lecturer/attendance/sessions
+router.post(
+  '/attendance/sessions',
+  authenticate,
+  authorize('lecturer'),
+  validate(createAttendanceSessionSchema, 'body'),
+  createAttendanceSessionController
+);
+
 export default router;
