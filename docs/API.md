@@ -123,15 +123,208 @@ PATCH /api/v1/student/notifications/{notificationId}/read
 
 ### Lecturer
 
-| Method | Path | Purpose |
+All routes below are mounted under `/api/v1/lecturer`. Each requires a valid authenticated user with the `lecturer` role. The lecturer identity is derived from the authenticated user; clients must not supply a lecturer profile ID to determine ownership. Report and attendance-session access is restricted to the authenticated lecturer's assigned records. Records outside that scope return `404`.
+
+| Method | Path | Request | Success |
+|---|---|---|---|
+| GET | `/api/v1/lecturer/reports` | Optional pagination and supported report filters. No body. | `200`, assigned reports and pagination. |
+| GET | `/api/v1/lecturer/reports/:reportId` | UUID `reportId`; no body. | `200`, individual assigned report. |
+| GET | `/api/v1/lecturer/reports/:reportId/comments` | UUID `reportId`; no body. | `200`, comments associated with the report. |
+| POST | `/api/v1/lecturer/reports/:reportId/comments` | UUID `reportId`; validated comment payload. | `201`, created comment. |
+| POST | `/api/v1/lecturer/reports/:reportId/decision` | UUID `reportId`; validated approval or rejection decision payload. | `200`, updated report decision. |
+| POST | `/api/v1/lecturer/reports/:reportId/corrections` | UUID `reportId`; validated mark-correction proposal payload. | `201`, submitted correction proposal. |
+| POST | `/api/v1/lecturer/attendance/sessions` | Attendance session details: `sessionType`, `courseUnitId`, `classroomId`, optional `assessmentId`, `startsAt`, and optional `endsAt`. | `201`, created session and generated QR token. |
+| GET | `/api/v1/lecturer/attendance/sessions` | Optional `page`, `limit`, `courseUnitId`, `sessionType`, and `status`. No body. | `200`, lecturer's attendance sessions and pagination. |
+| GET | `/api/v1/lecturer/attendance/sessions/:sessionId` | UUID `sessionId`; no body. | `200`, individual attendance session. |
+| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/start` | UUID `sessionId`; no body. | Planned: start attendance session. |
+| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/end` | UUID `sessionId`; no body. | Planned: end attendance session. |
+| GET | `/api/v1/lecturer/attendance/sessions/:sessionId/records` | UUID `sessionId`; optional pagination if supported by the final implementation. | Planned: attendance records for the session. |
+
+### Lecturer request and behaviour details
+
+#### 1. Authentication and ownership
+
+- All Lecturer Module endpoints require authentication and the `lecturer` role.
+- The lecturer profile is resolved using the authenticated user's identity.
+- Clients must not provide a lecturer profile ID to access another lecturer's records.
+- Lecturers can only retrieve reports and attendance sessions within their permitted ownership or assignment scope.
+- An attendance session belonging to another lecturer is not accessible through the individual session endpoint.
+
+#### 2. Missing-mark report management
+
+- The report listing endpoint retrieves reports assigned to the authenticated lecturer.
+- Individual report retrieval uses a valid report UUID.
+- Comments are associated with the relevant report.
+- Comment submission is validated to reject missing, empty, or whitespace-only comments.
+- Leading and trailing whitespace is trimmed.
+- Comments must contain between 1 and 2,000 characters.
+- The lecturer's identity is derived from authentication rather than supplied by the client.
+- Report decisions support approval and rejection.
+- Appeals following a lecturer's rejection are handled by the COD module, not the Lecturer Module.
+- Mark-correction proposals are submitted separately from report decisions. Submitting a proposal does not directly modify the official student marks.
+
+#### 3. Attendance session management
+
+The Lecturer Module uses one unified attendance-session API for three session types:
+
+| Session type | Description | Assessment requirement |
 |---|---|---|
-| GET | `/api/v1/lecturer/reports` | List reports assigned to the lecturer. |
-| GET | `/api/v1/lecturer/reports/:id` | View an assigned report. |
-| POST | `/api/v1/lecturer/reports/:id/comments` | Add an investigation comment. |
-| POST | `/api/v1/lecturer/reports/:id/approve` | Record an approval where authorised. |
-| POST | `/api/v1/lecturer/reports/:id/reject` | Record a rejection with a reason. |
-| POST | `/api/v1/lecturer/attendance-sessions` | Create an attendance session. |
-| GET | `/api/v1/lecturer/attendance-sessions` | List sessions within lecturer's scope. |
+| `CLASS` | Regular classroom attendance. | No assessment required. |
+| `CAT` | Continuous Assessment Test attendance. | Existing registered CAT assessment required. |
+| `EXAM` | Examination attendance. | Existing registered EXAM assessment required. |
+
+Attendance session creation accepts the following fields:
+
+| Field | Requirement | Description |
+|---|---|---|
+| `sessionType` | Required | `CLASS`, `CAT`, or `EXAM`. |
+| `courseUnitId` | Required | UUID of the selected course unit. |
+| `classroomId` | Required | UUID of the registered classroom. |
+| `assessmentId` | Conditional | Required for CAT and EXAM; must not be supplied for CLASS. |
+| `startsAt` | Required | Valid ISO datetime with timezone offset. |
+| `endsAt` | Optional | Valid ISO datetime with timezone offset, later than `startsAt`. |
+
+Additional business rules:
+
+- The lecturer must be assigned to the selected course unit.
+- The classroom must exist and be active.
+- A CAT session must reference an existing CAT assessment.
+- An EXAM session must reference an existing EXAM assessment.
+- The selected assessment must belong to the selected course unit.
+- A CLASS session must not reference an assessment.
+- The session is created with the initial `scheduled` status.
+- Attendance sessions are associated with registered classrooms to support GPS-based location verification.
+
+#### 4. Attendance listing and retrieval
+
+The attendance-session listing endpoint supports filtering by:
+
+- `courseUnitId`
+- `sessionType`
+- `status`
+
+Pagination uses:
+
+- `page`: integer of at least `1`, default `1`.
+- `limit`: integer from `1` to `100`, default `10`.
+
+The listing response includes attendance sessions, their relevant course unit, classroom and assessment information where available, record counts, and pagination metadata.
+
+The individual session endpoint retrieves a session only when it belongs to the authenticated lecturer.
+
+#### 5. QR-code and GPS attendance workflow
+
+All three attendance types (`CLASS`, `CAT`, and `EXAM`) are designed to use QR-code and GPS-based verification.
+
+**QR-code workflow:**
+
+1. The lecturer creates an attendance session.
+2. The backend generates a cryptographically secure random QR token.
+3. The backend stores the SHA-256 hash of the token in the database rather than storing the raw token.
+4. The raw token is returned in the session creation response for frontend QR-code generation.
+5. The student scans the generated QR code.
+6. The Student Module handles token submission and verification.
+
+**GPS workflow:**
+
+1. The attendance session is associated with a registered classroom.
+2. The Student Module obtains the student's coordinates, subject to device permission.
+3. The student's location is checked against the registered classroom location.
+4. The location verification result contributes to attendance validation.
+
+**Module responsibilities:**
+
+| Responsibility | Module |
+|---|---|
+| Create attendance sessions | Lecturer |
+| Generate and securely store QR tokens | Backend attendance service |
+| Display QR-code images | Frontend |
+| Scan QR codes | Student |
+| Submit QR tokens | Student |
+| Collect and submit GPS coordinates | Student |
+| Verify student attendance submissions | Student-side attendance backend |
+| View attendance sessions | Lecturer |
+| View attendance records | Lecturer |
+
+GPS is an additional verification mechanism, not conclusive proof of physical presence. Location readings can be inaccurate or manipulated.
+
+The Lecturer Module's session creation, listing, and individual retrieval endpoints are implemented. Student-side QR scanning and GPS verification are separate integration responsibilities and should not be considered operational until implemented and tested.
+
+#### 6. CAT submission and examination review
+
+CAT submission review and examination-specific academic review are separate from attendance session management.
+
+The unified attendance API supports CAT and EXAM session creation. It does not, by itself, implement CAT submission review or examination-specific academic review endpoints.
+
+No additional CAT submission or examination-review routes should be treated as available until they are registered and verified in the implementation.
+
+### Validation and response behaviour
+
+- Request payloads and route parameters are validated before controller execution.
+- Report and attendance-session identifiers must be valid UUIDs.
+- Invalid request data returns `400`.
+- Missing authentication returns `401`.
+- Missing lecturer profile or records outside the lecturer's permitted scope return `404`.
+- Business-rule or state conflicts are returned using the appropriate application error status.
+- Unexpected server or database errors are handled by the application's error middleware.
+
+Successful list responses follow the standard response envelope:
+
+```json
+{
+  "success": true,
+  "message": "Request completed successfully.",
+  "count": 0,
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
+
+Successful individual reads and writes follow the standard response envelope:
+
+```json
+{
+  "success": true,
+  "message": "Request completed successfully.",
+  "data": {}
+}
+```
+
+The attendance session creation response additionally provides the generated QR token alongside the created session.
+
+### Implementation status
+
+| Feature | Status |
+|---|---|
+| Retrieve assigned missing-mark reports | Implemented |
+| Retrieve individual missing-mark reports | Implemented |
+| Retrieve report comments | Implemented |
+| Add investigation comments | Implemented |
+| Submit approval/rejection decisions | Implemented |
+| Submit mark-correction proposals | Implemented |
+| Create CLASS, CAT, and EXAM sessions | Implemented |
+| List attendance sessions | Implemented |
+| Retrieve individual attendance sessions | Implemented |
+| Start attendance sessions | Pending |
+| End attendance sessions | Pending |
+| Retrieve attendance records | Pending |
+| Student QR-code scanning and submission | Student Module integration pending |
+| Student GPS collection and verification | Student Module integration pending |
+| CAT submission review | Not confirmed |
+| Examination-specific academic review | Not confirmed |
+
+**Integration note:** This API reference describes the Lecturer Module development record. Before integrating, confirm the exact request payload fields and response structures against the corresponding validation schemas and controllers. Also confirm that the routes have been merged into the shared `develop` branch before treating them as available to other modules.
+
+---
+
+**Module:** Lecturer Module  
+**Project:** Web Based Missing Marks Management System  
+**Base Path:** `/api/v1/lecturer`
 
 ### COD / Academic Officer
 
