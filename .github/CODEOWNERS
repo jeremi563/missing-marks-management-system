@@ -1,0 +1,8 @@
+# Default reviewer and shared-foundation coordinator.
+* @jeremi563
+
+# Module ownership. The last matching rule determines the owner.
+/backend/src/modules/student/ @jeremi563
+/backend/src/modules/lecturer/ @HaniMasinde
+/backend/src/modules/cod/ @gfmwangi
+/backend/src/modules/admin/ @Ramadhan-21
