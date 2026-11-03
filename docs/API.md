@@ -57,25 +57,69 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 
 ### Student
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/v1/student/profile` | Get own profile. |
-| GET | `/api/v1/student/reports` | List own reports. |
-| POST | `/api/v1/student/reports` | Submit a missing-mark report. |
-| GET | `/api/v1/student/reports/:id` | View own report details if authorised. |
-| PATCH | `/api/v1/student/reports/:id` | Update a report where its status permits. |
-| POST | `/api/v1/student/reports/:id/withdraw` | Request/perform withdrawal where permitted. |
-| POST | `/api/v1/student/reports/:id/appeals` | Submit an appeal where permitted. |
-| GET | `/api/v1/student/attendance` | View own permitted attendance information. |
-| GET | `/api/v1/student/notifications` | List own notifications and unread count. |
+All routes below are mounted under `/api/v1`. Each requires a valid authenticated user with the `student` role. Ownership is derived from that user; clients must not send a student profile ID. Report and notification lookups are scoped to the authenticated owner, and records outside that scope return `404`.
 
-`GET /api/v1/student/profile`, `GET /api/v1/student/reports`, `GET /api/v1/student/reports/:reportId`, `POST /api/v1/student/reports`, `GET /api/v1/student/attendance`, and `GET /api/v1/student/notifications` are implemented. They require the `student` role and derive ownership from the authenticated user ID; clients cannot choose another student ID. Report details are queried by both report ID and owner profile ID, so another student's report is returned as not found. Report details include a chronological status timeline containing only previous status, new status and timestamp. Lecturer comments are not included until student visibility rules are agreed. Reports, attendance history, and notifications accept optional `page` (default `1`) and `limit` (default `10`, maximum `100`) query parameters and return pagination metadata.
+| Method | Path | Request | Success |
+|---|---|---|---|
+| GET | `/api/v1/student/profile` | No body. | `200`, own profile. |
+| GET | `/api/v1/student/reports` | Optional `page` and `limit`. | `200`, own reports and pagination. |
+| POST | `/api/v1/student/reports` | Required `courseUnitId`, `academicPeriodId`, `assessmentComponent`, `description`; optional `assessmentId`. | `201`, submitted report. |
+| GET | `/api/v1/student/reports/:reportId` | UUID `reportId`; no body. | `200`, own report with status timeline. |
+| GET | `/api/v1/student/reports/:reportId/comments` | UUID `reportId`; no body. | `200`, comments visible to the student. |
+| POST | `/api/v1/student/reports/:reportId/comments` | UUID `reportId`; `{ "body": "..." }`. | `201`, clarification comment. |
+| PATCH | `/api/v1/student/reports/:reportId` | UUID `reportId`; at least one of `assessmentId`, `assessmentComponent`, `description`. | `200`, updated report. |
+| POST | `/api/v1/student/reports/:reportId/withdraw` | UUID `reportId`; no body. | `200`, report with `Withdrawn` status. |
+| POST | `/api/v1/student/reports/:reportId/appeals` | UUID `reportId`; `{ "reason": "...", "comments": "..." }`, where `comments` is optional. | `201`, submitted appeal. |
+| POST | `/api/v1/student/reports/:reportId/appeal` | Same as plural `/appeals`; compatibility alias. | `201`, submitted appeal. |
+| GET | `/api/v1/student/attendance` | Optional `page` and `limit`. | `200`, own attendance history and pagination. |
+| GET | `/api/v1/student/notifications` | Optional `page` and `limit`. | `200`, own notifications, unread count, and pagination. |
+| PATCH | `/api/v1/student/notifications/:notificationId/read` | UUID `notificationId`; no body. | `200`, own notification with `readAt` set. |
 
-Report submission accepts `courseUnitId`, `academicPeriodId`, `assessmentComponent`, and `description`, with optional `assessmentId`. The backend verifies the student's enrollment in the selected unit and period and, when provided, that the assessment belongs to the unit. It immediately creates the report as `Submitted` and records initial status history and an audit event atomically. Duplicate submissions are currently allowed; duplicate policy and the broader status state machine remain open decisions. Other student routes remain planned until implemented and tested.
+### Student request and behavior details
 
-Student attendance reads the separate `AttendanceHistory` snapshot records for the authenticated student's profile, ordered by most recent sign-in. It includes available correction history and does not expose another student's attendance records.
+- `page` is an integer of at least `1`, default `1`. `limit` is an integer from `1` to `100`, default `10`. Unknown query fields are rejected. These parameters apply to report lists, attendance, and notifications.
+- Report submission trims `assessmentComponent` (1-100 characters) and `description` (1-5,000 characters). It verifies the student is enrolled in the selected unit and academic period and, if supplied, that the assessment belongs to the unit. It creates the report as `Submitted` and records initial status history and an audit event in one transaction. Duplicate report submissions are currently allowed.
+- Report editing accepts optional `assessmentId` (UUID), `assessmentComponent` (1-100 characters), and `description` (1-5,000 characters); at least one field is required and unknown fields are rejected. A replacement assessment must belong to the report's existing course unit. Unit and period cannot be changed through this endpoint. Editing is allowed only in `Submitted`; the update is conditional on the report still being in that state.
+- Withdrawal has no request body and is allowed only while the report is `Submitted`. The status change is conditional on the current state and is recorded in status history.
+- Appeals require a non-empty `reason` (maximum 5,000 characters) and allow optional `comments` (maximum 2,000 characters). Only a report with status `REJECTED` is eligible, and at most one appeal may be created per report. An owned report row is locked during the duplicate check. No deadline is enforced because one has not been configured; appeal review and decision authority are not implemented by this student submission endpoint.
+- Student comment bodies are trimmed and must contain 1-2,000 characters. Students can post clarification comments only to their own report; the API assigns authorship from the authenticated identity. The read endpoint returns comments marked `isStudentVisible: true` plus comments authored by the requesting student. Lecturer comment creation currently has no visibility toggle, so lecturer-authored comments will remain hidden until that integration is coordinated and implemented.
+- Attendance reads the student's `AttendanceHistory` snapshots, newest sign-in first, including available correction history. Notifications are queried by authenticated user ID, newest first, and include `readAt`, linked report summary when available, and an unread count. Mark-as-read is idempotent and owner-scoped; another user's notification returns `404`.
 
-Student notifications are queried by the authenticated user's ID and returned newest-first with `readAt` and an unread count. This endpoint is read-only; a mark-as-read endpoint is not yet implemented.
+Validation failures return `400`; missing profile or out-of-scope records return `404`; invalid enrollment/assessment relations return `422`; and state conflicts such as editing or withdrawing a non-`Submitted` report, appealing an ineligible report, or submitting a duplicate appeal return `409`. Successful list responses use the standard `{ success, message, count, data, pagination }` envelope; notification lists also include `unreadCount`. Successful writes and reads use `{ success, message, data }` with `200` or `201` as shown above.
+
+Examples:
+
+```http
+POST /api/v1/student/reports
+Content-Type: application/json
+
+{"courseUnitId":"<uuid>","academicPeriodId":"<uuid>","assessmentId":"<uuid>","assessmentComponent":"CAT 1","description":"My CAT 1 mark is missing."}
+```
+
+```http
+PATCH /api/v1/student/reports/{reportId}
+Content-Type: application/json
+
+{"assessmentComponent":"CAT 2","description":"My CAT 2 mark is missing."}
+```
+
+```http
+POST /api/v1/student/reports/{reportId}/comments
+Content-Type: application/json
+
+{"body":"I submitted the assessment on the scheduled date."}
+```
+
+```http
+POST /api/v1/student/reports/{reportId}/appeals
+Content-Type: application/json
+
+{"reason":"The rejection did not consider my submitted evidence.","comments":"Please review the record."}
+```
+
+```http
+PATCH /api/v1/student/notifications/{notificationId}/read
+```
 
 ### Lecturer
 
