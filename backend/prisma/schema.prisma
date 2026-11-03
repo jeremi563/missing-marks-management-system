@@ -548,6 +548,7 @@ model ReportComment {
   reportId     String   @map("report_id") @db.Uuid
   authorUserId String   @map("author_user_id") @db.Uuid
   body         String
+  isStudentVisible Boolean @default(false) @map("is_student_visible")
   createdAt    DateTime @default(now()) @map("created_at")
 
   report MissingMarkReport @relation(fields: [reportId], references: [id], onDelete: Restrict)

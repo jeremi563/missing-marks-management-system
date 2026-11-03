@@ -127,17 +127,6 @@ export async function getStudentReportById(prisma, userId, reportId) {
 	return report;
 }
 
-const FINAL_REPORT_STATUSES = new Set([
-	"Approved",
-	"Rejected",
-	"Resolved",
-	"Completed",
-	"Closed",
-	"Decision Recorded",
-	"Finalised",
-	"Finalized",
-]);
-
 export async function getStudentReportComments(prisma, userId, reportId) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
@@ -165,7 +154,13 @@ export async function getStudentReportComments(prisma, userId, reportId) {
 	}
 
 	const comments = await prisma.reportComment.findMany({
-		where: { reportId: report.id },
+		where: {
+			reportId: report.id,
+			OR: [
+				{ isStudentVisible: true },
+				{ authorUserId: userId },
+			],
+		},
 		select: {
 			id: true,
 			body: true,
@@ -194,7 +189,7 @@ export async function getStudentReportComments(prisma, userId, reportId) {
 	}));
 }
 
-export async function submitStudentAppeal(prisma, userId, reportId, input = {}) {
+export async function addStudentClarification(prisma, userId, reportId, body) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
 		select: { id: true },
@@ -207,15 +202,8 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 	}
 
 	const report = await prisma.missingMarkReport.findFirst({
-		where: {
-			id: reportId,
-			studentProfileId: student.id,
-		},
-		select: {
-			id: true,
-			studentProfileId: true,
-			status: true,
-		},
+		where: { id: reportId, studentProfileId: student.id },
+		select: { id: true, studentProfileId: true },
 	});
 
 	if (!report || report.studentProfileId !== student.id) {
@@ -224,20 +212,31 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 		throw error;
 	}
 
-	if (!FINAL_REPORT_STATUSES.has(report.status)) {
-		const error = new Error("Appeals are only allowed after a final report decision is recorded.");
-		error.statusCode = 409;
-		throw error;
-	}
+	return prisma.reportComment.create({
+		data: {
+			reportId: report.id,
+			authorUserId: userId,
+			body: body.trim(),
+			isStudentVisible: true,
+		},
+		select: {
+			id: true,
+			body: true,
+			createdAt: true,
+			author: { select: { id: true, displayName: true } },
+		},
+	});
+}
 
-	const existingAppeal = await prisma.appeal.findFirst({
-		where: { reportId: report.id },
+export async function submitStudentAppeal(prisma, userId, reportId, input = {}) {
+	const student = await prisma.studentProfile.findUnique({
+		where: { userId },
 		select: { id: true },
 	});
 
-	if (existingAppeal) {
-		const error = new Error("A report can have at most one appeal submitted.");
-		error.statusCode = 409;
+	if (!student) {
+		const error = new Error("Student profile not found.");
+		error.statusCode = 404;
 		throw error;
 	}
 
@@ -250,24 +249,79 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 
 	const comments = typeof input.comments === "string" ? input.comments.trim() : "";
 
-	return prisma.appeal.create({
-		data: {
-			reportId: report.id,
-			studentProfileId: student.id,
-			reason,
-			status: "Submitted",
-			comments: comments || null,
-		},
-		select: {
-			id: true,
-			reportId: true,
-			studentProfileId: true,
-			reason: true,
-			status: true,
-			comments: true,
-			createdAt: true,
-			updatedAt: true,
-		},
+	return prisma.$transaction(async (transaction) => {
+		const lockedReports = await transaction.$queryRaw`
+			SELECT id
+			FROM missing_mark_reports
+			WHERE id = ${reportId}::uuid AND student_profile_id = ${student.id}::uuid
+			FOR UPDATE
+		`;
+
+		if (lockedReports.length === 0) {
+			const error = new Error("Missing-mark report not found.");
+			error.statusCode = 404;
+			throw error;
+		}
+
+		const report = await transaction.missingMarkReport.findFirst({
+			where: { id: reportId, studentProfileId: student.id },
+			select: { id: true, status: true },
+		});
+
+		if (!report) {
+			const error = new Error("Missing-mark report not found.");
+			error.statusCode = 404;
+			throw error;
+		}
+
+		if (report.status?.toUpperCase() !== "REJECTED") {
+			const error = new Error("Appeals are only allowed after a report is rejected.");
+			error.statusCode = 409;
+			throw error;
+		}
+
+		const existingAppeal = await transaction.appeal.findFirst({
+			where: { reportId: report.id },
+			select: { id: true },
+		});
+
+		if (existingAppeal) {
+			const error = new Error("A report can have at most one appeal submitted.");
+			error.statusCode = 409;
+			throw error;
+		}
+
+		const appeal = await transaction.appeal.create({
+			data: {
+				reportId: report.id,
+				studentProfileId: student.id,
+				reason,
+				status: "Submitted",
+				comments: comments || null,
+			},
+			select: {
+				id: true,
+				reportId: true,
+				studentProfileId: true,
+				reason: true,
+				status: true,
+				comments: true,
+				createdAt: true,
+				updatedAt: true,
+			},
+		});
+
+		await transaction.auditLog.create({
+			data: {
+				actorId: userId,
+				action: "REPORT_APPEAL_SUBMITTED",
+				entityType: "Appeal",
+				entityId: appeal.id,
+				metadata: { reportId: report.id },
+			},
+		});
+
+		return appeal;
 	});
 }
 
@@ -463,6 +517,33 @@ export async function getStudentNotifications(prisma, userId, pagination = {}) {
 	};
 }
 
+export async function markStudentNotificationRead(prisma, userId, notificationId) {
+	await prisma.notification.updateMany({
+		where: { id: notificationId, userId, readAt: null },
+		data: { readAt: new Date() },
+	});
+
+	const notification = await prisma.notification.findFirst({
+		where: { id: notificationId, userId },
+		select: {
+			id: true,
+			title: true,
+			message: true,
+			readAt: true,
+			createdAt: true,
+			report: { select: { id: true, reference: true, status: true } },
+		},
+	});
+
+	if (!notification) {
+		const error = new Error("Notification not found.");
+		error.statusCode = 404;
+		throw error;
+	}
+
+	return notification;
+}
+
 export async function updateStudentReport(prisma, userId, reportId, input) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
@@ -481,6 +562,7 @@ export async function updateStudentReport(prisma, userId, reportId, input) {
 			id: true,
 			studentProfileId: true,
 			status: true,
+			courseUnitId: true,
 			assessmentId: true,
 			assessmentComponent: true,
 			description: true,
@@ -503,7 +585,7 @@ export async function updateStudentReport(prisma, userId, reportId, input) {
 	if (typeof input.assessmentId !== "undefined") {
 		if (input.assessmentId) {
 			const assessment = await prisma.assessment.findFirst({
-				where: { id: input.assessmentId, courseUnitId: input.courseUnitId ?? (await prisma.missingMarkReport.findUnique({ where: { id: reportId }, select: { courseUnitId: true } })).courseUnitId },
+				where: { id: input.assessmentId, courseUnitId: report.courseUnitId },
 				select: { id: true },
 			});
 			if (!assessment) {
@@ -516,16 +598,26 @@ export async function updateStudentReport(prisma, userId, reportId, input) {
 	}
 	if (typeof input.assessmentComponent !== "undefined") payload.assessmentComponent = input.assessmentComponent;
 	if (typeof input.description !== "undefined") payload.description = input.description;
-	if (typeof input.courseUnitId !== "undefined") payload.courseUnitId = input.courseUnitId;
-
 	if (Object.keys(payload).length === 0) {
-		return report;
+		const error = new Error("At least one report field must be provided.");
+		error.statusCode = 422;
+		throw error;
 	}
 
 	return prisma.$transaction(async (transaction) => {
-		const updated = await transaction.missingMarkReport.update({
-			where: { id: reportId },
+		const updateResult = await transaction.missingMarkReport.updateMany({
+			where: { id: reportId, studentProfileId: student.id, status: "Submitted" },
 			data: payload,
+		});
+
+		if (updateResult.count !== 1) {
+			const error = new Error("Report can only be edited while it is still in Submitted state.");
+			error.statusCode = 409;
+			throw error;
+		}
+
+		const updated = await transaction.missingMarkReport.findUnique({
+			where: { id: reportId },
 			select: {
 				id: true,
 				reference: true,
@@ -589,11 +681,16 @@ export async function withdrawStudentReport(prisma, userId, reportId) {
 	}
 
 	return prisma.$transaction(async (transaction) => {
-		const updated = await transaction.missingMarkReport.update({
-			where: { id: reportId },
+		const updateResult = await transaction.missingMarkReport.updateMany({
+			where: { id: reportId, studentProfileId: student.id, status: "Submitted" },
 			data: { status: "Withdrawn" },
-			select: { id: true, status: true },
 		});
+
+		if (updateResult.count !== 1) {
+			const error = new Error("Report can only be withdrawn while it is still in Submitted state.");
+			error.statusCode = 409;
+			throw error;
+		}
 
 		await transaction.reportStatusHistory.create({
 			data: {
@@ -605,6 +702,6 @@ export async function withdrawStudentReport(prisma, userId, reportId) {
 			},
 		});
 
-		return updated;
+		return { id: report.id, status: "Withdrawn" };
 	});
 }
