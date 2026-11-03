@@ -404,6 +404,123 @@ test("COD dashboard rejects non-COD users", async () => {
   }
 });
 
+test("COD report detail returns linked application enrollment, assessment, CAT and attendance records", async () => {
+  const department = await createDepartment({ name: "Review Department", code: "REV" });
+  const codUser = await createUser({ email: "cod.review@dept.test", roles: ["cod"] });
+  await createDepartmentMembership({ userId: codUser.id, departmentId: department.id });
+  const secondDepartment = await createDepartment({ name: "Second Review Department", code: "REV2" });
+  await createDepartmentMembership({ userId: codUser.id, departmentId: secondDepartment.id });
+  const courseUnit = await createCourseUnit({ departmentId: department.id, code: "REV101", name: "Review Unit" });
+  const academicPeriod = await createAcademicPeriod({ name: "Review Period" });
+  const student = await createStudentProfile({ userEmail: "review.student@example.com", studentNumber: "REV001" });
+  const otherStudent = await createStudentProfile({ userEmail: "review.other.student@example.com", studentNumber: "REV002" });
+  const assessment = await prisma.assessment.create({
+    data: { courseUnitId: courseUnit.id, name: "CAT 1", type: "CAT", attendanceRequired: true, submissionRequired: true },
+  });
+  const report = await prisma.missingMarkReport.create({
+    data: {
+      reference: `REF-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+      studentProfileId: student.id,
+      courseUnitId: courseUnit.id,
+      academicPeriodId: academicPeriod.id,
+      assessmentId: assessment.id,
+      assessmentComponent: "CAT 1",
+      description: "Review linked academic information",
+      status: "submitted",
+    },
+  });
+  await prisma.unitEnrollment.create({
+    data: { studentProfileId: student.id, courseUnitId: courseUnit.id, academicPeriodId: academicPeriod.id },
+  });
+  const catSubmission = await prisma.catSubmission.create({ data: { assessmentId: assessment.id, studentProfileId: student.id } });
+  const assessmentAttendance = await prisma.assessmentAttendance.create({ data: { assessmentId: assessment.id, studentProfileId: student.id, status: "present" } });
+  await prisma.catSubmission.create({ data: { assessmentId: assessment.id, studentProfileId: otherStudent.id } });
+  await prisma.assessmentAttendance.create({ data: { assessmentId: assessment.id, studentProfileId: otherStudent.id, status: "absent" } });
+
+  const otherCourseUnit = await createCourseUnit({ departmentId: department.id, code: "REV102", name: "Other Review Unit" });
+  const otherAssessment = await prisma.assessment.create({
+    data: { courseUnitId: otherCourseUnit.id, name: "Other Unit CAT", type: "CAT" },
+  });
+  const mismatchedReport = await prisma.missingMarkReport.create({
+    data: {
+      reference: `REF-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+      studentProfileId: student.id,
+      courseUnitId: courseUnit.id,
+      academicPeriodId: academicPeriod.id,
+      assessmentId: otherAssessment.id,
+      assessmentComponent: "CAT 1",
+      description: "Report linked to an assessment from another unit",
+      status: "submitted",
+    },
+  });
+
+  const token = await loginToken(codUser);
+  const server = app.listen(0);
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/cod/reports/${report.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.equal(body.data.academicReview.source, "Application records; not independently verified official university records");
+    assert.match(body.data.academicReview.note, /does not establish/i);
+    assert.ok(body.data.academicReview.enrollment.id);
+    assert.equal(body.data.academicReview.assessment.id, assessment.id);
+    assert.equal(body.data.academicReview.assessment.catSubmissions.length, 1);
+    assert.equal(body.data.academicReview.assessment.catSubmissions[0].id, catSubmission.id);
+    assert.equal(body.data.academicReview.assessment.attendance[0].status, "present");
+    assert.equal(body.data.academicReview.assessment.attendance[0].id, assessmentAttendance.id);
+    assert.equal(body.data.status, "submitted");
+
+    const mismatchedResponse = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/cod/reports/${mismatchedReport.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    assert.equal(mismatchedResponse.status, 200);
+    const mismatchedBody = await mismatchedResponse.json();
+    assert.equal(mismatchedBody.data.academicReview.assessment, null);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("COD report detail and comments do not expose reports from unauthorized departments", async () => {
+  const departmentA = await createDepartment({ name: "Authorized Review", code: "AR1" });
+  const departmentB = await createDepartment({ name: "Restricted Review", code: "RR1" });
+  const codUser = await createUser({ email: "cod.scope.review@dept.test", roles: ["cod"] });
+  await createDepartmentMembership({ userId: codUser.id, departmentId: departmentA.id });
+  const course = await createCourseUnit({ departmentId: departmentB.id, code: "RR101", name: "Restricted Unit" });
+  const period = await createAcademicPeriod({ name: "Restricted Period" });
+  const student = await createStudentProfile({ userEmail: "restricted.review@example.com", studentNumber: "RR001" });
+  const report = await createMissingMarkReport({ studentProfileId: student.id, courseUnitId: course.id, academicPeriodId: period.id, assessmentComponent: "Exam", status: "submitted", description: "Restricted" });
+  const token = await loginToken(codUser);
+  const server = app.listen(0);
+  try {
+    for (const path of [`/api/v1/cod/reports/${report.id}`, `/api/v1/cod/reports/${report.id}/comments`]) {
+      const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+      assert.ok([403, 404].includes(response.status));
+    }
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("COD report detail requires authentication and COD role", async () => {
+  const department = await createDepartment({ name: "Auth Review", code: "AUTHR" });
+  const course = await createCourseUnit({ departmentId: department.id, code: "AUTH101", name: "Auth Unit" });
+  const period = await createAcademicPeriod({ name: "Auth Period" });
+  const student = await createStudentProfile({ userEmail: "auth.review@example.com", studentNumber: "AUTH001" });
+  const report = await createMissingMarkReport({ studentProfileId: student.id, courseUnitId: course.id, academicPeriodId: period.id, assessmentComponent: "Exam", status: "submitted", description: "Auth" });
+  const nonCod = await createUser({ email: "noncod.review@dept.test", roles: ["student"] });
+  const server = app.listen(0);
+  try {
+    const baseUrl = `http://127.0.0.1:${server.address().port}/api/v1/cod/reports/${report.id}`;
+    assert.equal((await fetch(baseUrl)).status, 401);
+    assert.equal((await fetch(baseUrl, { headers: { Authorization: `Bearer ${await loginToken(nonCod)}` } })).status, 403);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
 process.on("exit", async () => {
   await prisma.$disconnect();
 });

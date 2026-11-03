@@ -1,5 +1,36 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
-import { assignReportToLecturer, listEligibleLecturers, listDepartmentReports } from "./cod.service.js";
+import { addCodReportComment, assignReportToLecturer, getCodReportDetails, listCodReportComments, listEligibleLecturers, listDepartmentReports } from "./cod.service.js";
+
+export async function getCodReport(req, res, next) {
+  try {
+    const result = await getCodReportDetails({ userId: req.user.id, reportId: req.params.id });
+    return sendSuccess(res, "Departmental report retrieved successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getCodComments(req, res, next) {
+  try {
+    const result = await listCodReportComments({ userId: req.user.id, reportId: req.params.id });
+    return sendSuccess(res, "Report comments retrieved successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function postCodComment(req, res, next) {
+  try {
+    const result = await addCodReportComment({
+      actorUserId: req.user.id,
+      reportId: req.params.id,
+      body: req.body.body,
+    });
+    return sendSuccess(res, "Report comment added successfully", result, 201);
+  } catch (error) {
+    return next(error);
+  }
+}
 
 export async function getCodReports(req, res, next) {
   try {

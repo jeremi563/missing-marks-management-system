@@ -331,11 +331,18 @@ The attendance session creation response additionally provides the generated QR 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/cod/reports` | List departmental reports. |
+| GET | `/api/v1/cod/reports/:id` | Retrieve a report and linked application records available for COD review. |
 | POST | `/api/v1/cod/reports/:id/assign` | Assign or reassign a report where permitted. |
+| GET | `/api/v1/cod/reports/:id/comments` | List report comments available to staff in the authorized department. |
+| POST | `/api/v1/cod/reports/:id/comments` | Add a private staff comment to a report. |
 | POST | `/api/v1/cod/reports/:id/approve` | Record a departmental decision where authorised. |
 | POST | `/api/v1/cod/reports/:id/reject` | Record a departmental rejection with a reason. |
 | GET | `/api/v1/cod/appeals` | List appeals within the authorised scope. |
 | GET | `/api/v1/cod/reports/overdue` | List overdue reports. |
+
+COD report detail and comment routes require authentication, the `cod` role, and membership in the report's department. The detail response includes linked enrollment and, when the report is linked to an assessment in the same course unit, the student's CAT submission and assessment-attendance records. These are application records and are not represented as independently verified official university records. Missing application records do not establish that an academic event did not occur. The current schema does not link class attendance sessions to an academic period, so class attendance is not included in report-period review detail.
+
+COD comment creation accepts `{ "body": "..." }`; the trimmed body must contain 1-2,000 characters. The API derives authorship from the authenticated user, stores COD comments as staff-private, and creates the comment and a `COD_REPORT_COMMENT_ADDED` audit event in one transaction. Audit metadata contains the new comment ID and does not contain its text.
 
 ### Administrator
 
