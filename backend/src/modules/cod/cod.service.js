@@ -24,6 +24,166 @@ async function getAuthorizedReport(db, userId, reportId) {
   return report;
 }
 
+export async function getCodReportDetails({ userId, reportId }) {
+  const departmentIds = await getAuthorizedDepartmentIds(prisma, userId);
+  const report = await prisma.missingMarkReport.findFirst({
+    where: {
+      id: reportId,
+      courseUnit: { departmentId: { in: departmentIds } },
+    },
+    select: {
+      id: true,
+      reference: true,
+      assessmentComponent: true,
+      description: true,
+      status: true,
+      submittedAt: true,
+      createdAt: true,
+      updatedAt: true,
+      studentProfileId: true,
+      courseUnitId: true,
+      academicPeriodId: true,
+      student: { select: { id: true, studentNumber: true, officialEmail: true } },
+      courseUnit: { select: { id: true, code: true, name: true, departmentId: true } },
+      academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+      assessment: {
+        select: {
+          id: true,
+          courseUnitId: true,
+          code: true,
+          name: true,
+          type: true,
+          assessmentDate: true,
+          maximumMarks: true,
+          attendanceRequired: true,
+          submissionRequired: true,
+        },
+      },
+      assignedLecturer: {
+        select: { id: true, user: { select: { displayName: true, email: true } } },
+      },
+    },
+  });
+
+  if (!report) {
+    throw new AppError(404, "Missing-mark report not found");
+  }
+
+  const [enrollment, linkedAssessment] = await Promise.all([
+    prisma.unitEnrollment.findUnique({
+      where: {
+        studentProfileId_courseUnitId_academicPeriodId: {
+          studentProfileId: report.studentProfileId,
+          courseUnitId: report.courseUnitId,
+          academicPeriodId: report.academicPeriodId,
+        },
+      },
+      select: { id: true, createdAt: true },
+    }),
+    report.assessment && report.assessment.courseUnitId === report.courseUnitId
+      ? prisma.assessment.findUnique({
+        where: { id: report.assessment.id },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          type: true,
+          assessmentDate: true,
+          maximumMarks: true,
+          attendanceRequired: true,
+          submissionRequired: true,
+          catSubmissions: {
+            where: { studentProfileId: report.studentProfileId },
+            select: { id: true, confirmedAt: true, verifiedAt: true, verifiedByLecturerId: true },
+          },
+          attendanceRecords: {
+            where: { studentProfileId: report.studentProfileId },
+            select: { id: true, status: true, recordedAt: true },
+          },
+        },
+      })
+      : Promise.resolve(null),
+  ]);
+
+  return {
+    id: report.id,
+    reference: report.reference,
+    assessmentComponent: report.assessmentComponent,
+    description: report.description,
+    status: report.status,
+    submittedAt: report.submittedAt,
+    createdAt: report.createdAt,
+    updatedAt: report.updatedAt,
+    student: report.student,
+    courseUnit: report.courseUnit,
+    academicPeriod: report.academicPeriod,
+    assignedLecturer: report.assignedLecturer
+      ? { id: report.assignedLecturer.id, displayName: report.assignedLecturer.user?.displayName ?? null, email: report.assignedLecturer.user?.email ?? null }
+      : null,
+    academicReview: {
+      source: "Application records; not independently verified official university records",
+      note: "A missing application record does not establish that an academic event did not occur.",
+      enrollment,
+      assessment: linkedAssessment ? {
+        id: linkedAssessment.id,
+        code: linkedAssessment.code,
+        name: linkedAssessment.name,
+        type: linkedAssessment.type,
+        assessmentDate: linkedAssessment.assessmentDate,
+        maximumMarks: linkedAssessment.maximumMarks,
+        attendanceRequired: linkedAssessment.attendanceRequired,
+        submissionRequired: linkedAssessment.submissionRequired,
+        catSubmissions: linkedAssessment.catSubmissions,
+        attendance: linkedAssessment.attendanceRecords,
+      } : null,
+    },
+  };
+}
+
+export async function listCodReportComments({ userId, reportId }) {
+  const report = await getAuthorizedReport(prisma, userId, reportId);
+  return prisma.reportComment.findMany({
+    where: { reportId: report.id },
+    select: {
+      id: true,
+      body: true,
+      isStudentVisible: true,
+      createdAt: true,
+      author: { select: { id: true, displayName: true, roles: { select: { role: { select: { name: true } } } } } },
+    },
+    orderBy: { createdAt: "asc" },
+  }).then((comments) => comments.map((comment) => ({
+    ...comment,
+    author: { ...comment.author, roles: comment.author.roles.map(({ role }) => role.name) },
+  })));
+}
+
+export async function addCodReportComment({ actorUserId, reportId, body }) {
+  return prisma.$transaction(async (tx) => {
+    const report = await getAuthorizedReport(tx, actorUserId, reportId);
+    const comment = await tx.reportComment.create({
+      data: { reportId: report.id, authorUserId: actorUserId, body: body.trim(), isStudentVisible: false },
+      select: {
+        id: true,
+        reportId: true,
+        body: true,
+        isStudentVisible: true,
+        createdAt: true,
+        author: { select: { id: true, displayName: true } },
+      },
+    });
+    await recordAuditEvent({
+      prismaClient: tx,
+      actorId: actorUserId,
+      action: "COD_REPORT_COMMENT_ADDED",
+      entityType: "MissingMarkReport",
+      entityId: reportId,
+      metadata: { commentId: comment.id },
+    });
+    return comment;
+  });
+}
+
 async function findEligibleLecturer(db, lecturerProfileId, courseUnitId) {
   return db.courseUnitLecturer.findFirst({
     where: {
