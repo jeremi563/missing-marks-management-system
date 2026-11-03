@@ -10,6 +10,7 @@ import {
   getComments,
   addComment,
   submitDecision,
+  escalateReportController,
   submitCorrection,
   createAttendanceSessionController,
   getAttendanceSessionsController,
@@ -20,6 +21,7 @@ import {
   reportIdSchema,
   createCommentSchema,
   submitDecisionSchema,
+  escalateReportSchema,
   submitCorrectionSchema,
   createAttendanceSessionSchema,
   attendanceSessionIdSchema
@@ -71,6 +73,16 @@ router.post(
   validate(reportIdSchema, 'params'),
   validate(submitDecisionSchema, 'body'),
   submitDecision
+);
+
+// POST /api/v1/lecturer/reports/:reportId/escalate
+router.post(
+  '/reports/:reportId/escalate',
+  authenticate,
+  authorize('lecturer'),
+  validate(reportIdSchema, 'params'),
+  validate(escalateReportSchema, 'body'),
+  escalateReportController
 );
 //feature 5: Mark-correction proposal submission
 

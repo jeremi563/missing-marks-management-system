@@ -1,5 +1,6 @@
 
 import { createHash, randomBytes } from 'node:crypto';
+import { recordAuditEvent } from '../../shared/services/audit.service.js';
 export const getAssignedReports = async (
   prisma,
   lecturerUserId,
@@ -420,6 +421,88 @@ export const submitReportDecision = async (
       reference: report.reference,
       decision: normalizedDecision,
       status: newStatus,
+      history,
+    };
+  });
+};
+
+export const escalateAssignedReport = async (prisma, lecturerUserId, reportId, reason) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const report = await prisma.missingMarkReport.findFirst({
+    where: { id: reportId, assignedLecturerProfileId: lecturer.id },
+    select: { id: true, reference: true, status: true },
+  });
+  if (!report) {
+    const error = new Error('Missing-mark report not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const originalDecision = typeof report.status === 'string' ? report.status.toUpperCase() : '';
+  if (!['APPROVED', 'REJECTED'].includes(originalDecision)) {
+    const error = new Error('Only an approved or rejected lecturer decision can be escalated.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const priorEscalation = await prisma.reportStatusHistory.findFirst({
+    where: { reportId: report.id, newStatus: 'ESCALATED' },
+    select: { id: true },
+  });
+  if (priorEscalation) {
+    const error = new Error('This report has already been escalated.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.missingMarkReport.updateMany({
+      where: {
+        id: report.id,
+        assignedLecturerProfileId: lecturer.id,
+        status: report.status,
+      },
+      data: { status: 'ESCALATED' },
+    });
+    if (updated.count !== 1) {
+      const error = new Error('This report has already been escalated or its status has changed.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const history = await tx.reportStatusHistory.create({
+      data: {
+        reportId: report.id,
+        actorUserId: lecturerUserId,
+        previousStatus: report.status,
+        newStatus: 'ESCALATED',
+        reason,
+      },
+      select: { id: true, previousStatus: true, newStatus: true, reason: true, createdAt: true },
+    });
+    await recordAuditEvent({
+      prismaClient: tx,
+      actorId: lecturerUserId,
+      action: 'REPORT_ESCALATED',
+      entityType: 'MissingMarkReport',
+      entityId: report.id,
+      metadata: { previousStatus: report.status, newStatus: 'ESCALATED' },
+    });
+
+    return {
+      reportId: report.id,
+      reference: report.reference,
+      lecturerDecision: originalDecision,
+      status: 'ESCALATED',
       history,
     };
   });

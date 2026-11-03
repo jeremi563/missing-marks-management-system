@@ -2,8 +2,8 @@ import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
 import { validate } from "../../middleware/validate.js";
-import { assignCodReport, getCodComments, getCodEligibleLecturers, getCodReport, getCodReports, postCodComment } from "./cod.controller.js";
-import { assignCodReportBodySchema, codReportIdParamsSchema, createCodReportCommentBodySchema, getCodReportsQuerySchema } from "./cod.validation.js";
+import { assignCodReport, decideCodReport, getCodComments, getCodEligibleLecturers, getCodReport, getCodReports, postCodComment } from "./cod.controller.js";
+import { assignCodReportBodySchema, codReportDecisionBodySchema, codReportIdParamsSchema, createCodReportCommentBodySchema, getCodReportsQuerySchema } from "./cod.validation.js";
 
 export const codRoutes = Router();
 
@@ -24,4 +24,10 @@ codRoutes.post(
   validate(codReportIdParamsSchema, "params"),
   validate(assignCodReportBodySchema, "body"),
   assignCodReport,
+);
+codRoutes.post(
+  "/reports/:id/decision",
+  validate(codReportIdParamsSchema, "params"),
+  validate(codReportDecisionBodySchema, "body"),
+  decideCodReport,
 );

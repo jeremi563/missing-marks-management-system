@@ -3,17 +3,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test?schema=public';
+process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
+
+const {
   getReports,
   getReportById,
   getComments,
   addComment,
   submitDecision,
+  escalateReportController,
   submitCorrection,
   createAttendanceSessionController,
   getAttendanceSessionsController,
   getAttendanceSessionByIdController,
-} from '../../src/modules/lecturer/lecturer.controller.js';
+} = await import('../../src/modules/lecturer/lecturer.controller.js');
 
 const createResponse = () => {
   const res = {
@@ -541,6 +546,18 @@ test('passes decision submission errors to the error handler', async () => {
   });
 
   assert.equal(capturedError, expectedError);
+});
+
+test('returns 401 when escalation authentication is missing', async () => {
+  const req = {
+    user: null,
+    app: { locals: {} },
+    params: { reportId: 'report-1' },
+    body: { reason: 'Needs COD review.' },
+  };
+  const res = createResponse();
+  await escalateReportController(req, res, () => {});
+  assert.equal(res.statusCode, 401);
 });
 
 // Feature 5: Mark-correction proposal controller tests

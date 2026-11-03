@@ -13,7 +13,7 @@ async function getAuthorizedDepartmentIds(db, userId) {
 async function getAuthorizedReport(db, userId, reportId) {
   const report = await db.missingMarkReport.findUnique({
     where: { id: reportId },
-    select: { id: true, courseUnitId: true, courseUnit: { select: { departmentId: true } } },
+    select: { id: true, status: true, courseUnitId: true, courseUnit: { select: { departmentId: true } } },
   });
   if (!report) throw new AppError(404, "Missing-mark report not found");
 
@@ -24,9 +24,9 @@ async function getAuthorizedReport(db, userId, reportId) {
   return report;
 }
 
-export async function getCodReportDetails({ userId, reportId }) {
-  const departmentIds = await getAuthorizedDepartmentIds(prisma, userId);
-  const report = await prisma.missingMarkReport.findFirst({
+export async function getCodReportDetails({ userId, reportId, db = prisma }) {
+  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  const report = await db.missingMarkReport.findFirst({
     where: {
       id: reportId,
       courseUnit: { departmentId: { in: departmentIds } },
@@ -62,6 +62,29 @@ export async function getCodReportDetails({ userId, reportId }) {
       assignedLecturer: {
         select: { id: true, user: { select: { displayName: true, email: true } } },
       },
+      statusHistory: {
+        select: {
+          id: true,
+          actorUserId: true,
+          previousStatus: true,
+          newStatus: true,
+          reason: true,
+          createdAt: true,
+          actor: { select: { id: true, displayName: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      evidence: {
+        select: {
+          id: true,
+          originalName: true,
+          mediaType: true,
+          sizeBytes: true,
+          createdAt: true,
+          uploadedBy: { select: { id: true, displayName: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -70,7 +93,7 @@ export async function getCodReportDetails({ userId, reportId }) {
   }
 
   const [enrollment, linkedAssessment] = await Promise.all([
-    prisma.unitEnrollment.findUnique({
+    db.unitEnrollment.findUnique({
       where: {
         studentProfileId_courseUnitId_academicPeriodId: {
           studentProfileId: report.studentProfileId,
@@ -81,7 +104,7 @@ export async function getCodReportDetails({ userId, reportId }) {
       select: { id: true, createdAt: true },
     }),
     report.assessment && report.assessment.courseUnitId === report.courseUnitId
-      ? prisma.assessment.findUnique({
+      ? db.assessment.findUnique({
         where: { id: report.assessment.id },
         select: {
           id: true,
@@ -104,6 +127,42 @@ export async function getCodReportDetails({ userId, reportId }) {
       })
       : Promise.resolve(null),
   ]);
+
+  let lecturerDecisionReview = null;
+  const wasEscalated = report.statusHistory.some((entry) => entry.newStatus?.toUpperCase() === "ESCALATED");
+  if (wasEscalated) {
+    const auditEvents = await db.auditLog.findMany({
+        where: { entityType: "MissingMarkReport", entityId: report.id },
+        select: {
+          id: true,
+          action: true,
+          actorId: true,
+          createdAt: true,
+          actor: { select: { id: true, displayName: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+    const lecturerDecision = report.statusHistory.find((entry) =>
+      entry.previousStatus?.toUpperCase() === "PENDING" &&
+      ["APPROVED", "REJECTED"].includes(entry.newStatus?.toUpperCase())
+    );
+    const escalation = report.statusHistory.find((entry) => entry.newStatus?.toUpperCase() === "ESCALATED");
+    lecturerDecisionReview = {
+      lecturerDecision: lecturerDecision ? {
+        decision: lecturerDecision.newStatus.toUpperCase(),
+        reason: lecturerDecision.reason,
+        actor: lecturerDecision.actor,
+        createdAt: lecturerDecision.createdAt,
+      } : null,
+      escalationReason: escalation?.reason ?? null,
+      statusHistory: report.statusHistory,
+      auditEvents,
+      evidenceMetadata: report.evidence.map(({ id, originalName, mediaType, sizeBytes, createdAt, uploadedBy }) => ({
+        id, originalName, mediaType, sizeBytes, createdAt, uploadedBy,
+      })),
+      evidenceNotice: "Metadata only; evidence file contents are not available through this API.",
+    };
+  }
 
   return {
     id: report.id,
@@ -137,6 +196,7 @@ export async function getCodReportDetails({ userId, reportId }) {
         attendance: linkedAssessment.attendanceRecords,
       } : null,
     },
+    ...(lecturerDecisionReview ? { lecturerDecisionReview } : {}),
   };
 }
 
@@ -289,6 +349,45 @@ export async function assignReportToLecturer({ actorUserId, reportId, lecturerPr
   });
 }
 
+export async function decideEscalatedReport({ actorUserId, reportId, decision, reason, db = prisma }) {
+  return db.$transaction(async (tx) => {
+    const report = await getAuthorizedReport(tx, actorUserId, reportId);
+    if (report.status?.toUpperCase() !== "ESCALATED") {
+      throw new AppError(409, "Only escalated reports can receive a COD final decision");
+    }
+
+    const newStatus = decision === "APPROVE" ? "APPROVED" : "REJECTED";
+    const update = await tx.missingMarkReport.updateMany({
+      where: { id: report.id, status: report.status },
+      data: { status: newStatus },
+    });
+    if (update.count !== 1) {
+      throw new AppError(409, "Report state changed; reload the report before deciding");
+    }
+
+    const history = await tx.reportStatusHistory.create({
+      data: {
+        reportId: report.id,
+        actorUserId,
+        previousStatus: report.status,
+        newStatus,
+        reason,
+      },
+      select: { id: true, previousStatus: true, newStatus: true, reason: true, createdAt: true },
+    });
+    await recordAuditEvent({
+      prismaClient: tx,
+      actorId: actorUserId,
+      action: "COD_REPORT_DECISION_RECORDED",
+      entityType: "MissingMarkReport",
+      entityId: report.id,
+      metadata: { decision, status: newStatus },
+    });
+
+    return { reportId: report.id, status: newStatus, decision, history };
+  });
+}
+
 function getOrderBy(sort) {
   switch (sort) {
     case "oldest":
@@ -303,8 +402,8 @@ function getOrderBy(sort) {
   }
 }
 
-export async function listDepartmentReports({ userId, departmentId, status, page, limit, sort }) {
-  const memberships = await prisma.departmentMembership.findMany({
+export async function listDepartmentReports({ userId, departmentId, status, page, limit, sort, db = prisma }) {
+  const memberships = await db.departmentMembership.findMany({
     where: { userId },
     select: { departmentId: true },
   });
@@ -328,8 +427,8 @@ export async function listDepartmentReports({ userId, departmentId, status, page
   };
 
   const [total, rows] = await Promise.all([
-    prisma.missingMarkReport.count({ where }),
-    prisma.missingMarkReport.findMany({
+    db.missingMarkReport.count({ where }),
+    db.missingMarkReport.findMany({
       where,
       include: {
         courseUnit: {

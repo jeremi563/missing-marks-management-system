@@ -132,6 +132,7 @@ All routes below are mounted under `/api/v1/lecturer`. Each requires a valid aut
 | GET | `/api/v1/lecturer/reports/:reportId/comments` | UUID `reportId`; no body. | `200`, comments associated with the report. |
 | POST | `/api/v1/lecturer/reports/:reportId/comments` | UUID `reportId`; validated comment payload. | `201`, created comment. |
 | POST | `/api/v1/lecturer/reports/:reportId/decision` | UUID `reportId`; validated approval or rejection decision payload. | `200`, updated report decision. |
+| POST | `/api/v1/lecturer/reports/:reportId/escalate` | UUID `reportId`; `{ "reason": "..." }` with a trimmed 1-2,000 character reason. Requires an assigned lecturer decision of `APPROVED` or `REJECTED`. | `200`, report status `ESCALATED` and escalation history. |
 | POST | `/api/v1/lecturer/reports/:reportId/corrections` | UUID `reportId`; validated mark-correction proposal payload. | `201`, submitted correction proposal. |
 | POST | `/api/v1/lecturer/attendance/sessions` | Attendance session details: `sessionType`, `courseUnitId`, `classroomId`, optional `assessmentId`, `startsAt`, and optional `endsAt`. | `201`, created session and generated QR token. |
 | GET | `/api/v1/lecturer/attendance/sessions` | Optional `page`, `limit`, `courseUnitId`, `sessionType`, and `status`. No body. | `200`, lecturer's attendance sessions and pagination. |
@@ -160,6 +161,7 @@ All routes below are mounted under `/api/v1/lecturer`. Each requires a valid aut
 - Comments must contain between 1 and 2,000 characters.
 - The lecturer's identity is derived from authentication rather than supplied by the client.
 - Report decisions support approval and rejection.
+- A lecturer may escalate only their assigned report after an `APPROVED` or `REJECTED` decision. Escalation records `APPROVED`/`REJECTED` → `ESCALATED` status history and a `REPORT_ESCALATED` audit event in one transaction; the lecturer decision history remains unchanged.
 - Appeals following a lecturer's rejection are handled by the COD module, not the Lecturer Module.
 - Mark-correction proposals are submitted separately from report decisions. Submitting a proposal does not directly modify the official student marks.
 
@@ -331,18 +333,23 @@ The attendance session creation response additionally provides the generated QR 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/cod/reports` | List departmental reports. |
-| GET | `/api/v1/cod/reports/:id` | Retrieve a report and linked application records available for COD review. |
+| GET | `/api/v1/cod/reports/:id` | Retrieve an authorized departmental report and linked application records. Reports that have been escalated also include lecturer-decision history, escalation reason, report-scoped status/audit history and safe evidence metadata when present. |
 | POST | `/api/v1/cod/reports/:id/assign` | Assign or reassign a report where permitted. |
 | GET | `/api/v1/cod/reports/:id/comments` | List report comments available to staff in the authorized department. |
 | POST | `/api/v1/cod/reports/:id/comments` | Add a private staff comment to a report. |
-| POST | `/api/v1/cod/reports/:id/approve` | Record a departmental decision where authorised. |
-| POST | `/api/v1/cod/reports/:id/reject` | Record a departmental rejection with a reason. |
+| POST | `/api/v1/cod/reports/:id/decision` | Record final approval or rejection of an escalated report; body contains `decision` (`APPROVE` or `REJECT`) and `reason`. |
 | GET | `/api/v1/cod/appeals` | List appeals within the authorised scope. |
 | GET | `/api/v1/cod/reports/overdue` | List overdue reports. |
 
 COD report detail and comment routes require authentication, the `cod` role, and membership in the report's department. The detail response includes linked enrollment and, when the report is linked to an assessment in the same course unit, the student's CAT submission and assessment-attendance records. These are application records and are not represented as independently verified official university records. Missing application records do not establish that an academic event did not occur. The current schema does not link class attendance sessions to an academic period, so class attendance is not included in report-period review detail.
 
 COD comment creation accepts `{ "body": "..." }`; the trimmed body must contain 1-2,000 characters. The API derives authorship from the authenticated user, stores COD comments as staff-private, and creates the comment and a `COD_REPORT_COMMENT_ADDED` audit event in one transaction. Audit metadata contains the new comment ID and does not contain its text.
+
+COD escalated report listing reuses `GET /api/v1/cod/reports?status=ESCALATED`. COD final decisions use the separate decision endpoint and require a 1-2,000 character reason. The API records `ESCALATED` → `APPROVED`/`REJECTED`, actor, reason and timestamp in report status history and records `COD_REPORT_DECISION_RECORDED` in the audit log in one transaction. Conditional status updates reject repeated or concurrent decisions with a conflict response.
+
+The decision sequence remains append-only in status history: lecturer decision (`PENDING` → `APPROVED`/`REJECTED`), lecturer escalation (`APPROVED`/`REJECTED` → `ESCALATED`), then COD final decision (`ESCALATED` → `APPROVED`/`REJECTED`). COD detail identifies the lecturer decision separately from any later final decision. Evidence details, when present, contain metadata only and omit `storageKey`; file upload, viewing and retrieval are deferred until a storage approach is agreed. COD does not review actual document contents through this API.
+
+Separate workflow issue: student submission currently creates `Submitted`, while the lecturer decision endpoint requires `PENDING`; no transition between these states is implemented. Feature 4 does not change student or lecturer decision behavior. This requires separate approval and implementation.
 
 ### Administrator
 
