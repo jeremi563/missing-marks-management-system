@@ -12,6 +12,10 @@ export const codReportIdParamsSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const createCodReportCommentBodySchema = z.object({
+  body: z.string().trim().min(1).max(2000),
+}).strict();
+
 export const assignCodReportBodySchema = z.object({
   lecturerProfileId: z.string().uuid(),
   reason: z.string().trim().max(2000).optional(),
