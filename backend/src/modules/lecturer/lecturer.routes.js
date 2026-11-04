@@ -127,7 +127,7 @@ router.post(
 );
 
 // Start attendance session
-router.patch(
+router.post(
   '/attendance/sessions/:sessionId/start',
   authenticate,
   authorize('lecturer'),
@@ -136,7 +136,7 @@ router.patch(
 );
 
 // End attendance session
-router.patch(
+router.post(
   '/attendance/sessions/:sessionId/end',
   authenticate,
   authorize('lecturer'),

@@ -17,6 +17,9 @@ const {
   createAttendanceSession,
   getAttendanceSessions,
   getAttendanceSessionById,
+  startAttendanceSession,
+  endAttendanceSession,
+  getAttendanceSessionRecords,
 } = await import('../../src/modules/lecturer/lecturer.service.js');
 
 const createMockPrisma = ({
@@ -1499,5 +1502,106 @@ test('prevents lecturer from retrieving another lecturer attendance session', as
   assert.deepEqual(calls.sessionArgs.where, {
     id: 'session-1',
     lecturerProfileId: 'lecturer-1',
+  });
+});
+
+const createAttendanceLifecyclePrisma = ({
+  status = 'scheduled',
+  records = [],
+  lecturer = { id: 'lecturer-1' },
+  session = { id: 'session-1', status },
+} = {}) => {
+  const calls = {};
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async (args) => {
+        calls.lecturerArgs = args;
+        return lecturer;
+      },
+    },
+    attendanceSession: {
+      findFirst: async (args) => {
+        calls.sessionFindArgs = args;
+        return session;
+      },
+      updateMany: async (args) => {
+        calls.updateArgs = args;
+        return { count: 1 };
+      },
+      findUnique: async (args) => {
+        calls.sessionUniqueArgs = args;
+        return { id: 'session-1', status: calls.updateArgs.data.status };
+      },
+    },
+    attendanceRecord: {
+      findMany: async (args) => {
+        calls.recordsArgs = args;
+        return records;
+      },
+    },
+  };
+
+  return { prisma, calls };
+};
+
+test('starts only the authenticated lecturer scheduled session', async () => {
+  const { prisma, calls } = createAttendanceLifecyclePrisma();
+
+  const result = await startAttendanceSession(prisma, 'user-1', 'session-1');
+
+  assert.equal(result.status, 'active');
+  assert.deepEqual(calls.sessionFindArgs.where, {
+    id: 'session-1',
+    lecturerProfileId: 'lecturer-1',
+  });
+  assert.deepEqual(calls.updateArgs, {
+    where: { id: 'session-1', lecturerProfileId: 'lecturer-1', status: 'scheduled' },
+    data: { status: 'active' },
+  });
+});
+
+test('rejects starting a session that is not scheduled', async () => {
+  const { prisma, calls } = createAttendanceLifecyclePrisma({ status: 'active' });
+
+  await assert.rejects(
+    () => startAttendanceSession(prisma, 'user-1', 'session-1'),
+    { statusCode: 409, message: 'Only scheduled sessions can be started.' }
+  );
+  assert.equal(calls.updateArgs, undefined);
+});
+
+test('ends only the authenticated lecturer active session', async () => {
+  const { prisma, calls } = createAttendanceLifecyclePrisma({ status: 'active' });
+
+  const result = await endAttendanceSession(prisma, 'user-1', 'session-1');
+
+  assert.equal(result.status, 'completed');
+  assert.deepEqual(calls.updateArgs, {
+    where: { id: 'session-1', lecturerProfileId: 'lecturer-1', status: 'active' },
+    data: { status: 'completed' },
+  });
+});
+
+test('returns attendance records in newest-first order for an owned session', async () => {
+  const records = [{ id: 'record-1' }];
+  const { prisma, calls } = createAttendanceLifecyclePrisma({ records });
+
+  const result = await getAttendanceSessionRecords(prisma, 'user-1', 'session-1');
+
+  assert.deepEqual(result, records);
+  assert.deepEqual(calls.sessionFindArgs.where, {
+    id: 'session-1',
+    lecturerProfileId: 'lecturer-1',
+  });
+  assert.deepEqual(calls.recordsArgs, {
+    where: { sessionId: 'session-1' },
+    select: {
+      id: true,
+      status: true,
+      locationVerified: true,
+      recordedAt: true,
+      student: { select: { id: true, studentNumber: true } },
+    },
+    orderBy: { recordedAt: 'desc' },
   });
 });

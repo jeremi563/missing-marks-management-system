@@ -290,3 +290,28 @@ test('applies authentication, authorization and UUID validation to individual at
 
   assert.equal(handlers.length, 4);
 });
+
+test('registers POST start and end attendance session routes', () => {
+  for (const action of ['start', 'end']) {
+    const route = router.stack.find(
+      (layer) =>
+        layer.route?.path === `/attendance/sessions/:sessionId/${action}`
+    );
+
+    assert.ok(route, `POST ${action} attendance route should exist`);
+    assert.equal(route.route.methods.post, true);
+    assert.equal(route.route.methods.patch, undefined);
+    assert.equal(route.route.stack.length, 4);
+  }
+});
+
+test('registers GET attendance records with authentication, lecturer role and UUID validation', () => {
+  const recordsRoute = router.stack.find(
+    (layer) =>
+      layer.route?.path === '/attendance/sessions/:sessionId/records'
+  );
+
+  assert.ok(recordsRoute, 'GET attendance records route should exist');
+  assert.equal(recordsRoute.route.methods.get, true);
+  assert.equal(recordsRoute.route.stack.length, 4);
+});
