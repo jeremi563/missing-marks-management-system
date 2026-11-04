@@ -14,7 +14,6 @@ router.get("/reports/:reportId/comments", authenticate, authorize("student"), va
 router.post("/reports/:reportId/comments", authenticate, authorize("student"), validateStudentReportId, validateCreateStudentCommentBody, addClarification);
 router.patch("/reports/:reportId", authenticate, authorize("student"), validateStudentReportId, validateUpdateReportBody, updateReport);
 router.post("/reports/:reportId/withdraw", authenticate, authorize("student"), validateStudentReportId, withdrawReport);
-router.post("/reports/:reportId/appeal", authenticate, authorize("student"), validateStudentReportId, validateCreateAppealBody, submitAppeal);
 router.post("/reports/:reportId/appeals", authenticate, authorize("student"), validateStudentReportId, validateCreateAppealBody, submitAppeal);
 router.get("/attendance", authenticate, authorize("student"), validateReportListQuery, getAttendance);
 router.get("/notifications", authenticate, authorize("student"), validateReportListQuery, getNotifications);

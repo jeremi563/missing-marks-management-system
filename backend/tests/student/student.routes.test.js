@@ -96,6 +96,13 @@ test("validates report submission fields and rejects client identity fields", ()
 	validateCreateReportBody({ body: { ...req.body, studentProfileId: "forged" } }, {}, (error) => { identityError = error; });
 	assert.equal(identityError.statusCode, 400);
 });
+test("does not register the deprecated singular appeal alias", () => {
+	const duplicateAppealRoute = router.stack.find((layer) => layer.route?.path === "/reports/:reportId/appeal");
+	assert.equal(duplicateAppealRoute, undefined);
+	const pluralAppealRoute = router.stack.find((layer) => layer.route?.path === "/reports/:reportId/appeals");
+	assert.ok(pluralAppealRoute);
+});
+
 test("student-role middleware rejects other roles", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
 	const authorizeStudent = profileRoute.route.stack[1].handle;

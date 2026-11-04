@@ -70,7 +70,6 @@ All routes below are mounted under `/api/v1`. Each requires a valid authenticate
 | PATCH | `/api/v1/student/reports/:reportId` | UUID `reportId`; at least one of `assessmentId`, `assessmentComponent`, `description`. | `200`, updated report. |
 | POST | `/api/v1/student/reports/:reportId/withdraw` | UUID `reportId`; no body. | `200`, report with `Withdrawn` status. |
 | POST | `/api/v1/student/reports/:reportId/appeals` | UUID `reportId`; `{ "reason": "...", "comments": "..." }`, where `comments` is optional. | `201`, submitted appeal. |
-| POST | `/api/v1/student/reports/:reportId/appeal` | Same as plural `/appeals`; compatibility alias. | `201`, submitted appeal. |
 | GET | `/api/v1/student/attendance` | Optional `page` and `limit`. | `200`, own attendance history and pagination. |
 | GET | `/api/v1/student/notifications` | Optional `page` and `limit`. | `200`, own notifications, unread count, and pagination. |
 | PATCH | `/api/v1/student/notifications/:notificationId/read` | UUID `notificationId`; no body. | `200`, own notification with `readAt` set. |

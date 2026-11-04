@@ -90,15 +90,6 @@ Content-Type: application/json
   "comments": "This is test data only."
 }
 
-### 9a. Compatibility alias for appeal submission
-# Do not send both appeal requests for the same report; only one appeal is permitted.
-# POST {{baseUrl}}/student/reports/{{rejectedReportId}}/appeal
-# Content-Type: application/json
-#
-# {
-#   "reason": "Synthetic appeal test using the compatibility route."
-# }
-
 ### 10. Withdraw the new report while it is still Submitted
 # Send this after testing report details, comments, and editing. It changes the report
 # status to Withdrawn, so it cannot then be edited or used for an appeal.
