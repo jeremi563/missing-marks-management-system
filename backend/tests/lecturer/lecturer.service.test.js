@@ -2,17 +2,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test?schema=public';
+process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
+
+const {
   getAssignedReports,
   getAssignedReportById,
   getReportComments,
   createReportComment,
   submitReportDecision,
+  escalateAssignedReport,
   submitMarkCorrection,
   createAttendanceSession,
   getAttendanceSessions,
   getAttendanceSessionById,
-} from '../../src/modules/lecturer/lecturer.service.js';
+} = await import('../../src/modules/lecturer/lecturer.service.js');
 
 const createMockPrisma = ({
   lecturer = { id: 'lecturer-1' },
@@ -613,6 +618,123 @@ test('does not complete the transaction when audit history creation fails', asyn
       message: 'Audit history failure',
     }
   );
+});
+
+// Feature 4: Lecturer escalation tests
+const createEscalationPrisma = ({
+  lecturer = { id: 'lecturer-1' },
+  report = { id: 'report-1', reference: 'MM-001', status: 'APPROVED' },
+  updateCount = 1,
+  historyFailure = null,
+  auditFailure = null,
+  priorEscalation = null,
+} = {}) => {
+  const calls = {};
+  let persistedStatus = report?.status ?? null;
+  const transaction = {
+    missingMarkReport: {
+      updateMany: async (args) => {
+        calls.updateArgs = args;
+        if (updateCount === 1) persistedStatus = args.data.status;
+        return { count: updateCount };
+      },
+    },
+    reportStatusHistory: {
+      create: async (args) => {
+        calls.historyArgs = args;
+        if (historyFailure) throw historyFailure;
+        return { id: 'history-2', ...args.data, createdAt: new Date('2026-11-03T09:00:00.000Z') };
+      },
+    },
+    auditLog: {
+      create: async (args) => {
+        calls.auditArgs = args;
+        if (auditFailure) throw auditFailure;
+        return { id: 'audit-1', ...args.data };
+      },
+    },
+  };
+  const prisma = {
+    lecturerProfile: { findUnique: async () => lecturer },
+    missingMarkReport: { findFirst: async (args) => { calls.findFirstArgs = args; return report; } },
+    reportStatusHistory: { findFirst: async (args) => { calls.priorEscalationArgs = args; return priorEscalation; } },
+    $transaction: async (callback) => {
+      calls.transactionStarted = true;
+      const startingStatus = persistedStatus;
+      try {
+        const result = await callback(transaction);
+        calls.persistedStatus = persistedStatus;
+        return result;
+      } catch (error) {
+        persistedStatus = startingStatus;
+        calls.persistedStatus = persistedStatus;
+        throw error;
+      }
+    },
+  };
+  return { prisma, calls };
+};
+
+for (const decision of ['APPROVED', 'REJECTED']) {
+  test(`assigned lecturer escalates an existing ${decision} decision`, async () => {
+    const { prisma, calls } = createEscalationPrisma({
+      report: { id: 'report-1', reference: 'MM-001', status: decision },
+    });
+    const result = await escalateAssignedReport(prisma, 'user-1', 'report-1', 'Needs COD review.');
+
+    assert.equal(result.lecturerDecision, decision);
+    assert.equal(result.status, 'ESCALATED');
+    assert.deepEqual(calls.updateArgs.where, {
+      id: 'report-1', assignedLecturerProfileId: 'lecturer-1', status: decision,
+    });
+    assert.deepEqual(calls.historyArgs.data, {
+      reportId: 'report-1', actorUserId: 'user-1', previousStatus: decision,
+      newStatus: 'ESCALATED', reason: 'Needs COD review.',
+    });
+    assert.equal(calls.auditArgs.data.actorId, 'user-1');
+    assert.equal(calls.auditArgs.data.action, 'REPORT_ESCALATED');
+  });
+}
+
+test('does not escalate an unassigned or missing report', async () => {
+  const { prisma, calls } = createEscalationPrisma({ report: null });
+  await assert.rejects(() => escalateAssignedReport(prisma, 'user-1', 'report-1', 'Review.'), { statusCode: 404 });
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('does not escalate a report without an approved or rejected lecturer decision', async () => {
+  const { prisma, calls } = createEscalationPrisma({ report: { id: 'report-1', status: 'PENDING' } });
+  await assert.rejects(() => escalateAssignedReport(prisma, 'user-1', 'report-1', 'Review.'), { statusCode: 409 });
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects a report that has already been escalated before a later final decision', async () => {
+  const { prisma, calls } = createEscalationPrisma({ priorEscalation: { id: 'history-escalation' } });
+  await assert.rejects(() => escalateAssignedReport(prisma, 'user-1', 'report-1', 'Review.'), { statusCode: 409 });
+  assert.deepEqual(calls.priorEscalationArgs.where, { reportId: 'report-1', newStatus: 'ESCALATED' });
+  assert.equal(calls.transactionStarted, undefined);
+});
+
+test('rejects repeated or concurrent escalation when the conditional update affects no row', async () => {
+  const { prisma, calls } = createEscalationPrisma({ updateCount: 0 });
+  await assert.rejects(() => escalateAssignedReport(prisma, 'user-1', 'report-1', 'Review.'), { statusCode: 409 });
+  assert.equal(calls.historyArgs, undefined);
+  assert.equal(calls.auditArgs, undefined);
+});
+
+test('does not complete escalation when status-history creation fails', async () => {
+  const { prisma, calls } = createEscalationPrisma({ historyFailure: new Error('History insert failed') });
+  await assert.rejects(() => escalateAssignedReport(prisma, 'user-1', 'report-1', 'Review.'), { message: 'History insert failed' });
+  assert.equal(calls.auditArgs, undefined);
+  assert.equal(calls.persistedStatus, 'APPROVED');
+});
+
+test('does not complete escalation when audit creation fails', async () => {
+  const { prisma, calls } = createEscalationPrisma({ auditFailure: new Error('Audit insert failed') });
+  await assert.rejects(() => escalateAssignedReport(prisma, 'user-1', 'report-1', 'Review.'), { message: 'Audit insert failed' });
+  assert.equal(calls.historyArgs.data.newStatus, 'ESCALATED');
+  assert.equal(calls.auditArgs.data.actorId, 'user-1');
+  assert.equal(calls.persistedStatus, 'APPROVED');
 });
 
 // Feature 5: Mark-correction proposal test helper

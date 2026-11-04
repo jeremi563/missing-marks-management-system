@@ -36,6 +36,15 @@ export const submitDecisionSchema = z.object({
     .max(2000, 'Decision reason cannot exceed 2000 characters.'),
 });
 
+// Feature 4: Escalate a lecturer decision to COD review
+export const escalateReportSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(1, 'An escalation reason is required.')
+    .max(2000, 'Escalation reason cannot exceed 2000 characters.'),
+});
+
 // Feature 5: Mark-correction proposal submission
 export const submitCorrectionSchema = z.object({
   proposedValue: z

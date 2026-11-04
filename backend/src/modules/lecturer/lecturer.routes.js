@@ -10,16 +10,21 @@ import {
   getComments,
   addComment,
   submitDecision,
+  escalateReportController,
   submitCorrection,
   createAttendanceSessionController,
   getAttendanceSessionsController,
   getAttendanceSessionByIdController,
+  startAttendanceSessionController,
+  endAttendanceSessionController,
+  getAttendanceSessionRecordsController,
 } from './lecturer.controller.js';
 
 import {
   reportIdSchema,
   createCommentSchema,
   submitDecisionSchema,
+  escalateReportSchema,
   submitCorrectionSchema,
   createAttendanceSessionSchema,
   attendanceSessionIdSchema
@@ -72,6 +77,16 @@ router.post(
   validate(submitDecisionSchema, 'body'),
   submitDecision
 );
+
+// POST /api/v1/lecturer/reports/:reportId/escalate
+router.post(
+  '/reports/:reportId/escalate',
+  authenticate,
+  authorize('lecturer'),
+  validate(reportIdSchema, 'params'),
+  validate(escalateReportSchema, 'body'),
+  escalateReportController
+);
 //feature 5: Mark-correction proposal submission
 
 // POST /api/v1/lecturer/reports/:reportId/corrections
@@ -111,4 +126,30 @@ router.post(
   createAttendanceSessionController
 );
 
+// Start attendance session
+router.patch(
+  '/attendance/sessions/:sessionId/start',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  startAttendanceSessionController
+);
+
+// End attendance session
+router.patch(
+  '/attendance/sessions/:sessionId/end',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  endAttendanceSessionController
+);
+
+// Retrieve attendance records
+router.get(
+  '/attendance/sessions/:sessionId/records',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  getAttendanceSessionRecordsController
+);
 export default router;

@@ -45,9 +45,20 @@ This is a conceptual flow, not a final enum list. The team must agree on exact s
 
 - The COD / Academic Officer sees reports within the authorised department or academic scope.
 - They may assign or reassign a case where permitted.
+- Academic information review is read-only: the COD can inspect linked application enrollment, assessment, CAT submission, and assessment-attendance records supported by the report's relationships. This review does not create an approval/rejection outcome or change report status. These application records are not independently verified official university records; missing records do not prove an event did not occur.
+- Report comments authored by a COD are staff-private and retained as append-only comments. Comment creation records an actor-attributed audit event transactionally with the comment.
 - They review lecturer actions, escalations, overdue cases, appeals and special cases.
 - Decisions must include the actor, timestamp and reason.
 - The final authority for each case type must be agreed and documented.
+
+### Feature 4: lecturer escalation and COD final decision
+
+- A lecturer may escalate only a report assigned to their authenticated lecturer profile after recording `APPROVED` or `REJECTED`.
+- Escalation changes the current status to `ESCALATED`, records the reason, and appends status history and a `REPORT_ESCALATED` audit event transactionally.
+- CODs list escalated reports through the department-scoped report listing and may review the original lecturer decision, escalation reason, report history, linked academic application records, report-scoped audit events and safe evidence metadata available for that report.
+- A COD may make a final `APPROVE` or `REJECT` decision only while the report is `ESCALATED` and within the COD's authorized department membership. The final status history records actor, reason and time; the `COD_REPORT_DECISION_RECORDED` audit event is written in the same transaction.
+- Status history preserves the lecturer decision, escalation and COD final decision as separate entries. Evidence files are not uploaded, viewed or retrieved by this workflow; only metadata may be returned, without `storageKey`, until a storage approach is agreed.
+- Existing separate issue: student submission creates `Submitted`, while the lecturer decision endpoint expects `PENDING`; no transition was identified. Student and lecturer decision behavior is unchanged by Feature 4.
 
 ## 6. Attendance-related workflow
 

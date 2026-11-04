@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import router from '../../src/modules/lecturer/lecturer.routes.js';
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test?schema=public';
+process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
+
+const { default: router } = await import('../../src/modules/lecturer/lecturer.routes.js');
 
 test('registers GET /reports', () => {
   const reportsRoute = router.stack.find(
@@ -129,6 +133,26 @@ test('applies authentication, authorization, UUID validation and decision body v
   for (const handler of handlers) {
     assert.equal(typeof handler.handle, 'function');
   }
+});
+
+test('registers POST /reports/:reportId/escalate with authentication, lecturer role and validations', () => {
+  const route = router.stack.find((layer) =>
+    layer.route?.path === '/reports/:reportId/escalate' && layer.route.methods.post
+  );
+  assert.ok(route);
+  assert.equal(route.route.stack.length, 5);
+  for (const handler of route.route.stack) assert.equal(typeof handler.handle, 'function');
+});
+
+test('escalation route rejects unauthenticated and non-lecturer users', async () => {
+  const route = router.stack.find((layer) => layer.route?.path === '/reports/:reportId/escalate');
+  let unauthenticatedError;
+  await route.route.stack[0].handle({ get: () => undefined, cookies: {} }, {}, (error) => { unauthenticatedError = error; });
+  assert.equal(unauthenticatedError.statusCode, 401);
+
+  let roleError;
+  route.route.stack[1].handle({ user: { roles: ['student'] } }, {}, (error) => { roleError = error; });
+  assert.equal(roleError.statusCode, 403);
 });
 
 // Feature 5: Mark-correction proposal route tests

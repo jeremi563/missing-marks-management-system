@@ -1,5 +1,6 @@
 
 import { createHash, randomBytes } from 'node:crypto';
+import { recordAuditEvent } from '../../shared/services/audit.service.js';
 export const getAssignedReports = async (
   prisma,
   lecturerUserId,
@@ -424,6 +425,88 @@ export const submitReportDecision = async (
       reference: report.reference,
       decision: normalizedDecision,
       status: newStatus,
+      history,
+    };
+  });
+};
+
+export const escalateAssignedReport = async (prisma, lecturerUserId, reportId, reason) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const report = await prisma.missingMarkReport.findFirst({
+    where: { id: reportId, assignedLecturerProfileId: lecturer.id },
+    select: { id: true, reference: true, status: true },
+  });
+  if (!report) {
+    const error = new Error('Missing-mark report not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const originalDecision = typeof report.status === 'string' ? report.status.toUpperCase() : '';
+  if (!['APPROVED', 'REJECTED'].includes(originalDecision)) {
+    const error = new Error('Only an approved or rejected lecturer decision can be escalated.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const priorEscalation = await prisma.reportStatusHistory.findFirst({
+    where: { reportId: report.id, newStatus: 'ESCALATED' },
+    select: { id: true },
+  });
+  if (priorEscalation) {
+    const error = new Error('This report has already been escalated.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.missingMarkReport.updateMany({
+      where: {
+        id: report.id,
+        assignedLecturerProfileId: lecturer.id,
+        status: report.status,
+      },
+      data: { status: 'ESCALATED' },
+    });
+    if (updated.count !== 1) {
+      const error = new Error('This report has already been escalated or its status has changed.');
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const history = await tx.reportStatusHistory.create({
+      data: {
+        reportId: report.id,
+        actorUserId: lecturerUserId,
+        previousStatus: report.status,
+        newStatus: 'ESCALATED',
+        reason,
+      },
+      select: { id: true, previousStatus: true, newStatus: true, reason: true, createdAt: true },
+    });
+    await recordAuditEvent({
+      prismaClient: tx,
+      actorId: lecturerUserId,
+      action: 'REPORT_ESCALATED',
+      entityType: 'MissingMarkReport',
+      entityId: report.id,
+      metadata: { previousStatus: report.status, newStatus: 'ESCALATED' },
+    });
+
+    return {
+      reportId: report.id,
+      reference: report.reference,
+      lecturerDecision: originalDecision,
+      status: 'ESCALATED',
       history,
     };
   });
@@ -926,4 +1009,177 @@ export const getAttendanceSessionById = async (
   }
 
   return session;
+};
+
+// Feature 6: Start an attendance session
+export const startAttendanceSession = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (session.status !== 'scheduled') {
+    const error = new Error(
+      'Only scheduled sessions can be started.'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const result = await prisma.attendanceSession.updateMany({
+  where: {
+    id: sessionId,
+    lecturerProfileId: lecturer.id,
+    status: 'scheduled',
+  },
+  data: {
+    status: 'active',
+  },
+});
+
+if (result.count === 0) {
+  const error = new Error(
+    'Session state changed. Only scheduled sessions can be started.'
+  );
+  error.statusCode = 409;
+  throw error;
+}
+
+return prisma.attendanceSession.findUnique({
+  where: { id: sessionId },
+});
+};
+
+// Feature 6: End an attendance session
+export const endAttendanceSession = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (session.status !== 'active') {
+    const error = new Error(
+      'Only active sessions can be ended.'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const result = await prisma.attendanceSession.updateMany({
+  where: {
+    id: sessionId,
+    lecturerProfileId: lecturer.id,
+    status: 'active',
+  },
+  data: {
+    status: 'completed',
+  },
+});
+
+if (result.count === 0) {
+  const error = new Error(
+    'Session state changed. Only active sessions can be ended.'
+  );
+  error.statusCode = 409;
+  throw error;
+}
+
+return prisma.attendanceSession.findUnique({
+  where: { id: sessionId },
+});
+};
+
+// Feature 6: Retrieve attendance records
+export const getAttendanceSessionRecords = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+    select: { id: true },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return prisma.attendanceRecord.findMany({
+    where: { sessionId },
+    select: {
+      id: true,
+      status: true,
+      locationVerified: true,
+      recordedAt: true,
+      student: {
+        select: {
+          id: true,
+          studentNumber: true,
+        },
+      },
+    },
+    orderBy: { recordedAt: 'desc' },
+  });
 };
