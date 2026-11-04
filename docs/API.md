@@ -136,9 +136,9 @@ All routes below are mounted under `/api/v1/lecturer`. Each requires a valid aut
 | POST | `/api/v1/lecturer/attendance/sessions` | Attendance session details: `sessionType`, `courseUnitId`, `classroomId`, optional `assessmentId`, `startsAt`, and optional `endsAt`. | `201`, created session and generated QR token. |
 | GET | `/api/v1/lecturer/attendance/sessions` | Optional `page`, `limit`, `courseUnitId`, `sessionType`, and `status`. No body. | `200`, lecturer's attendance sessions and pagination. |
 | GET | `/api/v1/lecturer/attendance/sessions/:sessionId` | UUID `sessionId`; no body. | `200`, individual attendance session. |
-| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/start` | UUID `sessionId`; no body. | Planned: start attendance session. |
-| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/end` | UUID `sessionId`; no body. | Planned: end attendance session. |
-| GET | `/api/v1/lecturer/attendance/sessions/:sessionId/records` | UUID `sessionId`; optional pagination if supported by the final implementation. | Planned: attendance records for the session. |
+| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/start` | UUID `sessionId`; no body. | `200`, session with `active` status. |
+| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/end` | UUID `sessionId`; no body. | `200`, session with `completed` status. |
+| GET | `/api/v1/lecturer/attendance/sessions/:sessionId/records` | UUID `sessionId`; no body. | `200`, attendance records with `count` and `data`, newest first. |
 
 ### Lecturer request and behaviour details
 
@@ -311,9 +311,9 @@ The attendance session creation response additionally provides the generated QR 
 | Create CLASS, CAT, and EXAM sessions | Implemented |
 | List attendance sessions | Implemented |
 | Retrieve individual attendance sessions | Implemented |
-| Start attendance sessions | Pending |
-| End attendance sessions | Pending |
-| Retrieve attendance records | Pending |
+| Start attendance sessions | Implemented |
+| End attendance sessions | Implemented |
+| Retrieve attendance records | Implemented |
 | Student QR-code scanning and submission | Student Module integration pending |
 | Student GPS collection and verification | Student Module integration pending |
 | CAT submission review | Not confirmed |
