@@ -328,6 +328,7 @@ test('creates a comment using the authenticated lecturer ID', async () => {
     reportId: 'report-1',
     authorUserId: 'user-1',
     body: 'Please clarify the missing mark.',
+    isStudentVisible: false,
   });
 });
 

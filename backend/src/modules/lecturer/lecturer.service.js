@@ -285,11 +285,15 @@ export const createReportComment = async (
     reportId
   );
 
+  // Keep lecturer-side thread updates hidden from students unless a separate visibility
+  // decision is implemented. Students only see comments marked visible to them or comments
+  // they authored themselves.
   const comment = await prisma.reportComment.create({
     data: {
       reportId: report.id,
       authorUserId: lecturerUserId,
       body,
+      isStudentVisible: false,
     },
     select: {
       id: true,
