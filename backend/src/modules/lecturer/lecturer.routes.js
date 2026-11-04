@@ -15,6 +15,9 @@ import {
   createAttendanceSessionController,
   getAttendanceSessionsController,
   getAttendanceSessionByIdController,
+  startAttendanceSessionController,
+  endAttendanceSessionController,
+  getAttendanceSessionRecordsController,
 } from './lecturer.controller.js';
 
 import {
@@ -123,4 +126,30 @@ router.post(
   createAttendanceSessionController
 );
 
+// Start attendance session
+router.patch(
+  '/attendance/sessions/:sessionId/start',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  startAttendanceSessionController
+);
+
+// End attendance session
+router.patch(
+  '/attendance/sessions/:sessionId/end',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  endAttendanceSessionController
+);
+
+// Retrieve attendance records
+router.get(
+  '/attendance/sessions/:sessionId/records',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  getAttendanceSessionRecordsController
+);
 export default router;
