@@ -1010,3 +1010,176 @@ export const getAttendanceSessionById = async (
 
   return session;
 };
+
+// Feature 6: Start an attendance session
+export const startAttendanceSession = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (session.status !== 'scheduled') {
+    const error = new Error(
+      'Only scheduled sessions can be started.'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const result = await prisma.attendanceSession.updateMany({
+  where: {
+    id: sessionId,
+    lecturerProfileId: lecturer.id,
+    status: 'scheduled',
+  },
+  data: {
+    status: 'active',
+  },
+});
+
+if (result.count === 0) {
+  const error = new Error(
+    'Session state changed. Only scheduled sessions can be started.'
+  );
+  error.statusCode = 409;
+  throw error;
+}
+
+return prisma.attendanceSession.findUnique({
+  where: { id: sessionId },
+});
+};
+
+// Feature 6: End an attendance session
+export const endAttendanceSession = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (session.status !== 'active') {
+    const error = new Error(
+      'Only active sessions can be ended.'
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const result = await prisma.attendanceSession.updateMany({
+  where: {
+    id: sessionId,
+    lecturerProfileId: lecturer.id,
+    status: 'active',
+  },
+  data: {
+    status: 'completed',
+  },
+});
+
+if (result.count === 0) {
+  const error = new Error(
+    'Session state changed. Only active sessions can be ended.'
+  );
+  error.statusCode = 409;
+  throw error;
+}
+
+return prisma.attendanceSession.findUnique({
+  where: { id: sessionId },
+});
+};
+
+// Feature 6: Retrieve attendance records
+export const getAttendanceSessionRecords = async (
+  prisma,
+  lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+    },
+    select: { id: true },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  return prisma.attendanceRecord.findMany({
+    where: { sessionId },
+    select: {
+      id: true,
+      status: true,
+      locationVerified: true,
+      recordedAt: true,
+      student: {
+        select: {
+          id: true,
+          studentNumber: true,
+        },
+      },
+    },
+    orderBy: { recordedAt: 'desc' },
+  });
+};

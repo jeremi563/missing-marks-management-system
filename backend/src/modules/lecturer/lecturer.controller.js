@@ -9,6 +9,9 @@ import {
   createAttendanceSession,
   getAttendanceSessions,
   getAttendanceSessionById,
+  startAttendanceSession,
+  endAttendanceSession,
+  getAttendanceSessionRecords,
 } from './lecturer.service.js';
 
 export const getReports = async (req, res, next) => {
@@ -411,3 +414,129 @@ export const getAttendanceSessionByIdController = async (
     next(error);
   }
 };
+
+
+ // Start attendance session
+export const startAttendanceSessionController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const session = await startAttendanceSession(
+      prisma,
+      lecturerUserId,
+      req.params.sessionId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance session started successfully.',
+      data: session,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// End attendance session
+export const endAttendanceSessionController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const session = await endAttendanceSession(
+      prisma,
+      lecturerUserId,
+      req.params.sessionId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance session ended successfully.',
+      data: session,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Retrieve attendance records
+export const getAttendanceSessionRecordsController = async (
+  req,
+  res,
+  next
+) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required.',
+      });
+    }
+
+    const prisma = req.app.locals.prisma;
+
+    if (!prisma) {
+      return res.status(500).json({
+        success: false,
+        message: 'Database service is not configured.',
+      });
+    }
+
+    const records = await getAttendanceSessionRecords(
+      prisma,
+      lecturerUserId,
+      req.params.sessionId
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance records retrieved successfully.',
+      count: records.length,
+      data: records,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
