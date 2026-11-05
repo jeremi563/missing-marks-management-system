@@ -6,11 +6,17 @@ import { assignCodReport, decideCodReport, getCodComments, getCodEligibleLecture
 import { assignCodReportBodySchema, codReportDecisionBodySchema, codReportIdParamsSchema, createCodReportCommentBodySchema, getCodReportsQuerySchema } from "./cod.validation.js";
 import { createCodCategory, decideCodAppeal, decideCodCase, getCodAppealById, getCodAppeals, getCodCategories, getCodCaseById, getCodCases, getOverdueAppeals, getOverdueCases, getOverdueReports, updateCodCategory } from "../feature5/feature5.controller.js";
 import { appealIdParams, categoryCreateBody, categoryUpdateBody, decisionBody, itemIdParams, pageQuery, specialCaseIdParams, statusPageQuery } from "../feature5/feature5.validation.js";
+import { getCodAttendanceDiscrepancies, getCodAttendanceDiscrepancyById, getCodAttendanceDiscrepancyDecisions, postCodAttendanceDiscrepancyDecision } from "./attendance-discrepancy.controller.js";
+import { attendanceDiscrepancyIdParamsSchema, attendanceDiscrepancyListQuerySchema, codAttendanceDiscrepancyDecisionBodySchema } from "./attendance-discrepancy.validation.js";
 
 export const codRoutes = Router();
 
 codRoutes.use(authenticate);
 codRoutes.use(authorize("cod"));
+codRoutes.get("/attendance-discrepancies", validate(attendanceDiscrepancyListQuerySchema, "query"), getCodAttendanceDiscrepancies);
+codRoutes.get("/attendance-discrepancies/:id", validate(attendanceDiscrepancyIdParamsSchema, "params"), getCodAttendanceDiscrepancyById);
+codRoutes.get("/attendance-discrepancies/:id/decisions", validate(attendanceDiscrepancyIdParamsSchema, "params"), getCodAttendanceDiscrepancyDecisions);
+codRoutes.post("/attendance-discrepancies/:id/decisions", validate(attendanceDiscrepancyIdParamsSchema, "params"), validate(codAttendanceDiscrepancyDecisionBodySchema), postCodAttendanceDiscrepancyDecision);
 codRoutes.get("/reports/overdue", validate(pageQuery, "query"), getOverdueReports);
 codRoutes.get("/appeals/overdue", validate(pageQuery, "query"), getOverdueAppeals);
 codRoutes.get("/special-cases/overdue", validate(pageQuery, "query"), getOverdueCases);

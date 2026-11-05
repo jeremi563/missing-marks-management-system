@@ -28,6 +28,8 @@ model User {
   uploadedEvidence              SpecialCaseEvidence[]          @relation("EvidenceUploader")
   updatedSettings               SystemSetting[]                @relation("SettingUpdater")
   attendanceDiscrepancyComments AttendanceDiscrepancyComment[]
+  submittedAttendanceDiscrepancies AttendanceDiscrepancy[] @relation("DiscrepancyReporter")
+  attendanceDiscrepancyDecisions AttendanceDiscrepancyDecision[]
   reviewedMarkCorrections       MarkCorrection[]               @relation("MarkCorrectionReviewer")
   reportEligibilities           ReportEligibility[]
   designatedDepartments         Department[]                  @relation("DepartmentDesignatedCOD")
@@ -103,6 +105,7 @@ model LecturerProfile {
   verifiedCatSubmissions    CatSubmission[]           @relation("CatVerifier")
   attendanceCorrections     AttendanceCorrection[]    @relation("CorrectionActor")
   assignedDiscrepancies     AttendanceDiscrepancy[]   @relation("DiscrepancyReviewer")
+  reviewedDiscrepancies     AttendanceDiscrepancy[]   @relation("DiscrepancyLecturerReviewer")
   previousReportAssignments ReportAssignment[]        @relation("PreviousReportLecturer")
   newReportAssignments      ReportAssignment[]        @relation("NewReportLecturer")
   proposedMarkCorrections   MarkCorrection[]          @relation("MarkCorrectionProposer")
@@ -234,6 +237,7 @@ model MissingMarkReport {
   assignments       ReportAssignment[]
   statusHistory     ReportStatusHistory[]
   specialCases      SpecialCase[]
+  attendanceDiscrepancies AttendanceDiscrepancy[]
   evidence          SpecialCaseEvidence[]
   notifications     Notification[]
   eligibilityChecks ReportEligibility[]
@@ -579,6 +583,11 @@ model AttendanceDiscrepancy {
   resolution                String?
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt                 DateTime @updatedAt @map("updated_at")
+  submittedByUserId         String?   @map("submitted_by_user_id") @db.Uuid
+  submitterType             String?   @map("submitter_type")
+  missingMarkReportId       String?   @map("missing_mark_report_id") @db.Uuid
+  lecturerReviewedByProfileId String? @map("lecturer_reviewed_by_profile_id") @db.Uuid
+  lecturerReviewedAt        DateTime? @map("lecturer_reviewed_at")
 
   student           StudentProfile                 @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
   attendanceRecord  AttendanceRecord?              @relation(fields: [attendanceRecordId], references: [id], onDelete: Restrict)
@@ -586,9 +595,16 @@ model AttendanceDiscrepancy {
   attendanceAttempt AttendanceAttempt?             @relation(fields: [attendanceAttemptId], references: [id], onDelete: Restrict)
   assignedLecturer  LecturerProfile?               @relation("DiscrepancyReviewer", fields: [assignedLecturerProfileId], references: [id], onDelete: Restrict)
   comments          AttendanceDiscrepancyComment[]
+  decisions         AttendanceDiscrepancyDecision[]
+  missingMarkReport MissingMarkReport? @relation(fields: [missingMarkReportId], references: [id], onDelete: Restrict)
+  reporter          User? @relation("DiscrepancyReporter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+  lecturerReviewer  LecturerProfile? @relation("DiscrepancyLecturerReviewer", fields: [lecturerReviewedByProfileId], references: [id], onDelete: Restrict)
 
   @@index([studentProfileId, status])
   @@index([assignedLecturerProfileId, status])
+  @@index([submittedByUserId])
+  @@index([missingMarkReportId])
+  @@index([lecturerReviewedByProfileId, lecturerReviewedAt], map: "attendance_discrepancies_lecturer_review_idx")
   @@map("attendance_discrepancies")
 }
 
@@ -596,14 +612,36 @@ model AttendanceDiscrepancyComment {
   id            String   @id @default(uuid()) @db.Uuid
   discrepancyId String   @map("discrepancy_id") @db.Uuid
   authorUserId  String   @map("author_user_id") @db.Uuid
+    clarificationDecisionId String? @map("clarification_decision_id") @db.Uuid
   body          String
   createdAt     DateTime @default(now()) @map("created_at")
 
   discrepancy AttendanceDiscrepancy @relation(fields: [discrepancyId], references: [id], onDelete: Restrict)
   author      User                  @relation(fields: [authorUserId], references: [id], onDelete: Restrict)
+    clarificationDecision AttendanceDiscrepancyDecision? @relation("ClarificationDecisionResponses", fields: [clarificationDecisionId], references: [id], onDelete: Restrict)
 
   @@index([discrepancyId, createdAt])
+    @@index([clarificationDecisionId])
   @@map("attendance_discrepancy_comments")
+}
+
+model AttendanceDiscrepancyDecision {
+  id            String   @id @default(uuid()) @db.Uuid
+  discrepancyId String   @map("discrepancy_id") @db.Uuid
+  actorUserId   String   @map("actor_user_id") @db.Uuid
+  decision      String
+  explanation   String
+  previousStatus String?  @map("previous_status")
+  newStatus      String   @map("new_status")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  discrepancy AttendanceDiscrepancy @relation(fields: [discrepancyId], references: [id], onDelete: Restrict)
+  actor       User                  @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+    clarificationResponses AttendanceDiscrepancyComment[] @relation("ClarificationDecisionResponses")
+
+  @@index([discrepancyId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("attendance_discrepancy_decisions")
 }
 
 model ReportComment {
