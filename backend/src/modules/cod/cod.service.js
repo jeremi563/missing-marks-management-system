@@ -2,7 +2,7 @@ import { prisma } from "../../config/database.js";
 import { AppError } from "../../shared/utils/app-error.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 
-async function getAuthorizedDepartmentIds(db, userId) {
+export async function getAuthorizedDepartmentIds(db, userId) {
   const memberships = await db.departmentMembership.findMany({
     where: { userId },
     select: { departmentId: true },
