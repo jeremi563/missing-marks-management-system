@@ -20,8 +20,15 @@ function transactionClient(overrides = {}) {
 			findUnique: async () => ({ id: "report-1", status: "Submitted" }),
 			...overrides.missingMarkReport,
 		},
-		reportStatusHistory: { create: async () => ({ id: "history-1" }), ...overrides.reportStatusHistory },
+		reportStatusHistory: {
+			findFirst: async () => ({ createdAt: new Date() }),
+			create: async () => ({ id: "history-1" }),
+			...overrides.reportStatusHistory,
+		},
+		publicHoliday: { findMany: async () => [], ...overrides.publicHoliday },
 		appeal: { findFirst: async () => null, create: async ({ data }) => ({ id: "appeal-1", ...data }), ...overrides.appeal },
+		user: { findFirst: async () => ({ id: "cod-1" }), ...overrides.user },
+		notificationOutbox: { create: async () => ({ id: "event-1" }), ...overrides.notificationOutbox },
 		reportComment: { create: async ({ data }) => ({ id: "comment-1", ...data }), ...overrides.reportComment },
 		auditLog: { create: async () => ({ id: "audit-1" }), ...overrides.auditLog },
 	};
@@ -72,11 +79,13 @@ test("appeals are limited to rejected reports and the database row is locked bef
 	const transaction = transactionClient({
 		$queryRaw: async (strings, ...values) => { lockQuery = { strings: [...strings], values }; return [{ id: "report-1" }]; },
 		missingMarkReport: {
-			findFirst: async () => ({ id: "report-1", studentProfileId: student.id, status: "REJECTED" }),
+			findFirst: async () => ({ id: "report-1", studentProfileId: student.id, status: "REJECTED", courseUnit: { department: { id: "dept-1", designatedCodUserId: "cod-1" } } }),
 		},
+		user: { findFirst: async () => ({ id: "cod-1" }) },
 		appeal: {
 			findFirst: async (args) => { appealLookup = args; return null; },
 		},
+		notificationOutbox: { create: async () => ({ id: "event-1" }) },
 	});
 	const prisma = {
 		studentProfile: { findUnique: async () => student },
@@ -94,7 +103,7 @@ test("appeals are limited to rejected reports and the database row is locked bef
 test("appeals reject approved decisions and statuses that are not final rejection", async () => {
 	for (const status of ["APPROVED", "Submitted", "Under Review"]) {
 		const transaction = transactionClient({
-			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: student.id, status }) },
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: student.id, status, courseUnit: { department: { id: "dept-1", designatedCodUserId: "cod-1" } } }) },
 		});
 		const prisma = {
 			studentProfile: { findUnique: async () => student },

@@ -398,6 +398,9 @@ const createDecisionPrisma = ({
   const calls = {};
 
   const transaction = {
+    reportAssignment: {
+      findFirst: async () => ({ id: 'assignment-1', workStartedAt: new Date('2026-11-02T08:00:00.000Z') }),
+    },
     missingMarkReport: {
       updateMany: async (args) => {
         calls.updateArgs = args;
@@ -422,9 +425,13 @@ const createDecisionPrisma = ({
         };
       },
     },
+    auditLog: { create: async () => ({ id: 'audit-1' }) },
   };
 
   const prisma = {
+    assessmentType: {
+      findFirst: async () => ({ id: 'type-cat', code: 'CAT', name: 'CAT' }),
+    },
     lecturerProfile: {
       findUnique: async () => lecturer,
     },

@@ -19,6 +19,8 @@ import {
   endAttendanceSessionController,
   getAttendanceSessionRecordsController,
 } from './lecturer.controller.js';
+import { getAssessmentTypes, getLecturerCaseById, getLecturerCases, createLecturerCase, startReportWork } from '../feature5/feature5.controller.js';
+import { createSpecialCaseBody, pageQuery, specialCaseIdParams } from '../feature5/feature5.validation.js';
 
 import {
   reportIdSchema,
@@ -31,6 +33,8 @@ import {
 } from './lecturer.validation.js';
 
 const router = express.Router();
+
+router.get('/assessment-types', authenticate, authorize('lecturer'), getAssessmentTypes);
 
 // GET /api/v1/lecturer/reports
 router.get(
@@ -77,6 +81,11 @@ router.post(
   validate(submitDecisionSchema, 'body'),
   submitDecision
 );
+
+router.post('/reports/:reportId/start', authenticate, authorize('lecturer'), validate(reportIdSchema, 'params'), startReportWork);
+router.post('/reports/:reportId/special-cases', authenticate, authorize('lecturer'), validate(reportIdSchema, 'params'), validate(createSpecialCaseBody), createLecturerCase);
+router.get('/special-cases/:caseId', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), getLecturerCaseById);
+router.get('/special-cases', authenticate, authorize('lecturer'), validate(pageQuery, 'query'), getLecturerCases);
 
 // POST /api/v1/lecturer/reports/:reportId/escalate
 router.post(

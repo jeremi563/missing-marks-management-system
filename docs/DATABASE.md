@@ -141,8 +141,8 @@ This inventory documents the current schema, not a claim that every business rul
 | `report_status_history` | `id/reportId: UUID`, `actorUserId: UUID?`, `previousStatus: String?`, `newStatus: String`, `reason: String?`, `createdAt: DateTime` | Audit-friendly history of status changes. Status strings are not a finalized enum. |
 | `report_eligibility` | `id/reportId: UUID`, `checkedByUserId: UUID?`, `classification: String`, `attendancePercentage: Decimal(5,2)?`, class/CAT/exam eligibility booleans: `Boolean?`, `details: Json?`, `checkedAt: DateTime` | Snapshot of each eligibility calculation. Repeated checks are retained; threshold and classification rules come from approved configuration/services. |
 | `mark_corrections` | `id/reportId/proposedByLecturerId: UUID`, `reviewedByUserId: UUID?`, `originalValue/finalValue: Decimal(8,2)?`, `proposedValue: Decimal(8,2)`, `status: String`, `reason/reviewComments: String?`, `decidedAt: DateTime?`, timestamps | Lecturer proposal and reviewer/COD outcome history. The application records proposals; it does not update official university results. |
-| `appeals` | `id/reportId/studentProfileId: UUID`, `reason/status: String`, `comments: String?`, timestamps | Appeal linked to report and student. No database uniqueness constraint currently limits appeals per report because the policy is open in the repository requirements. |
-| `special_cases` | `id/reportId: UUID`, `category/description/status: String`, timestamps | Optional special-case workflow, one record per report. |
+| `appeals` | `id/reportId/studentProfileId: UUID`, `reason/status: String`, `comments: String?`, optional decision actor/time/reason and review deadline | One appeal per report, with COD decision and stored review deadline. |
+| `special_cases` | `id/reportId: UUID`, nullable historical submitter, category lookup, description/status, optional decision actor/time/reason and review deadline | Multiple independent cases per report; historical category text is retained and submitter remains nullable for legacy rows. |
 | `special_case_evidence` | `id/reportId/uploadedByUserId: UUID`, `appealId/specialCaseId: UUID?`, `originalName/storageKey/mediaType: String`, `sizeBytes: Int`, `createdAt: DateTime` | Metadata and storage key for permitted special-case documents; never store file bytes in this row. `storageKey` is unique. Access control and file-type/size validation belong in the service/API layer. |
 
 ### Attendance and assessment records
@@ -182,7 +182,7 @@ Cardinality notation: `1 -> many` means the referenced parent can have many chil
 - `AcademicPeriod 1 -> many UnitEnrollment` and `MissingMarkReport`.
 - `LecturerProfile 1 -> many CourseUnitLecturer`, assigned reports, attendance sessions, verified CAT submissions, attendance corrections, assigned discrepancies, excuse reviews, and proposed mark corrections.
 - `Assessment 1 -> many MissingMarkReport` (reports may have no assessment until policy is confirmed), attendance sessions, assessment-attendance rows, and CAT submissions.
-- `MissingMarkReport 1 -> many Appeal`, comments, assignments, status-history rows, and evidence; `MissingMarkReport 1 -> 0..1 SpecialCase`.
+- `MissingMarkReport 1 -> 0..1 Appeal`, comments, assignments, status-history rows, and evidence; `MissingMarkReport 1 -> many SpecialCase`.
 - `MissingMarkReport 1 -> many ReportEligibility` evaluations and `MarkCorrection` proposals. Each evaluation may be associated with the user who triggered it; each correction has a lecturer proposer and optional reviewer.
 - `AttendanceSession 1 -> many AttendanceAttempt` and `AttendanceRecord`; each attendance record has at most one `AttendanceHistory` snapshot and may have many corrections/discrepancies.
 - `AttendanceRecord 1 -> many AttendanceExcuseRequest`; each request belongs to a student and may have a reviewing lecturer.
@@ -197,7 +197,7 @@ Important cross-field consistency checks cannot be expressed as ordinary Prisma 
 
 ## 12. Unique constraints and indexes
 
-The schema currently enforces unique user email, role name, student number, one profile per user, non-null lecturer staff number, non-null department code, provided academic-period code, unit code within department, role and department membership pairs, one student/unit/period enrollment, one lecturer/unit assignment, report reference, one student/session attendance record, one student/assessment attendance row, one CAT submission per student/assessment, one special-case row per report, attendance session token hash, evidence storage key, and one history row per source attendance record. Query indexes support report lists by student/lecturer/status, attendance by student/time, notifications by user/time, and audit/history lookups.
+The schema enforces unique user email, role name, student number, one profile per user, non-null lecturer staff number, non-null department code, provided academic-period code, unit code within department, role and department membership pairs, one student/unit/period enrollment, one lecturer/unit assignment, report reference, one appeal per report, one student/session attendance record, one student/assessment attendance row, one CAT submission per student/assessment, public-holiday date, assessment/category codes and names, notification/outbox dedupe keys, attendance session token hash, evidence storage key, and one history row per source attendance record. Special cases are not unique by report. Query indexes support report lists by student/lecturer/status, deadline queues, notifications by user/time, and audit/history lookups.
 
 There is deliberately no partial unique index for “one active report” and no unique appeal-per-report constraint yet. Both depend on rules still marked open in the repository docs. When approved, add a migration and service-level concurrency-safe enforcement together.
 
@@ -221,6 +221,16 @@ Do not silently treat these as finalized by the schema:
 The redesign document supplied entity concepts and workflow relationships, but no ERD or database table definition. This Prisma schema makes the relationships explicit while leaving the policy questions above open for team approval.
 
 ## 15. Local commands
+
+## Feature 5 schema and migration
+
+Migration `20261104120000_feature5_workflows` adds `assessment_types`, `special_case_categories`, `public_holidays`, and `notification_outbox`; adds an optional designated COD to each department; and stores assessment type, assignment start/deadline, appeal decision/deadline, and special-case submitter/decision/deadline fields. It removes the one-case-per-report index and creates an appeal-per-report unique index. Historical special-case category strings are copied to inactive lookup rows and linked without fabricating submitters or decisions. `assessment_id` and existing evidence relationships are retained.
+
+`backend/prisma/seed.js` idempotently seeds the seven assessment types and six approved active special-case categories. The migration has not been applied to any database during this implementation. Before applying it to a database containing legacy data, verify its PostgreSQL schema and that existing appeal rows do not violate the new one-appeal-per-report index.
+
+Feature 5 deadlines are stored snapshots. Updating a public holiday does not recalculate them. Evidence storage remains provider-neutral: existing metadata relations are preserved, and the application does not persist uploaded bytes or expose `storageKey` values.
+
+## Local commands
 
 From `backend/`, after copying `.env.example` to `.env` and providing a local development `DATABASE_URL`:
 

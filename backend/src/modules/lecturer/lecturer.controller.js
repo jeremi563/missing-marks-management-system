@@ -188,14 +188,15 @@ export const submitDecision = async (req, res, next) => {
       });
     }
 
-    const { decision, reason } = req.body;
+    const { decision, reason, assessmentTypeId, assessmentTypeOtherDescription } = req.body;
 
     const result = await submitReportDecision(
       prisma,
       lecturerUserId,
       req.params.reportId,
       decision,
-      reason
+      reason,
+      { assessmentTypeId, assessmentTypeOtherDescription }
     );
 
     return res.status(200).json({

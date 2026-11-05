@@ -9,6 +9,7 @@ import lecturerRoutes from "./modules/lecturer/lecturer.routes.js";
 import studentRoutes from "./modules/student/student.routes.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { logger } from "./shared/utils/logger.js";
+import { feature5Routes } from "./modules/feature5/feature5.routes.js";
 
 export const app = express();
 app.locals.prisma = prisma;
@@ -41,6 +42,7 @@ apiRouter.use("/auth", authRoutes);
 apiRouter.use("/student", studentRoutes);
 apiRouter.use("/lecturer", lecturerRoutes);
 apiRouter.use("/cod", codRoutes);
+apiRouter.use(feature5Routes);
 
 app.use("/api/v1", apiRouter);
 

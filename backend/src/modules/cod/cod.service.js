@@ -7,7 +7,18 @@ async function getAuthorizedDepartmentIds(db, userId) {
     where: { userId },
     select: { departmentId: true },
   });
-  return memberships.map(({ departmentId }) => departmentId);
+  const departmentIds = memberships.map(({ departmentId }) => departmentId);
+  if (!departmentIds.length) return [];
+  const activeCod = await db.user.findFirst({
+    where: { id: userId, isActive: true, roles: { some: { role: { name: "cod" } } } },
+    select: { id: true },
+  });
+  if (!activeCod) return [];
+  const designated = await db.department.findMany({
+    where: { id: { in: departmentIds }, designatedCodUserId: userId },
+    select: { id: true },
+  });
+  return designated.map(({ id }) => id);
 }
 
 async function getAuthorizedReport(db, userId, reportId) {
@@ -35,6 +46,7 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
       id: true,
       reference: true,
       assessmentComponent: true,
+      assessmentTypeOtherDescription: true,
       description: true,
       status: true,
       submittedAt: true,
@@ -44,7 +56,12 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
       courseUnitId: true,
       academicPeriodId: true,
       student: { select: { id: true, studentNumber: true, officialEmail: true } },
-      courseUnit: { select: { id: true, code: true, name: true, departmentId: true } },
+      courseUnit: {
+        select: {
+          id: true, code: true, name: true, departmentId: true,
+          department: { select: { designatedCodUserId: true } },
+        },
+      },
       academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
       assessment: {
         select: {
@@ -59,6 +76,7 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
           submissionRequired: true,
         },
       },
+      assessmentType: { select: { id: true, code: true, name: true } },
       assignedLecturer: {
         select: { id: true, user: { select: { displayName: true, email: true } } },
       },
@@ -157,9 +175,11 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
       escalationReason: escalation?.reason ?? null,
       statusHistory: report.statusHistory,
       auditEvents,
-      evidenceMetadata: report.evidence.map(({ id, originalName, mediaType, sizeBytes, createdAt, uploadedBy }) => ({
-        id, originalName, mediaType, sizeBytes, createdAt, uploadedBy,
-      })),
+      evidenceMetadata: report.courseUnit.department.designatedCodUserId === userId
+        ? report.evidence.map(({ id, originalName, mediaType, sizeBytes, createdAt, uploadedBy }) => ({
+          id, originalName, mediaType, sizeBytes, createdAt, uploadedBy,
+        }))
+        : [],
       evidenceNotice: "Metadata only; evidence file contents are not available through this API.",
     };
   }
@@ -168,13 +188,20 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
     id: report.id,
     reference: report.reference,
     assessmentComponent: report.assessmentComponent,
+    assessmentType: report.assessmentType,
+    assessmentTypeOtherDescription: report.assessmentTypeOtherDescription,
     description: report.description,
     status: report.status,
     submittedAt: report.submittedAt,
     createdAt: report.createdAt,
     updatedAt: report.updatedAt,
     student: report.student,
-    courseUnit: report.courseUnit,
+    courseUnit: {
+      id: report.courseUnit.id,
+      code: report.courseUnit.code,
+      name: report.courseUnit.name,
+      departmentId: report.courseUnit.departmentId,
+    },
     academicPeriod: report.academicPeriod,
     assignedLecturer: report.assignedLecturer
       ? { id: report.assignedLecturer.id, displayName: report.assignedLecturer.user?.displayName ?? null, email: report.assignedLecturer.user?.email ?? null }
@@ -301,6 +328,10 @@ export async function listEligibleLecturers({ userId, reportId }) {
 export async function assignReportToLecturer({ actorUserId, reportId, lecturerProfileId, reason }) {
   return prisma.$transaction(async (tx) => {
     const report = await getAuthorizedReport(tx, actorUserId, reportId);
+    const normalizedStatus = report.status?.toUpperCase();
+    if (!["SUBMITTED", "PENDING"].includes(normalizedStatus)) {
+      throw new AppError(409, "Only Submitted or PENDING reports may be assigned or reassigned");
+    }
     const candidate = await findEligibleLecturer(tx, lecturerProfileId, report.courseUnitId);
     if (!candidate) {
       throw new AppError(400, "Selected lecturer is not eligible for this report's course unit");
@@ -312,8 +343,8 @@ export async function assignReportToLecturer({ actorUserId, reportId, lecturerPr
     });
     const previousLecturerProfileId = current.assignedLecturerProfileId;
     const update = await tx.missingMarkReport.updateMany({
-      where: { id: reportId, assignedLecturerProfileId: previousLecturerProfileId },
-      data: { assignedLecturerProfileId: lecturerProfileId },
+      where: { id: reportId, assignedLecturerProfileId: previousLecturerProfileId, status: report.status },
+      data: { assignedLecturerProfileId: lecturerProfileId, ...(normalizedStatus === "SUBMITTED" ? { status: "PENDING" } : {}) },
     });
     if (update.count !== 1) {
       throw new AppError(409, "Report assignment changed; reload the report and try again");
@@ -328,6 +359,10 @@ export async function assignReportToLecturer({ actorUserId, reportId, lecturerPr
         reason,
       },
     });
+    if (normalizedStatus === "SUBMITTED") {
+      await tx.reportStatusHistory.create({ data: { reportId, actorUserId, previousStatus: report.status, newStatus: "PENDING", reason: reason?.trim() || "Report assigned to a lecturer." } });
+      await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "REPORT_STATUS_CHANGED_ON_ASSIGNMENT", entityType: "MissingMarkReport", entityId: reportId, metadata: { previousStatus: report.status, newStatus: "PENDING" } });
+    }
     await recordAuditEvent({
       prismaClient: tx,
       actorId: actorUserId,
@@ -403,12 +438,7 @@ function getOrderBy(sort) {
 }
 
 export async function listDepartmentReports({ userId, departmentId, status, page, limit, sort, db = prisma }) {
-  const memberships = await db.departmentMembership.findMany({
-    where: { userId },
-    select: { departmentId: true },
-  });
-
-  const authorizedDepartmentIds = memberships.map(({ departmentId }) => departmentId);
+  const authorizedDepartmentIds = await getAuthorizedDepartmentIds(db, userId);
   if (authorizedDepartmentIds.length === 0) {
     return { items: [], page, limit, total: 0, totalPages: 0 };
   }

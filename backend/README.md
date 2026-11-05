@@ -80,6 +80,17 @@ npm run dev
 npm test
 ```
 
+The API and the Feature 5 notification worker run as separate processes:
+
+```bash
+npm start
+npm run worker:notifications
+```
+
+Both use the configured PostgreSQL database. The worker claims outbox rows with leases and PostgreSQL `SKIP LOCKED`; do not start it against a production or shared database without an approved deployment configuration.
+
+Run the database-independent tests with `node --test tests/shared/*.test.js tests/lecturer/lecturer.validation.test.js`. The full suite includes database-backed integration tests and must use a dedicated local test database.
+
 Use the actual scripts present in `package.json`; do not invent local scripts that other team members cannot run.
 
 ## Module responsibilities
@@ -111,4 +122,4 @@ The current shared tests use Node's built-in test runner (`node --test`) and do 
 
 ## API documentation
 
-See `../docs/API.md` for the initial API conventions. Treat example routes as proposed contracts until the team confirms and implements them.
+See `../docs/API.md` for the actual API routes, including Feature 5. Private file upload/download remains pending a storage provider decision; metadata-only evidence responses omit storage keys.

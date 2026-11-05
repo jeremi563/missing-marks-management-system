@@ -93,10 +93,13 @@ test('rejects a missing comment body', () => {
 
 // Feature 4: Lecturer decision validation
 
+const validAssessmentTypeId = '19f6fdc0-6f39-48f4-9cd6-87880dcb6bb8';
+
 test('accepts an APPROVE decision with a valid reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'APPROVE',
     reason: 'The submitted evidence has been verified.',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, true);
@@ -106,6 +109,7 @@ test('accepts a REJECT decision with a valid reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'REJECT',
     reason: 'The submitted evidence is insufficient.',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, true);
@@ -115,6 +119,7 @@ test('rejects an invalid decision value', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'PENDING',
     reason: 'Awaiting further review.',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, false);
@@ -131,6 +136,7 @@ test('rejects a missing decision', () => {
 test('rejects a missing decision reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'APPROVE',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, false);
@@ -140,6 +146,7 @@ test('rejects an empty decision reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'REJECT',
     reason: '',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, false);
@@ -149,6 +156,7 @@ test('rejects a whitespace-only decision reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'REJECT',
     reason: '   ',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, false);
@@ -158,6 +166,7 @@ test('trims whitespace around a decision reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'APPROVE',
     reason: '  Evidence verified.  ',
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, true);
@@ -168,6 +177,7 @@ test('accepts a decision reason containing exactly 2000 characters', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'APPROVE',
     reason: 'a'.repeat(2000),
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, true);
@@ -177,6 +187,7 @@ test('rejects a decision reason exceeding 2000 characters', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'APPROVE',
     reason: 'a'.repeat(2001),
+    assessmentTypeId: validAssessmentTypeId,
   });
 
   assert.equal(result.success, false);

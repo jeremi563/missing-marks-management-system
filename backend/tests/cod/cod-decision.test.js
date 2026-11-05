@@ -31,6 +31,8 @@ const makeDecisionDb = ({
     departmentMembership: {
       findMany: async (args) => { calls.membershipArgs = args; return departments.map((departmentId) => ({ departmentId })); },
     },
+    user: { findFirst: async () => ({ id: "cod-user-1" }) },
+    department: { findMany: async ({ where }) => departments.filter((id) => where.id.in.includes(id)).map((id) => ({ id })) },
     reportStatusHistory: {
       create: async (args) => {
         calls.historyArgs = args;
@@ -179,7 +181,7 @@ test("escalated COD detail exposes report-scoped decision history and safe evide
     createdAt: new Date(), updatedAt: new Date(), studentProfileId: "student-1",
     courseUnitId: "unit-1", academicPeriodId: "period-1", assessment: null,
     student: { id: "student-1", studentNumber: "S-1", officialEmail: "s@example.test" },
-    courseUnit: { id: "unit-1", code: "U1", name: "Unit", departmentId: "dept-1" },
+    courseUnit: { id: "unit-1", code: "U1", name: "Unit", departmentId: "dept-1", department: { designatedCodUserId: "cod-user-1" } },
     academicPeriod: { id: "period-1", code: "P1", name: "Period", startsAt: null, endsAt: null },
     assignedLecturer: null,
     statusHistory: [originalDecision, escalation],
@@ -187,7 +189,9 @@ test("escalated COD detail exposes report-scoped decision history and safe evide
   };
   const db = {
     departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
-    missingMarkReport: { findFirst: async (args) => { calls.reportWhere = args.where; return report; } },
+    user: { findFirst: async () => ({ id: "cod-user-1" }) },
+    department: { findMany: async ({ where }) => where.designatedCodUserId === "cod-user-1" ? [{ id: "dept-1" }] : [] },
+    missingMarkReport: { findFirst: async (args) => { calls.reportWhere = args.where; return args.where.courseUnit.departmentId.in.includes("dept-1") ? report : null; } },
     unitEnrollment: { findUnique: async () => null },
     auditLog: { findMany: async (args) => { calls.auditWhere = args.where; return [{ id: "audit-1", action: "REPORT_ESCALATED", actorId: "lecturer-user-1", metadata: {}, createdAt: new Date(), actor: { id: "lecturer-user-1", displayName: "Lecturer" } }]; } },
   };
@@ -200,12 +204,15 @@ test("escalated COD detail exposes report-scoped decision history and safe evide
   assert.equal(result.lecturerDecisionReview.evidenceMetadata[0].originalName, "scan.pdf");
   assert.equal("storageKey" in result.lecturerDecisionReview.evidenceMetadata[0], false);
   assert.equal(result.lecturerDecisionReview.evidenceNotice.includes("contents are not available"), true);
+  await assert.rejects(() => getCodReportDetails({ userId: "cod-user-2", reportId: "report-1", db }), { statusCode: 404 });
 });
 
 test("COD report detail remains department-scoped", async () => {
   let reportWhere;
   const db = {
     departmentMembership: { findMany: async () => [{ departmentId: "dept-2" }] },
+    user: { findFirst: async () => ({ id: "cod-user-1" }) },
+    department: { findMany: async ({ where }) => where.designatedCodUserId === "cod-user-1" ? [{ id: "dept-2" }] : [] },
     missingMarkReport: { findFirst: async (args) => { reportWhere = args.where; return null; } },
   };
   await assert.rejects(() => getCodReportDetails({ userId: "cod-user-1", reportId: "report-1", db }), { statusCode: 404 });
@@ -216,6 +223,8 @@ test("existing COD list endpoint can filter to authorized escalated reports", as
   const calls = {};
   const db = {
     departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
+    user: { findFirst: async () => ({ id: "cod-user-1" }) },
+    department: { findMany: async ({ where }) => where.designatedCodUserId === "cod-user-1" ? [{ id: "dept-1" }] : [] },
     missingMarkReport: {
       count: async ({ where }) => { calls.countWhere = where; return 1; },
       findMany: async ({ where }) => { calls.listWhere = where; return []; },
