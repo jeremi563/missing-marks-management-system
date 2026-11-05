@@ -432,6 +432,7 @@ test('passes comment creation errors to the error handler', async () => {
 // Feature 4: Report decision controller tests
 
 const createDecisionControllerPrisma = () => ({
+  assessmentType: { findFirst: async () => ({ id: '19f6fdc0-6f39-48f4-9cd6-87880dcb6bb8', code: 'CAT', name: 'CAT' }) },
   lecturerProfile: {
     findUnique: async () => ({ id: 'lecturer-1' }),
   },
@@ -446,6 +447,7 @@ const createDecisionControllerPrisma = () => ({
 
   $transaction: async (callback) =>
     callback({
+      reportAssignment: { findFirst: async () => ({ id: 'assignment-1', workStartedAt: new Date() }) },
       missingMarkReport: {
         updateMany: async () => ({ count: 1 }),
       },
@@ -459,6 +461,7 @@ const createDecisionControllerPrisma = () => ({
           createdAt: new Date(),
         }),
       },
+      auditLog: { create: async () => ({ id: 'audit-1' }) },
     }),
 });
 
@@ -502,6 +505,7 @@ test('submits an approval decision successfully', async () => {
     body: {
       decision: 'APPROVE',
       reason: 'The submitted evidence has been verified.',
+      assessmentTypeId: '19f6fdc0-6f39-48f4-9cd6-87880dcb6bb8',
     },
   };
 

@@ -450,3 +450,31 @@ Before changing a route, payload or response:
 - Errors use `{ "success": false, "message": "..." }`, with validation details only for client input errors. Internal exceptions are logged server-side and are not returned to clients.
 - Application logs are structured JSON written to stdout/stderr. HTTP request completion logs include request ID, method, route, status, and duration; request bodies, query strings, and credentials are not logged. Set `LOG_LEVEL` to `debug`, `info`, `warn`, or `error` (default `info`).
 - Startup and shutdown events, initial database connection success/failure, readiness failures, and unexpected server errors are logged. A database outage does not stop the API process; readiness remains `503` while liveness can remain `200`.
+
+## Feature 5: missing-mark workflow
+
+All paths below use `/api/v1`; protected paths require the listed role and authenticate through the existing middleware.
+
+| Method and path | Role | Behaviour |
+|---|---|---|
+| `GET /student/appeals`, `GET /student/appeals/:appealId` | Student | List/view only the authenticated student's appeals and final reasons. |
+| `POST /student/reports/:reportId/appeals` | Student | Submit one appeal for an owned `REJECTED` report within 14 calendar days of its recorded rejection. Body: `{reason, comments?}`. |
+| `POST /student/reports/:reportId/special-cases` | Student | Submit a case for an owned report in `PENDING`, `ESCALATED`, or `REJECTED`. Body: `{categoryId, description}`. |
+| `GET /student/special-cases`, `GET /student/special-cases/:caseId` | Student | List and view cases submitted by the authenticated student, including decisions; evidence bytes are not served. |
+| `GET /lecturer/assessment-types` | Lecturer | List active decision assessment types. |
+| `POST /lecturer/reports/:reportId/start` | Lecturer | Start work on the currently assigned pending report once. |
+| `POST /lecturer/reports/:reportId/decision` | Lecturer | Final decision requires `decision`, `reason`, and active `assessmentTypeId`; `assessmentTypeOtherDescription` is required only for `OTHER`. |
+| `POST /lecturer/reports/:reportId/special-cases` | Lecturer | Submit a case for a currently assigned eligible report. Body: `{categoryId, description}`. |
+| `GET /lecturer/special-cases`, `GET /lecturer/special-cases/:caseId` | Lecturer | List submitted cases and view own/currently assigned report cases. Evidence metadata is visible only to the current assignee. |
+| `GET /cod/appeals`, `GET /cod/appeals/:appealId` | COD | List and view appeals for departments where the caller is the designated COD. Optional list query: `page`, `limit`, `status`. |
+| `POST /cod/appeals/:appealId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. Approval returns the report to `PENDING`. |
+| `GET /cod/special-cases`, `GET /cod/special-cases/:caseId` | COD | List and view cases only for designated departments. Optional list query: `page`, `limit`, `status`. |
+| `POST /cod/special-cases/:caseId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. This does not change report status. |
+| `GET /cod/special-case-categories` | COD | List categories for category management. Caller must be designated COD. |
+| `POST /cod/special-case-categories`, `PATCH /cod/special-case-categories/:id` | COD | Create/update categories using `code`, `name`, optional `description`, and update-only `isActive`. |
+| `GET /cod/reports/overdue`, `GET /cod/appeals/overdue`, `GET /cod/special-cases/overdue` | COD | Paginated unresolved overdue work for the caller's designated departments. |
+| `GET /public-holidays?from=YYYY-MM-DD&to=YYYY-MM-DD` | Public | Read the holiday calendar. |
+| `POST /admin/public-holidays`, `PATCH /admin/public-holidays/:id`, `DELETE /admin/public-holidays/:id` | Administrator | Maintain holidays. Create/update body: `{date, name, source?, description?}`. Existing deadlines are not recalculated. |
+| `PATCH /admin/departments/:departmentId/designated-cod` | Administrator | Assign a department's COD. Body: `{codUserId}`; target must be active, have the COD role, and be a member of that department. |
+
+Special-case evidence upload/download is not exposed because no private storage provider has been selected. Existing report-level evidence metadata remains available through the COD report review. No API response includes a storage key.

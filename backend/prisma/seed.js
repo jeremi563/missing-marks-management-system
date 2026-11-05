@@ -58,8 +58,8 @@ async function main() {
 
 	const department = await prisma.department.upsert({
 		where: { code: "DEMO" },
-		update: { name: "Demo Department" },
-		create: { code: "DEMO", name: "Demo Department" },
+		update: { name: "Demo Department", designatedCodUserId: users.get("cod").id },
+		create: { code: "DEMO", name: "Demo Department", designatedCodUserId: users.get("cod").id },
 	});
 	await prisma.departmentMembership.upsert({
 		where: { userId_departmentId: { userId: users.get("cod").id, departmentId: department.id } },
@@ -92,6 +92,24 @@ async function main() {
 		update: {},
 		create: { studentProfileId: student.id, courseUnitId: courseUnit.id, academicPeriodId: academicPeriod.id },
 	});
+
+	const assessmentTypes = [
+		["CAT", "CAT"], ["MAIN_EXAMINATION", "Main Examination"], ["ASSIGNMENT", "Assignment"],
+		["PRACTICAL", "Practical"], ["SUPPLEMENTARY_EXAMINATION", "Supplementary Examination"],
+		["SPECIAL_EXAMINATION", "Special Examination"], ["OTHER", "Other"],
+	];
+	for (const [code, name] of assessmentTypes) {
+		await prisma.assessmentType.upsert({ where: { code }, update: { name, isActive: true }, create: { code, name } });
+	}
+
+	const categories = [
+		["LECTURER_UNAVAILABLE", "Lecturer Unavailable"], ["ASSESSMENT_RECORDS_ISSUE", "Assessment Records Issue"],
+		["MARKS_SUBMISSION_PROBLEM", "Marks Submission Problem"], ["SYSTEM_OR_TECHNICAL_ISSUE", "System or Technical Issue"],
+		["ADMINISTRATIVE_ISSUE", "Administrative Issue"], ["OTHER", "Other"],
+	];
+	for (const [code, name] of categories) {
+		await prisma.specialCaseCategory.upsert({ where: { name }, update: { code, isActive: true }, create: { code, name } });
+	}
 
 	console.info("Synthetic demo accounts and academic structure are ready.");
 }

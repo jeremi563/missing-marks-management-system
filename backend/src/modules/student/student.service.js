@@ -1,4 +1,7 @@
 import { generateReference } from "../../shared/utils/generate-reference.js";
+import { addWorkingDays } from "../../shared/utils/business-days.js";
+import { enqueueNotificationOnce } from "../../shared/services/notification-outbox.service.js";
+import { lockDepartmentForReview } from "../../shared/services/department-review-lock.service.js";
 
 export async function getStudentProfile(prisma, userId) {
 	const profile = await prisma.studentProfile.findUnique({
@@ -250,6 +253,16 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 	const comments = typeof input.comments === "string" ? input.comments.trim() : "";
 
 	return prisma.$transaction(async (transaction) => {
+		const initialReport = await transaction.missingMarkReport.findFirst({
+			where: { id: reportId, studentProfileId: student.id },
+			select: { courseUnit: { select: { department: { select: { id: true } } } } },
+		});
+		if (!initialReport) {
+			const error = new Error("Missing-mark report not found.");
+			error.statusCode = 404;
+			throw error;
+		}
+		await lockDepartmentForReview(transaction, initialReport.courseUnit.department.id);
 		const lockedReports = await transaction.$queryRaw`
 			SELECT id
 			FROM missing_mark_reports
@@ -265,7 +278,7 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 
 		const report = await transaction.missingMarkReport.findFirst({
 			where: { id: reportId, studentProfileId: student.id },
-			select: { id: true, status: true },
+			select: { id: true, status: true, courseUnit: { select: { department: { select: { id: true, designatedCodUserId: true } } } } },
 		});
 
 		if (!report) {
@@ -273,9 +286,36 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 			error.statusCode = 404;
 			throw error;
 		}
-
 		if (report.status?.toUpperCase() !== "REJECTED") {
 			const error = new Error("Appeals are only allowed after a report is rejected.");
+			error.statusCode = 409;
+			throw error;
+		}
+		const designatedCod = report.courseUnit.department.designatedCodUserId;
+		const validCod = designatedCod && await transaction.user.findFirst({
+			where: { id: designatedCod, isActive: true, roles: { some: { role: { name: "cod" } } }, departmentMemberships: { some: { departmentId: report.courseUnit.department.id } } },
+			select: { id: true },
+		});
+		if (!validCod) {
+			const error = new Error("This department currently has no valid designated COD, so the submission cannot proceed.");
+			error.statusCode = 409;
+			throw error;
+		}
+
+		const rejection = await transaction.reportStatusHistory.findFirst({
+			where: { reportId: report.id, newStatus: "REJECTED" },
+			orderBy: { createdAt: "desc" },
+			select: { createdAt: true },
+		});
+		if (!rejection) {
+			const error = new Error("The report rejection timestamp is unavailable.");
+			error.statusCode = 409;
+			throw error;
+		}
+		const submittedAt = new Date();
+		const appealDeadline = new Date(rejection.createdAt.valueOf() + 14 * 24 * 60 * 60 * 1000);
+		if (submittedAt > appealDeadline) {
+			const error = new Error("The 14-calendar-day appeal deadline has passed.");
 			error.statusCode = 409;
 			throw error;
 		}
@@ -298,6 +338,7 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 				reason,
 				status: "Submitted",
 				comments: comments || null,
+				reviewDeadlineAt: addWorkingDays(submittedAt, 7, (await transaction.publicHoliday.findMany({ where: { date: { gte: new Date(submittedAt.toISOString().slice(0, 10)), lte: new Date(new Date(submittedAt.valueOf() + 400 * 86400000).toISOString().slice(0, 10)) } }, select: { date: true } })).map(({ date }) => date.toISOString().slice(0, 10))),
 			},
 			select: {
 				id: true,
@@ -308,6 +349,7 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 				comments: true,
 				createdAt: true,
 				updatedAt: true,
+				reviewDeadlineAt: true,
 			},
 		});
 
@@ -320,6 +362,16 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 				metadata: { reportId: report.id },
 			},
 		});
+		const codUserId = designatedCod;
+		if (codUserId) {
+			const deadlineAt = appeal.reviewDeadlineAt;
+			await enqueueNotificationOnce(transaction, {
+				dedupeKey: `COD_APPEAL_OVERDUE:${appeal.id}:${codUserId}`,
+				eventType: "COD_APPEAL_OVERDUE", entityType: "Appeal", entityId: appeal.id,
+				recipientUserId: codUserId, reportId: report.id, title: "Appeal review overdue",
+				message: `Appeal ${appeal.id} is awaiting a departmental decision.`, availableAt: new Date(deadlineAt.valueOf() + 1),
+			});
+		}
 
 		return appeal;
 	});

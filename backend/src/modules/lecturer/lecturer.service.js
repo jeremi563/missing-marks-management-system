@@ -48,6 +48,7 @@ export const getAssignedReports = async (
         assessmentComponent: true,
         description: true,
         status: true,
+        assessmentTypeOtherDescription: true,
         submittedAt: true,
         createdAt: true,
 
@@ -74,6 +75,8 @@ export const getAssignedReports = async (
             endsAt: true,
           },
         },
+        assessmentType: { select: { id: true, code: true, name: true } },
+        assignments: { where: { newLecturerProfileId: lecturer.id }, orderBy: { createdAt: 'desc' }, take: 1, select: { workStartedAt: true, deadlineAt: true } },
       },
       orderBy: {
         createdAt: 'desc',
@@ -155,6 +158,9 @@ export const getAssignedReportById = async (
           endsAt: true,
         },
       },
+
+      assessmentType: { select: { id: true, code: true, name: true } },
+      assignments: { where: { newLecturerProfileId: lecturer.id }, orderBy: { createdAt: 'desc' }, take: 1, select: { workStartedAt: true, deadlineAt: true } },
 
       assessment: {
         select: {
@@ -324,7 +330,8 @@ export const submitReportDecision = async (
   lecturerUserId,
   reportId,
   decision,
-  reason
+  reason,
+  assessmentType = {}
 ) => {
     if (
     typeof decision !== 'string' ||
@@ -369,6 +376,26 @@ export const submitReportDecision = async (
     throw error;
   }
 
+  const type = await prisma.assessmentType.findFirst({ where: { id: assessmentType.assessmentTypeId, isActive: true }, select: { id: true, code: true, name: true } });
+  if (!type) {
+    const error = new Error('An active assessment type is required.');
+    error.statusCode = 422;
+    throw error;
+  }
+  const otherDescription = typeof assessmentType.assessmentTypeOtherDescription === 'string'
+    ? assessmentType.assessmentTypeOtherDescription.trim()
+    : '';
+  if (type.code === 'OTHER' && !otherDescription) {
+    const error = new Error('An explanation is required when assessment type is Other.');
+    error.statusCode = 422;
+    throw error;
+  }
+  if (type.code !== 'OTHER' && otherDescription) {
+    const error = new Error('An Other explanation is allowed only for the Other assessment type.');
+    error.statusCode = 422;
+    throw error;
+  }
+
     if (
     typeof report.status !== 'string' ||
     report.status.toUpperCase() !== 'PENDING'
@@ -384,6 +411,16 @@ export const submitReportDecision = async (
     normalizedDecision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
 
   return prisma.$transaction(async (transaction) => {
+    const currentAssignment = await transaction.reportAssignment.findFirst({
+      where: { reportId: report.id, newLecturerProfileId: lecturer.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, workStartedAt: true },
+    });
+    if (!currentAssignment?.workStartedAt) {
+      const error = new Error('Start Working must be recorded before submitting a decision.');
+      error.statusCode = 409;
+      throw error;
+    }
     const updateResult = await transaction.missingMarkReport.updateMany({
       where: {
         id: report.id,
@@ -392,6 +429,8 @@ export const submitReportDecision = async (
       },
       data: {
         status: newStatus,
+        assessmentTypeId: type.id,
+        assessmentTypeOtherDescription: type.code === 'OTHER' ? otherDescription : null,
       },
     });
 
@@ -418,6 +457,15 @@ export const submitReportDecision = async (
         reason: true,
         createdAt: true,
       },
+    });
+
+    await recordAuditEvent({
+      prismaClient: transaction,
+      actorId: lecturerUserId,
+      action: 'LECTURER_REPORT_DECISION_RECORDED',
+      entityType: 'MissingMarkReport',
+      entityId: report.id,
+      metadata: { decision: normalizedDecision, status: newStatus, assessmentTypeId: type.id },
     });
 
     return {

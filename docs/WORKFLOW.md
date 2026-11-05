@@ -116,9 +116,23 @@ Agree on the exact audit fields and retention policy. Avoid storing passwords, t
 | Which lecturer decisions require COD review |  | Open |
 | Final decision authority by case type |  | Open |
 | Student edit and withdrawal conditions |  | Open |
-| Appeal eligibility, deadline and one-appeal rule |  | Open |
+| Appeal eligibility, deadline and one-appeal rule | Feature 5 implementation | Implemented |
 | Attendance threshold and calculation |  | Open |
 | QR/link/location verification rules |  | Open |
 | CAT and examination attendance source of truth |  | Open |
-| Overdue definition and escalation period |  | Open |
+| Overdue definition and review deadline | Feature 5 implementation | Implemented |
+
+## Feature 5 implemented workflow
+
+1. A COD assigns a `Submitted` report transactionally. The report becomes `PENDING`, with status history, assignment history, and audit record. Reassignment appends assignment history and does not reset a work deadline.
+2. The currently assigned lecturer explicitly starts work. The timestamp and stored deadline are recorded on the current assignment; the deadline is seven working days later, preserving the Nairobi local clock time.
+3. The lecturer submits exactly one final decision with an active assessment type. `Other` requires an explanation. Viewing a report does not start the deadline.
+4. A student may appeal only their own currently `REJECTED` report, within 14 calendar days of the rejection status-history timestamp, and at most once. A designated departmental COD decides once with a reason. Approval returns the report to `PENDING` and appends status history; rejection leaves it `REJECTED`.
+5. A student may submit a special case for their own eligible report; a lecturer may submit for a report currently assigned to them. Active categories are database-managed. Multiple cases per report are independent. A designated departmental COD decides each case once with a reason; this does not alter report status.
+6. COD-review and lecturer deadlines are persisted when the work becomes available/starts. Overdue means unresolved and current time strictly greater than the stored deadline. Holiday-calendar corrections do not silently recalculate existing deadlines.
+7. Overdue notifications are queued in PostgreSQL and delivered by a separate worker. Start the API with `npm start` and a worker separately with `npm run worker:notifications` from `backend/`.
+
+Working-day dates are evaluated in `Africa/Nairobi`, skip Saturdays, Sundays, and dates recorded in `PublicHoliday`. Holiday records require administrator access. Exactly-at-deadline decisions are on time.
+
+The schema retains provider-neutral evidence metadata relationships and API-level validation rules. Actual private file upload and download are pending selection of a storage provider; no storage key is exposed.
 | Audit and record retention requirements |  | Open |

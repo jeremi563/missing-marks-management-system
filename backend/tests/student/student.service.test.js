@@ -390,6 +390,7 @@ test("rejects an appeal when the report does not belong to the student or is not
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
 		$transaction: async (callback) => callback({
 			$queryRaw: async () => [],
+			missingMarkReport: { findFirst: async () => null },
 		}),
 	};
 
@@ -402,7 +403,7 @@ test("rejects an appeal when the report does not belong to the student or is not
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
 		$transaction: async (callback) => callback({
 			$queryRaw: async () => [{ id: "report-1" }],
-			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "Submitted" }) },
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "Submitted", courseUnit: { department: { id: "dept-1", designatedCodUserId: "cod-1" } } }) },
 		}),
 	};
 
@@ -417,11 +418,17 @@ test("submits a single appeal for a finalised report and stores the status histo
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
 		$transaction: async (callback) => callback({
 			$queryRaw: async () => [{ id: "report-1" }],
-			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED" }) },
+			missingMarkReport: {
+				findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED", courseUnit: { department: { id: "dept-1", designatedCodUserId: "cod-1" } } }),
+			},
+			user: { findFirst: async () => ({ id: "cod-1" }) },
+			reportStatusHistory: { findFirst: async () => ({ createdAt: new Date() }) },
+			publicHoliday: { findMany: async () => [] },
 			appeal: {
 				findFirst: async () => null,
 				create: async ({ data }) => ({ id: "appeal-1", ...data }),
 			},
+			notificationOutbox: { create: async () => ({ id: "event-1" }) },
 			auditLog: { create: async () => ({ id: "audit-1" }) },
 		}),
 	};
@@ -439,7 +446,10 @@ test("rejects a second appeal for the same report", async () => {
 		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
 		$transaction: async (callback) => callback({
 			$queryRaw: async () => [{ id: "report-1" }],
-			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED" }) },
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED", courseUnit: { department: { id: "dept-1", designatedCodUserId: "cod-1" } } }) },
+			user: { findFirst: async () => ({ id: "cod-1" }) },
+			reportStatusHistory: { findFirst: async () => ({ createdAt: new Date() }) },
+			publicHoliday: { findMany: async () => [] },
 			appeal: { findFirst: async () => ({ id: "appeal-1" }) },
 		}),
 	};
@@ -448,4 +458,25 @@ test("rejects a second appeal for the same report", async () => {
 		statusCode: 409,
 		message: "A report can have at most one appeal submitted.",
 	});
+});
+
+test("appeal without a valid designated COD creates neither appeal nor outbox event", async () => {
+	let appealCreates = 0;
+	let eventCreates = 0;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		$transaction: async (callback) => callback({
+			$queryRaw: async () => [{ id: "report-1" }],
+			missingMarkReport: { findFirst: async () => ({ id: "report-1", studentProfileId: "student-1", status: "REJECTED", courseUnit: { department: { id: "dept-1", designatedCodUserId: "inactive-cod" } } }) },
+			user: { findFirst: async () => null },
+			appeal: { create: async () => { appealCreates += 1; } },
+			notificationOutbox: { create: async () => { eventCreates += 1; } },
+		}),
+	};
+	await assert.rejects(submitStudentAppeal(prisma, "user-1", "report-1", { reason: "Please review." }), {
+		statusCode: 409,
+		message: "This department currently has no valid designated COD, so the submission cannot proceed.",
+	});
+	assert.equal(appealCreates, 0);
+	assert.equal(eventCreates, 0);
 });

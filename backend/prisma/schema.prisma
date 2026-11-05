@@ -30,6 +30,12 @@ model User {
   attendanceDiscrepancyComments AttendanceDiscrepancyComment[]
   reviewedMarkCorrections       MarkCorrection[]               @relation("MarkCorrectionReviewer")
   reportEligibilities           ReportEligibility[]
+  designatedDepartments         Department[]                  @relation("DepartmentDesignatedCOD")
+  appealDecisions                Appeal[]                      @relation("AppealDecisionActor")
+  specialCaseSubmissions         SpecialCase[]                 @relation("SpecialCaseSubmitter")
+  specialCaseDecisions            SpecialCase[]                 @relation("SpecialCaseDecisionActor")
+  managedSpecialCaseCategories  SpecialCaseCategory[]         @relation("SpecialCaseCategoryManager")
+  managedPublicHolidays         PublicHoliday[]               @relation("PublicHolidayManager")
 
   @@map("users")
 }
@@ -114,8 +120,11 @@ model Department {
 
   courseUnits CourseUnit[]
   members     DepartmentMembership[]
+  designatedCodUserId String? @map("designated_cod_user_id") @db.Uuid
+  designatedCod User? @relation("DepartmentDesignatedCOD", fields: [designatedCodUserId], references: [id], onDelete: SetNull)
 
   @@map("departments")
+  @@index([designatedCodUserId])
 }
 
 model DepartmentMembership {
@@ -204,6 +213,8 @@ model MissingMarkReport {
   courseUnitId              String    @map("course_unit_id") @db.Uuid
   academicPeriodId          String    @map("academic_period_id") @db.Uuid
   assessmentId              String?   @map("assessment_id") @db.Uuid
+  assessmentTypeId          String?   @map("assessment_type_id") @db.Uuid
+  assessmentTypeOtherDescription String? @map("assessment_type_other_description")
   assignedLecturerProfileId String?   @map("assigned_lecturer_profile_id") @db.Uuid
   assessmentComponent       String    @map("assessment_component")
   description               String
@@ -218,10 +229,11 @@ model MissingMarkReport {
   assignedLecturer  LecturerProfile?      @relation("AssignedLecturer", fields: [assignedLecturerProfileId], references: [id], onDelete: Restrict)
   appeals           Appeal[]
   assessment        Assessment?           @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  assessmentType    AssessmentType?        @relation(fields: [assessmentTypeId], references: [id], onDelete: Restrict)
   comments          ReportComment[]
   assignments       ReportAssignment[]
   statusHistory     ReportStatusHistory[]
-  specialCase       SpecialCase?
+  specialCases      SpecialCase[]
   evidence          SpecialCaseEvidence[]
   notifications     Notification[]
   eligibilityChecks ReportEligibility[]
@@ -231,6 +243,7 @@ model MissingMarkReport {
   @@index([assignedLecturerProfileId, status])
   @@index([courseUnitId, academicPeriodId])
   @@index([assessmentId])
+  @@index([assessmentTypeId])
   @@map("missing_mark_reports")
 }
 
@@ -291,13 +304,19 @@ model Appeal {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
   comments         String?
+  decisionByUserId String?  @map("decision_by_user_id") @db.Uuid
+  decisionAt       DateTime? @map("decision_at")
+  decisionReason   String?  @map("decision_reason")
+  reviewDeadlineAt DateTime? @map("review_deadline_at")
 
   report   MissingMarkReport     @relation(fields: [reportId], references: [id], onDelete: Restrict)
   student  StudentProfile        @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
   evidence SpecialCaseEvidence[]
+  decisionBy User? @relation("AppealDecisionActor", fields: [decisionByUserId], references: [id], onDelete: SetNull)
 
   @@index([reportId, createdAt])
   @@index([studentProfileId])
+  @@index([status, reviewDeadlineAt])
   @@map("appeals")
 }
 
@@ -309,6 +328,7 @@ model Notification {
   message   String
   readAt    DateTime? @map("read_at")
   createdAt DateTime  @default(now()) @map("created_at")
+  dedupeKey String?   @unique @map("dedupe_key")
 
   user   User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   report MissingMarkReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
@@ -360,6 +380,19 @@ model Assessment {
   @@unique([courseUnitId, code])
   @@index([courseUnitId, type])
   @@map("assessments")
+}
+
+model AssessmentType {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique
+  name      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  reports MissingMarkReport[]
+
+  @@map("assessment_types")
 }
 
 model Classroom {
@@ -469,17 +502,46 @@ model CatSubmission {
 
 model SpecialCase {
   id          String   @id @default(uuid()) @db.Uuid
-  reportId    String   @unique @map("report_id") @db.Uuid
+  reportId    String   @map("report_id") @db.Uuid
+  submittedByUserId String? @map("submitted_by_user_id") @db.Uuid
+  categoryId  String?  @map("category_id") @db.Uuid
   category    String
   description String
-  status      String
+  status      String   @default("Submitted")
+  decisionByUserId String? @map("decision_by_user_id") @db.Uuid
+  decisionAt DateTime? @map("decision_at")
+  decisionReason String? @map("decision_reason")
+  reviewDeadlineAt DateTime? @map("review_deadline_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   report   MissingMarkReport     @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  submittedBy User? @relation("SpecialCaseSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  categoryRecord SpecialCaseCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  decisionBy User? @relation("SpecialCaseDecisionActor", fields: [decisionByUserId], references: [id], onDelete: SetNull)
   evidence SpecialCaseEvidence[]
 
+  @@index([reportId, createdAt])
+  @@index([submittedByUserId, createdAt])
+  @@index([categoryId])
+  @@index([status, reviewDeadlineAt])
   @@map("special_cases")
+}
+
+model SpecialCaseCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  managedByUserId String? @map("managed_by_user_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  cases SpecialCase[]
+  managedBy User? @relation("SpecialCaseCategoryManager", fields: [managedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("special_case_categories")
 }
 
 model SpecialCaseEvidence {
@@ -567,6 +629,8 @@ model ReportAssignment {
   newLecturerProfileId      String   @map("new_lecturer_profile_id") @db.Uuid
   reason                    String?
   createdAt                 DateTime @default(now()) @map("created_at")
+  workStartedAt             DateTime? @map("work_started_at")
+  deadlineAt                DateTime? @map("deadline_at")
 
   report           MissingMarkReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
   actor            User              @relation("ReportAssignmentActor", fields: [actorUserId], references: [id], onDelete: Restrict)
@@ -575,6 +639,7 @@ model ReportAssignment {
 
   @@index([reportId, createdAt])
   @@index([newLecturerProfileId, createdAt])
+  @@index([newLecturerProfileId, deadlineAt])
   @@map("report_assignments")
 }
 
@@ -604,6 +669,43 @@ model SystemSetting {
   updatedBy User? @relation("SettingUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
   @@map("system_settings")
+}
+
+model PublicHoliday {
+  id                String   @id @default(uuid()) @db.Uuid
+  date              DateTime @unique @db.Date
+  name              String
+  source             String?
+  description        String?
+  managedByUserId    String?  @map("managed_by_user_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  managedBy User? @relation("PublicHolidayManager", fields: [managedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("public_holidays")
+}
+
+model NotificationOutbox {
+  id          String    @id @default(uuid()) @db.Uuid
+  dedupeKey   String    @unique @map("dedupe_key")
+  eventType   String    @map("event_type")
+  entityType  String    @map("entity_type")
+  entityId    String    @map("entity_id")
+  recipientUserId String @map("recipient_user_id") @db.Uuid
+  reportId    String?   @map("report_id") @db.Uuid
+  title       String
+  message     String
+  availableAt DateTime  @map("available_at")
+  attempts    Int       @default(0)
+  claimedAt   DateTime? @map("claimed_at")
+  claimedBy   String?   @map("claimed_by")
+  lastError   String?   @map("last_error")
+  deliveredAt DateTime? @map("delivered_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([deliveredAt, availableAt, claimedAt])
+  @@map("notification_outbox")
 }
 
 model AttendanceExcuseRequest {
