@@ -42,7 +42,7 @@ export async function updateSetting({ db = prisma, actorUserId, key, value, desc
 	});
 }
 
-function reportWhere({ status, departmentId, courseUnitId, academicPeriodId, from, to }) {
+export function reportWhere({ status, departmentId, courseUnitId, academicPeriodId, from, to }) {
 	return {
 		...(status ? { status } : {}),
 		...(courseUnitId ? { courseUnitId } : {}),
