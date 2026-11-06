@@ -414,6 +414,8 @@ Controlled CSV exports are available to administrators:
 
 Both exports accept the relevant report or audit filters and a `maxRows` value from `1` to `5000`, defaulting to `1000`. Report exports exclude descriptions, comments, evidence, and official marks. Export requests are transactionally recorded as audit events; an audit export event appears in later audit exports, not the snapshot that initiated it.
 
+The administrator dashboard is available at `GET /api/v1/admin/dashboard`. It returns read-only aggregate counts for active and total users, active students and lecturers, departments, course units, academic periods, enrolments, lecturer mappings, active classrooms, assessments, and report counts by status. It does not expose individual student records, report descriptions, comments, evidence, or marks.
+
 Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
 
 ## 5. Authentication and authorisation

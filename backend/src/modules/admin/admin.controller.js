@@ -1,7 +1,7 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
 import { createAdminUser, listAdminUsers, updateAdminUser } from "./admin.service.js";
 import * as academic from "./academic.service.js";
-import { listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
+import { getDashboardOverview, listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
 import { exportAuditLogs, exportReportSummaries } from "./export.service.js";
 import { toCsv } from "./csv.js";
 
@@ -40,6 +40,10 @@ export async function getReportSummaries(req, res, next) {
 
 export async function getAuditLogs(req, res, next) {
 	try { const result = await listAuditLogs({ db: req.app.locals.prisma, ...req.query }); return sendSuccess(res, "Audit logs retrieved successfully", result.logs, 200, result.pagination); } catch (error) { return next(error); }
+}
+
+export async function getDashboard(req, res, next) {
+	try { return sendSuccess(res, "Administrator dashboard retrieved successfully", await getDashboardOverview({ db: req.app.locals.prisma })); } catch (error) { return next(error); }
 }
 
 export async function exportReports(req, res, next) {

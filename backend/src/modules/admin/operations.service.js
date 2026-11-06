@@ -83,3 +83,30 @@ export async function listAuditLogs({ db = prisma, page, limit, action, entityTy
 	]);
 	return { logs, pagination: pagination(page, limit, total) };
 }
+
+export async function getDashboardOverview({ db = prisma }) {
+	const [
+		activeUsers, totalUsers, activeStudents, activeLecturers, departments, courseUnits,
+		academicPeriods, enrolments, lecturerMappings, activeClassrooms, assessments, reports, reportStatuses,
+	] = await Promise.all([
+		db.user.count({ where: { isActive: true } }),
+		db.user.count(),
+		db.studentProfile.count({ where: { user: { isActive: true, roles: { some: { role: { name: "student" } } } } } }),
+		db.lecturerProfile.count({ where: { user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } } } }),
+		db.department.count(),
+		db.courseUnit.count(),
+		db.academicPeriod.count(),
+		db.unitEnrollment.count(),
+		db.courseUnitLecturer.count(),
+		db.classroom.count({ where: { isActive: true } }),
+		db.assessment.count(),
+		db.missingMarkReport.count(),
+		db.missingMarkReport.groupBy({ by: ["status"], _count: { _all: true }, orderBy: { status: "asc" } }),
+	]);
+	return {
+		generatedAt: new Date(),
+		users: { active: activeUsers, total: totalUsers, inactive: totalUsers - activeUsers, activeStudents, activeLecturers },
+		academic: { departments, courseUnits, academicPeriods, enrolments, lecturerMappings, activeClassrooms, assessments },
+		reports: { total: reports, byStatus: reportStatuses.map(({ status, _count: count }) => ({ status, count: count._all })) },
+	};
+}
