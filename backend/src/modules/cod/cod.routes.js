@@ -8,11 +8,20 @@ import { createCodCategory, decideCodAppeal, decideCodCase, getCodAppealById, ge
 import { appealIdParams, categoryCreateBody, categoryUpdateBody, decisionBody, itemIdParams, pageQuery, specialCaseIdParams, statusPageQuery } from "../feature5/feature5.validation.js";
 import { getCodAttendanceDiscrepancies, getCodAttendanceDiscrepancyById, getCodAttendanceDiscrepancyDecisions, postCodAttendanceDiscrepancyDecision } from "./attendance-discrepancy.controller.js";
 import { attendanceDiscrepancyIdParamsSchema, attendanceDiscrepancyListQuerySchema, codAttendanceDiscrepancyDecisionBodySchema } from "./attendance-discrepancy.validation.js";
+import { getCodAssessmentAttendance, getCodAttendanceAttempts, getCodAttendanceDiscrepancyAudit, getCodAttendanceHistory, getCodAttendanceRecords, getCodAttendanceStatistics, getCodAttendanceSummary } from "./attendance-history.controller.js";
+import { codAttendanceAggregateQuerySchema, codAttendanceAttemptsQuerySchema, codAttendanceRecordIdParamsSchema, codAttendanceRecordsQuerySchema, codAssessmentAttendanceQuerySchema } from "./cod.validation.js";
 
 export const codRoutes = Router();
 
 codRoutes.use(authenticate);
 codRoutes.use(authorize("cod"));
+codRoutes.get("/attendance-records", validate(codAttendanceRecordsQuerySchema, "query"), getCodAttendanceRecords);
+codRoutes.get("/assessment-attendance", validate(codAssessmentAttendanceQuerySchema, "query"), getCodAssessmentAttendance);
+codRoutes.get("/attendance-attempts", validate(codAttendanceAttemptsQuerySchema, "query"), getCodAttendanceAttempts);
+codRoutes.get("/attendance-records/:id/history", validate(codAttendanceRecordIdParamsSchema, "params"), getCodAttendanceHistory);
+codRoutes.get("/attendance-discrepancies/:id/audit", validate(attendanceDiscrepancyIdParamsSchema, "params"), getCodAttendanceDiscrepancyAudit);
+codRoutes.get("/attendance-summary", validate(codAttendanceAggregateQuerySchema, "query"), getCodAttendanceSummary);
+codRoutes.get("/attendance-statistics", validate(codAttendanceAggregateQuerySchema, "query"), getCodAttendanceStatistics);
 codRoutes.get("/attendance-discrepancies", validate(attendanceDiscrepancyListQuerySchema, "query"), getCodAttendanceDiscrepancies);
 codRoutes.get("/attendance-discrepancies/:id", validate(attendanceDiscrepancyIdParamsSchema, "params"), getCodAttendanceDiscrepancyById);
 codRoutes.get("/attendance-discrepancies/:id/decisions", validate(attendanceDiscrepancyIdParamsSchema, "params"), getCodAttendanceDiscrepancyDecisions);
