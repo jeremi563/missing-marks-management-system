@@ -1,6 +1,7 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
 import { createAdminUser, listAdminUsers, updateAdminUser } from "./admin.service.js";
 import * as academic from "./academic.service.js";
+import { listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
 
 export async function getUsers(req, res, next) {
 	try {
@@ -21,6 +22,22 @@ export async function updateUser(req, res, next) {
 		const user = await updateAdminUser({ db: req.app.locals.prisma, actorUserId: req.user.id, userId: req.params.id, ...req.body });
 		return sendSuccess(res, "User updated successfully", user);
 	} catch (error) { return next(error); }
+}
+
+export async function getSettings(req, res, next) {
+	try { const result = await listSettings({ db: req.app.locals.prisma, ...req.query }); return sendSuccess(res, "System settings retrieved successfully", result.settings, 200, result.pagination); } catch (error) { return next(error); }
+}
+
+export async function patchSetting(req, res, next) {
+	try { const result = await updateSetting({ db: req.app.locals.prisma, actorUserId: req.user.id, key: req.params.key, ...req.body }); return sendSuccess(res, "System setting updated successfully", result); } catch (error) { return next(error); }
+}
+
+export async function getReportSummaries(req, res, next) {
+	try { const result = await listReportSummaries({ db: req.app.locals.prisma, ...req.query }); return sendSuccess(res, "Administrator report summaries retrieved successfully", { reports: result.reports, summary: result.summary }, 200, result.pagination); } catch (error) { return next(error); }
+}
+
+export async function getAuditLogs(req, res, next) {
+	try { const result = await listAuditLogs({ db: req.app.locals.prisma, ...req.query }); return sendSuccess(res, "Audit logs retrieved successfully", result.logs, 200, result.pagination); } catch (error) { return next(error); }
 }
 
 const handleList = (method, message) => async (req, res, next) => {
