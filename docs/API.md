@@ -365,6 +365,8 @@ Separate workflow issue: student submission currently creates `Submitted`, while
 
 Administrator account management is restricted to authenticated users with the `administrator` role. User creation accepts `email`, `password`, `displayName`, `roles`, and profile identifiers where applicable: `studentNumber` is required for the `student` role and `staffNumber` is required for the `lecturer` role. User updates may change email, password, display name, active status, roles, and profile identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
 
+`GET /api/v1/admin/users/:id` returns one account's roles, profile identifiers, department memberships, designated-COD membership indicators, and operational responsibility counts. It excludes password hashes, report content, comments, evidence, and official marks.
+
 Phase 2 academic structure endpoints are also restricted to administrators:
 
 | Method | Path | Purpose |

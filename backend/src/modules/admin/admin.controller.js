@@ -1,5 +1,5 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
-import { createAdminUser, listAdminUsers, updateAdminUser } from "./admin.service.js";
+import { createAdminUser, getAdminUser, listAdminUsers, updateAdminUser } from "./admin.service.js";
 import * as academic from "./academic.service.js";
 import { getDashboardOverview, listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
 import { exportAuditLogs, exportReportSummaries } from "./export.service.js";
@@ -10,6 +10,10 @@ export async function getUsers(req, res, next) {
 		const result = await listAdminUsers({ db: req.app.locals.prisma, ...req.query });
 		return sendSuccess(res, "Administrator users retrieved successfully", result.users, 200, result.pagination);
 	} catch (error) { return next(error); }
+}
+
+export async function getUser(req, res, next) {
+	try { return sendSuccess(res, "Administrator user retrieved successfully", await getAdminUser({ db: req.app.locals.prisma, userId: req.params.id })); } catch (error) { return next(error); }
 }
 
 export async function createUser(req, res, next) {
