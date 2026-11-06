@@ -382,6 +382,8 @@ Academic structure mutations validate related records, preserve protected histor
 
 Enrolment creation requires an active user with the `student` role behind the selected student profile. Lecturer-mapping creation requires an active user with the `lecturer` role behind the selected lecturer profile. This prevents deactivated or role-inconsistent profiles from receiving new academic relationships.
 
+Administrators cannot deactivate a designated COD or remove that user's `cod` role before changing the department designation. Administrators also cannot deactivate a lecturer or remove the `lecturer` role while that lecturer has unit mappings, assigned reports, or attendance sessions that require reassignment or resolution.
+
 Department membership governance is available through:
 
 | Method | Path | Purpose |
