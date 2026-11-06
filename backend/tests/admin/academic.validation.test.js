@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { academicPeriodCreateBody, assessmentCreateBody, classroomCreateBody, courseUnitCreateBody, departmentMemberParams, enrollmentCreateBody } from "../../src/modules/admin/academic.validation.js";
+import { reopenReportBody, reassignReportBody } from "../../src/modules/admin/operations.validation.js";
 
 const id = "00000000-0000-4000-8000-000000000001";
 
@@ -27,4 +28,10 @@ test("assessment validation accepts optional flags and rejects invalid marks", (
 test("department membership validation requires both department and user UUIDs", () => {
 	assert.equal(departmentMemberParams.safeParse({ departmentId: id, userId: id }).success, true);
 	assert.equal(departmentMemberParams.safeParse({ departmentId: id }).success, false);
+});
+
+test("maintenance validation requires a reason and a target lecturer", () => {
+	assert.equal(reopenReportBody.safeParse({ reason: "Policy-approved correction" }).success, true);
+	assert.equal(reassignReportBody.safeParse({ lecturerProfileId: id, reason: "Workload reassignment" }).success, true);
+	assert.equal(reopenReportBody.safeParse({ reason: "" }).success, false);
 });
