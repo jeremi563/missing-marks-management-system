@@ -5,9 +5,10 @@ import { validate } from "../../middleware/validate.js";
 import {
 	createAssessment, createAssessmentType, createClassroom, createCourseUnit, createDepartment, createEnrollment, createMapping,
 	createAcademicPeriod, deleteEnrollment, deleteMapping, getAssessmentTypes, getAssessments, getClassrooms, getCourseUnits,
-	getDepartments, getEnrollments, getMappings, getAcademicPeriods, updateAssessment, updateAssessmentType, updateClassroom,
+	getDepartments, getDepartmentMembers, getEnrollments, getMappings, getAcademicPeriods, updateAssessment, updateAssessmentType, updateClassroom,
 	updateCourseUnit, updateDepartment, updateAcademicPeriod, createUser, getUsers, updateUser,
 	getAuditLogs, getReportSummaries, getSettings, patchSetting,
+	addDepartmentMember, removeDepartmentMember,
 } from "./admin.controller.js";
 import { createUserBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
 import * as validation from "./academic.validation.js";
@@ -21,6 +22,9 @@ router.post("/users", validate(createUserBody), createUser);
 router.patch("/users/:id", validate(userIdParams, "params"), validate(updateUserBody), updateUser);
 
 router.get("/departments", validate(validation.departmentListQuery, "query"), getDepartments);
+router.get("/departments/:departmentId/members", validate(validation.departmentOnlyParams, "params"), validate(validation.departmentMemberListQuery, "query"), getDepartmentMembers);
+router.post("/departments/:departmentId/members", validate(validation.departmentOnlyParams, "params"), validate(validation.departmentMemberBody), addDepartmentMember);
+router.delete("/departments/:departmentId/members/:userId", validate(validation.departmentMemberParams, "params"), removeDepartmentMember);
 router.post("/departments", validate(validation.departmentCreateBody), createDepartment);
 router.patch("/departments/:id", validate(validation.departmentIdParams, "params"), validate(validation.departmentUpdateBody), updateDepartment);
 router.get("/course-units", validate(validation.courseUnitListQuery, "query"), getCourseUnits);

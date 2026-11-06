@@ -19,6 +19,7 @@ async function mutate({ db, actorUserId, action, entityType, entityId, operation
 }
 
 export const listDepartments = ({ db = prisma, page, limit }) => paginated(db.department, { page, limit, orderBy: [{ name: "asc" }], include: { _count: { select: { courseUnits: true, members: true } } } });
+export const listDepartmentMembers = ({ db = prisma, page, limit, departmentId, role }) => paginated(db.departmentMembership, { page, limit, where: { departmentId, ...(role ? { user: { roles: { some: { role: { name: role } } } } } : {}) }, orderBy: { createdAt: "asc" }, include: { user: { select: { id: true, email: true, displayName: true, isActive: true, roles: { select: { role: { select: { name: true } } } }, lecturerProfile: { select: { id: true, staffNumber: true } } } }, department: { select: { id: true, name: true, code: true } } } });
 export const listCourseUnits = ({ db = prisma, page, limit, departmentId }) => paginated(db.courseUnit, { page, limit, where: departmentId ? { departmentId } : {}, orderBy: [{ code: "asc" }], include: { department: { select: { id: true, name: true, code: true } }, _count: { select: { enrollments: true, lecturerMappings: true, assessments: true } } } });
 export const listAcademicPeriods = ({ db = prisma, page, limit }) => paginated(db.academicPeriod, { page, limit, orderBy: [{ startsAt: "desc" }, { name: "asc" }], include: { _count: { select: { enrollments: true, reports: true } } } });
 export const listEnrollments = ({ db = prisma, page, limit, studentProfileId, courseUnitId, academicPeriodId }) => paginated(db.unitEnrollment, { page, limit, where: { ...(studentProfileId ? { studentProfileId } : {}), ...(courseUnitId ? { courseUnitId } : {}), ...(academicPeriodId ? { academicPeriodId } : {}) }, orderBy: { createdAt: "desc" }, include: { student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true, email: true } } } }, courseUnit: { select: { id: true, code: true, name: true } }, academicPeriod: { select: { id: true, code: true, name: true } } } });
@@ -54,6 +55,24 @@ export const createAssessment = ({ db = prisma, actorUserId, ...data }) => mutat
 export const updateAssessment = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_UPDATED", entityType: "Assessment", entityId: id, operation: async (tx) => { if (!await tx.assessment.findUnique({ where: { id }, select: { id: true } })) throw new AppError(404, "Assessment not found"); return tx.assessment.update({ where: { id }, data }); } });
 export const createAssessmentType = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_TYPE_CREATED", entityType: "AssessmentType", operation: (tx) => tx.assessmentType.create({ data }) });
 export const updateAssessmentType = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_TYPE_UPDATED", entityType: "AssessmentType", entityId: id, operation: async (tx) => { if (!await tx.assessmentType.findUnique({ where: { id }, select: { id: true } })) throw new AppError(404, "Assessment type not found"); return tx.assessmentType.update({ where: { id }, data }); } });
+
+export const addDepartmentMember = ({ db = prisma, actorUserId, departmentId, userId }) => mutate({ db, actorUserId, action: "ADMIN_DEPARTMENT_MEMBER_ADDED", entityType: "DepartmentMembership", operation: async (tx) => {
+		if (!await tx.department.findUnique({ where: { id: departmentId }, select: { id: true } })) throw new AppError(404, "Department not found");
+		const user = await tx.user.findFirst({ where: { id: userId, isActive: true, roles: { some: { role: { name: { in: ["lecturer", "cod", "administrator"] } } } } }, select: { id: true } });
+		if (!user) throw new AppError(422, "Department members must be active lecturer, COD, or administrator accounts");
+		return tx.departmentMembership.create({ data: { departmentId, userId }, select: { id: true, departmentId: true, userId: true, createdAt: true } });
+	} });
+
+export const removeDepartmentMember = ({ db = prisma, actorUserId, departmentId, userId }) => db.$transaction(async (tx) => {
+		const department = await tx.department.findUnique({ where: { id: departmentId }, select: { id: true, designatedCodUserId: true } });
+		if (!department) throw new AppError(404, "Department not found");
+		if (department.designatedCodUserId === userId) throw new AppError(409, "Change the designated COD before removing that department membership");
+		const membership = await tx.departmentMembership.findUnique({ where: { userId_departmentId: { userId, departmentId } }, select: { id: true } });
+		if (!membership) throw new AppError(404, "Department membership not found");
+		await tx.departmentMembership.delete({ where: { id: membership.id } });
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_DEPARTMENT_MEMBER_REMOVED", entityType: "DepartmentMembership", entityId: membership.id, metadata: { departmentId, userId } });
+		return { id: membership.id, departmentId, userId };
+});
 
 async function remove({ db, actorUserId, id, model, action, entityType, message }) {
 	return db.$transaction(async (tx) => {

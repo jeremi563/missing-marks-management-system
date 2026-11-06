@@ -15,6 +15,10 @@ const dateRange = (schema) => schema.refine((value) => !value.startsAt || !value
 
 export const departmentListQuery = pageQuery;
 export const departmentIdParams = idParams;
+export const departmentOnlyParams = z.object({ departmentId: uuid }).strict();
+export const departmentMemberParams = z.object({ departmentId: uuid, userId: uuid }).strict();
+export const departmentMemberListQuery = pageQuery.extend({ role: z.enum(["lecturer", "cod", "administrator"]).optional() }).strict();
+export const departmentMemberBody = z.object({ userId: uuid }).strict();
 export const departmentCreateBody = z.object({ name: z.string().trim().min(1).max(200), code: z.string().trim().min(1).max(50).optional() }).strict();
 export const departmentUpdateBody = departmentCreateBody.refine((body) => Object.keys(body).length > 0, "At least one department field must be provided.");
 

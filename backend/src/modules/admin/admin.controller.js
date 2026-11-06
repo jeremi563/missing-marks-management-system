@@ -54,6 +54,9 @@ const handleDelete = (method, message) => async (req, res, next) => {
 };
 
 export const getDepartments = handleList("listDepartments", "Departments retrieved successfully");
+export const getDepartmentMembers = async (req, res, next) => {
+	try { const result = await academic.listDepartmentMembers({ db: req.app.locals.prisma, departmentId: req.params.departmentId, ...req.query }); return sendSuccess(res, "Department members retrieved successfully", result.data, 200, result.pagination); } catch (error) { return next(error); }
+};
 export const createDepartment = handleCreate("createDepartment", "Department created successfully");
 export const updateDepartment = handleUpdate("updateDepartment", "Department updated successfully");
 export const getCourseUnits = handleList("listCourseUnits", "Course units retrieved successfully");
@@ -77,3 +80,9 @@ export const updateAssessment = handleUpdate("updateAssessment", "Assessment upd
 export const getAssessmentTypes = handleList("listAssessmentTypes", "Assessment types retrieved successfully");
 export const createAssessmentType = handleCreate("createAssessmentType", "Assessment type created successfully");
 export const updateAssessmentType = handleUpdate("updateAssessmentType", "Assessment type updated successfully");
+export const addDepartmentMember = async (req, res, next) => {
+	try { const result = await academic.addDepartmentMember({ db: req.app.locals.prisma, actorUserId: req.user.id, departmentId: req.params.departmentId, ...req.body }); return sendSuccess(res, "Department member added successfully", result, 201); } catch (error) { return next(error); }
+};
+export const removeDepartmentMember = async (req, res, next) => {
+	try { const result = await academic.removeDepartmentMember({ db: req.app.locals.prisma, actorUserId: req.user.id, departmentId: req.params.departmentId, userId: req.params.userId }); return sendSuccess(res, "Department member removed successfully", result); } catch (error) { return next(error); }
+};

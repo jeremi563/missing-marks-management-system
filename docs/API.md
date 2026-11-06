@@ -380,6 +380,16 @@ Phase 2 academic structure endpoints are also restricted to administrators:
 
 Academic structure mutations validate related records, preserve protected history, and create actor-attributed audit events transactionally. Assessment creation records the administrator as the creating user. These endpoints do not alter official marks or report workflow decisions.
 
+Department membership governance is available through:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/departments/:departmentId/members` | List department members with optional role filtering. |
+| POST | `/api/v1/admin/departments/:departmentId/members` | Add an active lecturer, COD, or administrator account to a department. |
+| DELETE | `/api/v1/admin/departments/:departmentId/members/:userId` | Remove a department membership. |
+
+The current designated COD cannot be removed from a department until the designation is changed. Designated-COD updates and public-holiday maintenance continue to use the existing Feature 5 services and transactional audit behavior; they are not duplicated in the administrator module.
+
 Phase 3 operational endpoints are restricted to administrators:
 
 | Method | Path | Purpose |
