@@ -134,5 +134,7 @@ Agree on the exact audit fields and retention policy. Avoid storing passwords, t
 
 Working-day dates are evaluated in `Africa/Nairobi`, skip Saturdays, Sundays, and dates recorded in `PublicHoliday`. Holiday records require administrator access. Exactly-at-deadline decisions are on time.
 
+The attendance eligibility threshold defaults to 80% and may be changed through the administrator settings API. The student appeal window defaults to 14 calendar days and may be changed through the same API. Existing appeal and review deadline snapshots are not recalculated after a setting change. Overdue notification queuing is enabled by default and may be disabled by an administrator; failed notification delivery uses a configurable retry limit that defaults to five attempts.
+
 The schema retains provider-neutral evidence metadata relationships and API-level validation rules. Actual private file upload and download are pending selection of a storage provider; no storage key is exposed.
 | Audit and record retention requirements |  | Open |

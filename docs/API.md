@@ -405,7 +405,7 @@ Phase 3 operational endpoints are restricted to administrators:
 | GET | `/api/v1/admin/reports` | View paginated system-wide report summaries and status aggregates. |
 | GET | `/api/v1/admin/audit-logs` | View read-only, paginated audit records. |
 
-The initial settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, and `max_page_size`. Workflow deadlines, attendance thresholds, appeal policy, and notification policy remain excluded until separately approved. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
+The settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, `max_page_size`, `attendance_minimum_percentage` (default `80`), `appeal_window_calendar_days` (default `14`), `overdue_notifications_enabled` (default `true`), and `notification_retry_limit` (default `5`). Lecturer, COD, and special-case review deadline settings remain excluded until separately approved. Existing deadline snapshots are never recalculated when settings change. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
 
 Controlled CSV exports are available to administrators:
 

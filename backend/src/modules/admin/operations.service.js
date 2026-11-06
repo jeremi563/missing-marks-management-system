@@ -7,6 +7,10 @@ const settingValidators = {
 	notification_batch_size: z.number().int().min(1).max(1000),
 	notification_poll_interval_ms: z.number().int().min(1000).max(300000),
 	max_page_size: z.number().int().min(1).max(100),
+	attendance_minimum_percentage: z.number().min(0).max(100),
+	appeal_window_calendar_days: z.number().int().min(1).max(365),
+	overdue_notifications_enabled: z.boolean(),
+	notification_retry_limit: z.number().int().min(1).max(20),
 };
 
 function validateSetting(key, value) {

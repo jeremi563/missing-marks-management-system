@@ -2,6 +2,7 @@ import { generateReference } from "../../shared/utils/generate-reference.js";
 import { addWorkingDays } from "../../shared/utils/business-days.js";
 import { enqueueNotificationOnce } from "../../shared/services/notification-outbox.service.js";
 import { lockDepartmentForReview } from "../../shared/services/department-review-lock.service.js";
+import { getSystemSettingValue } from "../../shared/services/system-settings.service.js";
 
 export async function getStudentProfile(prisma, userId) {
 	const profile = await prisma.studentProfile.findUnique({
@@ -313,9 +314,11 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 			throw error;
 		}
 		const submittedAt = new Date();
-		const appealDeadline = new Date(rejection.createdAt.valueOf() + 14 * 24 * 60 * 60 * 1000);
+		const configuredAppealWindow = await getSystemSettingValue(transaction, "appeal_window_calendar_days", 14);
+		const appealWindow = Number.isInteger(configuredAppealWindow) && configuredAppealWindow >= 1 && configuredAppealWindow <= 365 ? configuredAppealWindow : 14;
+		const appealDeadline = new Date(rejection.createdAt.valueOf() + appealWindow * 24 * 60 * 60 * 1000);
 		if (submittedAt > appealDeadline) {
-			const error = new Error("The 14-calendar-day appeal deadline has passed.");
+			const error = new Error(`The ${appealWindow}-calendar-day appeal deadline has passed.`);
 			error.statusCode = 409;
 			throw error;
 		}
