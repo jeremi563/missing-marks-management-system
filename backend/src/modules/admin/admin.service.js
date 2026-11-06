@@ -37,6 +37,20 @@ async function countActiveAdministrators(tx) {
 	return tx.user.count({ where: { isActive: true, roles: { some: { role: { name: "administrator" } } } } });
 }
 
+async function validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, nextIsActive }) {
+	const disablingCod = currentRoles.includes("cod") && (!nextRoles.includes("cod") || !nextIsActive);
+	if (disablingCod && await tx.department.count({ where: { designatedCodUserId: userId } })) {
+		throw new AppError(409, "Change the designated COD before removing the COD role or deactivating this account");
+	}
+	const disablingLecturer = currentRoles.includes("lecturer") && (!nextRoles.includes("lecturer") || !nextIsActive);
+	if (disablingLecturer) {
+		const profile = await tx.lecturerProfile.findUnique({ where: { userId }, select: { _count: { select: { unitAssignments: true, assignedReports: true, attendanceSessions: true } } } });
+		if (profile && Object.values(profile._count).some((count) => count > 0)) {
+			throw new AppError(409, "Reassign or resolve this lecturer's academic responsibilities before changing the lecturer role or deactivating the account");
+		}
+	}
+}
+
 export async function listAdminUsers({ db = prisma, page = 1, limit = 10, search, role, isActive }) {
 	const where = {
 		...(role ? { roles: { some: { role: { name: role } } } } : {}),
@@ -70,6 +84,7 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 		const currentRoles = current.roles.map(({ role }) => role.name);
 		const nextRoles = roles ?? currentRoles;
 		validateProfileInputs({ roles: nextRoles, studentNumber: studentNumber ?? current.studentProfile?.studentNumber, staffNumber: staffNumber ?? current.lecturerProfile?.staffNumber });
+		await validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, nextIsActive: isActive ?? current.isActive });
 		const roleRecords = roles ? await validateRoles(tx, roles) : null;
 		if ((currentRoles.includes("administrator") && !nextRoles.includes("administrator")) || (current.isActive && isActive === false && currentRoles.includes("administrator"))) {
 			if (await countActiveAdministrators(tx) <= 1) throw new AppError(409, "The last active administrator cannot lose administrator access");
