@@ -1,0 +1,98 @@
+import bcrypt from "bcryptjs";
+import { prisma } from "../../config/database.js";
+import { recordAuditEvent } from "../../shared/services/audit.service.js";
+import { AppError } from "../../shared/utils/app-error.js";
+
+const userSelect = {
+	id: true,
+	email: true,
+	displayName: true,
+	isActive: true,
+	createdAt: true,
+	updatedAt: true,
+	roles: { select: { role: { select: { name: true } } } },
+	studentProfile: { select: { id: true, studentNumber: true, officialEmail: true, notificationEmail: true } },
+	lecturerProfile: { select: { id: true, staffNumber: true } },
+};
+
+function serializeUser(user) {
+	return { ...user, roles: user.roles.map(({ role }) => role.name) };
+}
+
+async function validateRoles(tx, roles) {
+	const requestedRoles = [...new Set(roles)];
+	const roleRecords = await tx.role.findMany({ where: { name: { in: requestedRoles } }, select: { id: true, name: true } });
+	if (roleRecords.length !== requestedRoles.length) throw new AppError(422, "One or more requested roles do not exist");
+	return roleRecords;
+}
+
+function validateProfileInputs({ roles, studentNumber, staffNumber }) {
+	if (roles.includes("student") && !studentNumber) throw new AppError(422, "Student accounts require a student number");
+	if (roles.includes("lecturer") && !staffNumber) throw new AppError(422, "Lecturer accounts require a staff number");
+	if (studentNumber && !roles.includes("student")) throw new AppError(422, "Student number requires the student role");
+	if (staffNumber && !roles.includes("lecturer")) throw new AppError(422, "Staff number requires the lecturer role");
+}
+
+async function countActiveAdministrators(tx) {
+	return tx.user.count({ where: { isActive: true, roles: { some: { role: { name: "administrator" } } } } });
+}
+
+export async function listAdminUsers({ db = prisma, page = 1, limit = 10, search, role, isActive }) {
+	const where = {
+		...(role ? { roles: { some: { role: { name: role } } } } : {}),
+		...(isActive === undefined ? {} : { isActive }),
+		...(search ? { OR: [{ email: { contains: search, mode: "insensitive" } }, { displayName: { contains: search, mode: "insensitive" } }] } : {}),
+	};
+	const [users, total] = await Promise.all([
+		db.user.findMany({ where, select: userSelect, orderBy: [{ displayName: "asc" }, { email: "asc" }], skip: (page - 1) * limit, take: limit }),
+		db.user.count({ where }),
+	]);
+	return { users: users.map(serializeUser), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+}
+
+export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber }) {
+	return db.$transaction(async (tx) => {
+		const roleRecords = await validateRoles(tx, roles);
+		validateProfileInputs({ roles, studentNumber, staffNumber });
+		const user = await tx.user.create({ data: { email: email.toLowerCase(), passwordHash: await bcrypt.hash(password, 12), displayName } });
+		await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId: user.id, roleId })) });
+		if (roles.includes("student")) await tx.studentProfile.create({ data: { userId: user.id, studentNumber } });
+		if (roles.includes("lecturer")) await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber } });
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_CREATED", entityType: "User", entityId: user.id, metadata: { roles } });
+		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
+	});
+}
+
+export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, studentNumber, staffNumber }) {
+	return db.$transaction(async (tx) => {
+		const current = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, passwordHash: true } });
+		if (!current) throw new AppError(404, "User not found");
+		const currentRoles = current.roles.map(({ role }) => role.name);
+		const nextRoles = roles ?? currentRoles;
+		validateProfileInputs({ roles: nextRoles, studentNumber: studentNumber ?? current.studentProfile?.studentNumber, staffNumber: staffNumber ?? current.lecturerProfile?.staffNumber });
+		const roleRecords = roles ? await validateRoles(tx, roles) : null;
+		if ((currentRoles.includes("administrator") && !nextRoles.includes("administrator")) || (current.isActive && isActive === false && currentRoles.includes("administrator"))) {
+			if (await countActiveAdministrators(tx) <= 1) throw new AppError(409, "The last active administrator cannot lose administrator access");
+		}
+		const normalizedEmail = email?.toLowerCase();
+		if (normalizedEmail && normalizedEmail !== current.email) {
+			const duplicate = await tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
+			if (duplicate && duplicate.id !== userId) throw new AppError(409, "A user with this email already exists");
+		}
+		const user = await tx.user.update({ where: { id: userId }, data: {
+			...(normalizedEmail ? { email: normalizedEmail } : {}),
+			...(password ? { passwordHash: await bcrypt.hash(password, 12) } : {}),
+			...(displayName !== undefined ? { displayName } : {}),
+			...(isActive !== undefined ? { isActive } : {}),
+		}, select: { id: true } });
+		if (roleRecords) {
+			await tx.userRole.deleteMany({ where: { userId } });
+			await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId, roleId })) });
+		}
+		if (studentNumber !== undefined) await tx.studentProfile.upsert({ where: { userId }, update: { studentNumber }, create: { userId, studentNumber } });
+		if (staffNumber !== undefined) await tx.lecturerProfile.upsert({ where: { userId }, update: { staffNumber }, create: { userId, staffNumber } });
+		const changedFields = Object.entries({ email, password, displayName, isActive, roles, studentNumber, staffNumber }).filter(([, value]) => value !== undefined).map(([key]) => key);
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_UPDATED", entityType: "User", entityId: userId, metadata: { changedFields, roles: nextRoles, isActive: isActive ?? current.isActive } });
+		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
+	});
+}
