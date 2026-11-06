@@ -61,3 +61,7 @@ export const auditExportQuery = z.object({
 	message: "The 'to' date must be on or after the 'from' date.",
 	path: ["to"],
 });
+
+export const maintenanceReportParams = z.object({ reportId: uuid }).strict();
+export const reopenReportBody = z.object({ reason: z.string().trim().min(1).max(2000) }).strict();
+export const reassignReportBody = z.object({ lecturerProfileId: uuid, reason: z.string().trim().min(1).max(2000) }).strict();

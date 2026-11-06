@@ -7,7 +7,7 @@ import {
 	createAcademicPeriod, deleteEnrollment, deleteMapping, getAssessmentTypes, getAssessments, getClassrooms, getCourseUnits,
 	getDepartments, getDepartmentMembers, getEnrollments, getMappings, getAcademicPeriods, updateAssessment, updateAssessmentType, updateClassroom,
 	updateCourseUnit, updateDepartment, updateAcademicPeriod, createUser, getUsers, updateUser,
-	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports, getDashboard,
+	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports, getDashboard, reopenAdminReport, reassignAdminReport,
 	addDepartmentMember, removeDepartmentMember, getUser,
 } from "./admin.controller.js";
 import { createUserBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
@@ -56,5 +56,7 @@ router.get("/reports", validate(operationsValidation.reportSummaryQuery, "query"
 router.get("/reports/export", validate(operationsValidation.reportExportQuery, "query"), exportReports);
 router.get("/audit-logs", validate(operationsValidation.auditLogQuery, "query"), getAuditLogs);
 router.get("/audit-logs/export", validate(operationsValidation.auditExportQuery, "query"), exportAuditLogRecords);
+router.post("/reports/:reportId/reopen", validate(operationsValidation.maintenanceReportParams, "params"), validate(operationsValidation.reopenReportBody), reopenAdminReport);
+router.post("/reports/:reportId/reassign", validate(operationsValidation.maintenanceReportParams, "params"), validate(operationsValidation.reassignReportBody), reassignAdminReport);
 
 export default router;

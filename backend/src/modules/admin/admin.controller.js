@@ -4,6 +4,7 @@ import * as academic from "./academic.service.js";
 import { getDashboardOverview, listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
 import { exportAuditLogs, exportReportSummaries } from "./export.service.js";
 import { toCsv } from "./csv.js";
+import { reopenReport, reassignReport } from "./maintenance.service.js";
 
 export async function getUsers(req, res, next) {
 	try {
@@ -64,6 +65,14 @@ export async function exportAuditLogRecords(req, res, next) {
 		res.type("text/csv").set("Content-Disposition", "attachment; filename=administrator-audit-logs.csv");
 		return res.send(toCsv(["id", "action", "entity_type", "entity_id", "actor_name", "actor_email", "created_at", "metadata"], rows));
 	} catch (error) { return next(error); }
+}
+
+export async function reopenAdminReport(req, res, next) {
+	try { return sendSuccess(res, "Report reopened successfully", await reopenReport({ db: req.app.locals.prisma, actorUserId: req.user.id, reportId: req.params.reportId, ...req.body })); } catch (error) { return next(error); }
+}
+
+export async function reassignAdminReport(req, res, next) {
+	try { return sendSuccess(res, "Report reassigned successfully", await reassignReport({ db: req.app.locals.prisma, actorUserId: req.user.id, reportId: req.params.reportId, ...req.body })); } catch (error) { return next(error); }
 }
 
 const handleList = (method, message) => async (req, res, next) => {

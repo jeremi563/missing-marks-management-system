@@ -34,6 +34,7 @@ test("every administrator endpoint requires authentication before database acces
 		["GET", "/api/v1/admin/assessment-types"], ["POST", "/api/v1/admin/assessment-types"], ["PATCH", `/api/v1/admin/assessment-types/${id}`],
 		["GET", "/api/v1/admin/settings"], ["PATCH", "/api/v1/admin/settings/max_page_size"], ["GET", "/api/v1/admin/dashboard"],
 		["GET", "/api/v1/admin/reports"], ["GET", "/api/v1/admin/reports/export"],
+		["POST", `/api/v1/admin/reports/${id}/reopen`], ["POST", `/api/v1/admin/reports/${id}/reassign`],
 		["GET", "/api/v1/admin/audit-logs"], ["GET", "/api/v1/admin/audit-logs/export"],
 		["PATCH", `/api/v1/admin/departments/${id}/designated-cod`], ["POST", "/api/v1/admin/public-holidays"],
 		["PATCH", `/api/v1/admin/public-holidays/${id}`], ["DELETE", `/api/v1/admin/public-holidays/${id}`],

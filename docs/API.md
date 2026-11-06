@@ -418,6 +418,15 @@ Both exports accept the relevant report or audit filters and a `maxRows` value f
 
 The administrator dashboard is available at `GET /api/v1/admin/dashboard`. It returns read-only aggregate counts for active and total users, active students and lecturers, departments, course units, academic periods, enrolments, lecturer mappings, active classrooms, assessments, and report counts by status. It does not expose individual student records, report descriptions, comments, evidence, or marks.
 
+Approved administrator maintenance actions are:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/admin/reports/:reportId/reopen` | Reopen a rejected or withdrawn report to `PENDING` with a required reason. |
+| POST | `/api/v1/admin/reports/:reportId/reassign` | Reassign an unresolved report to an active lecturer mapped to its course unit. |
+
+Both actions reject reports with unresolved appeals or special cases, preserve status/assignment history, and create audit events without sending notifications. Reopening clears the current lecturer assignment so the report can be assigned afresh.
+
 Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
 
 ## 5. Authentication and authorisation
