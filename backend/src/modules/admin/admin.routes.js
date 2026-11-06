@@ -7,7 +7,7 @@ import {
 	createAcademicPeriod, deleteEnrollment, deleteMapping, getAssessmentTypes, getAssessments, getClassrooms, getCourseUnits,
 	getDepartments, getDepartmentMembers, getEnrollments, getMappings, getAcademicPeriods, updateAssessment, updateAssessmentType, updateClassroom,
 	updateCourseUnit, updateDepartment, updateAcademicPeriod, createUser, getUsers, updateUser,
-	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports,
+	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports, getDashboard,
 	addDepartmentMember, removeDepartmentMember,
 } from "./admin.controller.js";
 import { createUserBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
@@ -50,6 +50,7 @@ router.post("/assessment-types", validate(validation.assessmentTypeCreateBody), 
 router.patch("/assessment-types/:id", validate(validation.assessmentTypeIdParams, "params"), validate(validation.assessmentTypeUpdateBody), updateAssessmentType);
 router.get("/settings", validate(operationsValidation.settingsQuery, "query"), getSettings);
 router.patch("/settings/:key", validate(operationsValidation.settingKeyParams, "params"), validate(operationsValidation.settingUpdateBody), patchSetting);
+router.get("/dashboard", getDashboard);
 router.get("/reports", validate(operationsValidation.reportSummaryQuery, "query"), getReportSummaries);
 router.get("/reports/export", validate(operationsValidation.reportExportQuery, "query"), exportReports);
 router.get("/audit-logs", validate(operationsValidation.auditLogQuery, "query"), getAuditLogs);
