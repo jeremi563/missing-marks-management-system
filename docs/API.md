@@ -365,6 +365,21 @@ Separate workflow issue: student submission currently creates `Submitted`, while
 
 Administrator account management is restricted to authenticated users with the `administrator` role. User creation accepts `email`, `password`, `displayName`, `roles`, and profile identifiers where applicable: `studentNumber` is required for the `student` role and `staffNumber` is required for the `lecturer` role. User updates may change email, password, display name, active status, roles, and profile identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
 
+Phase 2 academic structure endpoints are also restricted to administrators:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET, POST, PATCH | `/api/v1/admin/departments` and `/api/v1/admin/departments/:id` | Manage departments. |
+| GET, POST, PATCH | `/api/v1/admin/course-units` and `/api/v1/admin/course-units/:id` | Manage course units and department relationships. |
+| GET, POST, PATCH | `/api/v1/admin/academic-periods` and `/api/v1/admin/academic-periods/:id` | Manage academic periods. Overlapping periods are allowed. |
+| GET, POST, DELETE | `/api/v1/admin/enrolments` and `/api/v1/admin/enrolments/:id` | Manage student-unit-period enrolments. Protected historical references prevent deletion. |
+| GET, POST, DELETE | `/api/v1/admin/lecturer-mappings` and `/api/v1/admin/lecturer-mappings/:id` | Manage lecturer-to-unit mappings. Protected historical references prevent deletion. |
+| GET, POST, PATCH | `/api/v1/admin/classrooms` and `/api/v1/admin/classrooms/:id` | Manage attendance classrooms and active status. |
+| GET, POST, PATCH | `/api/v1/admin/assessments` and `/api/v1/admin/assessments/:id` | Manage unit assessments. |
+| GET, POST, PATCH | `/api/v1/admin/assessment-types` and `/api/v1/admin/assessment-types/:id` | Manage the global assessment-type catalogue. |
+
+Academic structure mutations validate related records, preserve protected history, and create actor-attributed audit events transactionally. Assessment creation records the administrator as the creating user. These endpoints do not alter official marks or report workflow decisions.
+
 Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
 
 ## 5. Authentication and authorisation
