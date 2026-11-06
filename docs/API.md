@@ -380,6 +380,17 @@ Phase 2 academic structure endpoints are also restricted to administrators:
 
 Academic structure mutations validate related records, preserve protected history, and create actor-attributed audit events transactionally. Assessment creation records the administrator as the creating user. These endpoints do not alter official marks or report workflow decisions.
 
+Phase 3 operational endpoints are restricted to administrators:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/settings` | List stored operational settings. |
+| PATCH | `/api/v1/admin/settings/:key` | Update an explicitly allowlisted operational setting. |
+| GET | `/api/v1/admin/reports` | View paginated system-wide report summaries and status aggregates. |
+| GET | `/api/v1/admin/audit-logs` | View read-only, paginated audit records. |
+
+The initial settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, and `max_page_size`. Workflow deadlines, attendance thresholds, appeal policy, and notification policy remain excluded until separately approved. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
+
 Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
 
 ## 5. Authentication and authorisation
