@@ -363,6 +363,8 @@ Separate workflow issue: student submission currently creates `Submitted`, while
 | GET | `/api/v1/admin/audit-logs` | View permitted audit records. |
 | PATCH | `/api/v1/admin/settings` | Update permitted system settings. |
 
+Administrator account management is restricted to authenticated users with the `administrator` role. User creation accepts `email`, `password`, `displayName`, `roles`, and profile identifiers where applicable: `studentNumber` is required for the `student` role and `staffNumber` is required for the `lecturer` role. User updates may change email, password, display name, active status, roles, and profile identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
+
 Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
 
 ## 5. Authentication and authorisation
