@@ -401,6 +401,15 @@ Phase 3 operational endpoints are restricted to administrators:
 
 The initial settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, and `max_page_size`. Workflow deadlines, attendance thresholds, appeal policy, and notification policy remain excluded until separately approved. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
 
+Controlled CSV exports are available to administrators:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/reports/export` | Export operational report-summary columns as CSV. |
+| GET | `/api/v1/admin/audit-logs/export` | Export filtered audit records as CSV. |
+
+Both exports accept the relevant report or audit filters and a `maxRows` value from `1` to `5000`, defaulting to `1000`. Report exports exclude descriptions, comments, evidence, and official marks. Export requests are transactionally recorded as audit events; an audit export event appears in later audit exports, not the snapshot that initiated it.
+
 Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
 
 ## 5. Authentication and authorisation

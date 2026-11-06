@@ -2,6 +2,8 @@ import { sendSuccess } from "../../shared/utils/api-response.js";
 import { createAdminUser, listAdminUsers, updateAdminUser } from "./admin.service.js";
 import * as academic from "./academic.service.js";
 import { listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
+import { exportAuditLogs, exportReportSummaries } from "./export.service.js";
+import { toCsv } from "./csv.js";
 
 export async function getUsers(req, res, next) {
 	try {
@@ -38,6 +40,22 @@ export async function getReportSummaries(req, res, next) {
 
 export async function getAuditLogs(req, res, next) {
 	try { const result = await listAuditLogs({ db: req.app.locals.prisma, ...req.query }); return sendSuccess(res, "Audit logs retrieved successfully", result.logs, 200, result.pagination); } catch (error) { return next(error); }
+}
+
+export async function exportReports(req, res, next) {
+	try {
+		const rows = await exportReportSummaries({ db: req.app.locals.prisma, actorUserId: req.user.id, ...req.query });
+		res.type("text/csv").set("Content-Disposition", "attachment; filename=administrator-report-summaries.csv");
+		return res.send(toCsv(["reference", "status", "department_code", "department_name", "course_unit_code", "course_unit_name", "academic_period_code", "academic_period_name", "lecturer_staff_number", "lecturer_name", "lecturer_email", "submitted_at", "created_at", "updated_at"], rows));
+	} catch (error) { return next(error); }
+}
+
+export async function exportAuditLogRecords(req, res, next) {
+	try {
+		const rows = await exportAuditLogs({ db: req.app.locals.prisma, actorUserId: req.user.id, ...req.query });
+		res.type("text/csv").set("Content-Disposition", "attachment; filename=administrator-audit-logs.csv");
+		return res.send(toCsv(["id", "action", "entity_type", "entity_id", "actor_name", "actor_email", "created_at", "metadata"], rows));
+	} catch (error) { return next(error); }
 }
 
 const handleList = (method, message) => async (req, res, next) => {
