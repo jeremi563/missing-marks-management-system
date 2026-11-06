@@ -380,6 +380,8 @@ Phase 2 academic structure endpoints are also restricted to administrators:
 
 Academic structure mutations validate related records, preserve protected history, and create actor-attributed audit events transactionally. Assessment creation records the administrator as the creating user. These endpoints do not alter official marks or report workflow decisions.
 
+Enrolment creation requires an active user with the `student` role behind the selected student profile. Lecturer-mapping creation requires an active user with the `lecturer` role behind the selected lecturer profile. This prevents deactivated or role-inconsistent profiles from receiving new academic relationships.
+
 Department membership governance is available through:
 
 | Method | Path | Purpose |
