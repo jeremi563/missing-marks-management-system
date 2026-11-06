@@ -2,6 +2,7 @@ import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../../config/database.js";
 import { createNotification } from "./notification.service.js";
+import { getSystemSettingValue } from "./system-settings.service.js";
 
 const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
 const CLAIM_LIMIT = 20;
@@ -30,6 +31,7 @@ export async function enqueueNotification(db, event) {
 }
 
 export async function enqueueNotificationOnce(db, event) {
+	if (event.eventType?.endsWith("_OVERDUE") && await getSystemSettingValue(db, "overdue_notifications_enabled", true) === false) return null;
 	try {
 		return await enqueueNotification(db, event);
 	} catch (error) {
@@ -148,6 +150,17 @@ export async function processOutboxBatch({ db = prisma } = {}) {
 			});
 			if (wasDelivered) delivered += 1;
 		} catch (error) {
+			const configuredRetryLimit = await getSystemSettingValue(db, "notification_retry_limit", 5);
+			const retryLimit = Number.isInteger(configuredRetryLimit) && configuredRetryLimit >= 1 && configuredRetryLimit <= 20 ? configuredRetryLimit : 5;
+			if (event.attempts >= retryLimit) {
+				await db.$queryRaw`
+					UPDATE notification_outbox
+					SET delivered_at = clock_timestamp(), last_error = ${`Retry limit of ${retryLimit} exceeded: ${String(error.message).slice(0, 900)}`}
+					WHERE id = ${event.id}::uuid AND delivered_at IS NULL AND claimed_by = ${workerId}
+					RETURNING id
+				`;
+				continue;
+			}
 			const delayMs = Math.min(60 * 60 * 1000, 1000 * (2 ** Math.min(event.attempts, 10)));
 			await db.$queryRaw`
 				UPDATE notification_outbox

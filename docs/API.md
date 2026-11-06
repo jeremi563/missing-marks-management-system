@@ -365,6 +365,8 @@ Separate workflow issue: student submission currently creates `Submitted`, while
 
 Administrator account management is restricted to authenticated users with the `administrator` role. User creation accepts `email`, `password`, `displayName`, `roles`, and profile identifiers where applicable: `studentNumber` is required for the `student` role and `staffNumber` is required for the `lecturer` role. User updates may change email, password, display name, active status, roles, and profile identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
 
+`GET /api/v1/admin/users/:id` returns one account's roles, profile identifiers, department memberships, designated-COD membership indicators, and operational responsibility counts. It excludes password hashes, report content, comments, evidence, and official marks.
+
 Phase 2 academic structure endpoints are also restricted to administrators:
 
 | Method | Path | Purpose |
@@ -403,7 +405,7 @@ Phase 3 operational endpoints are restricted to administrators:
 | GET | `/api/v1/admin/reports` | View paginated system-wide report summaries and status aggregates. |
 | GET | `/api/v1/admin/audit-logs` | View read-only, paginated audit records. |
 
-The initial settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, and `max_page_size`. Workflow deadlines, attendance thresholds, appeal policy, and notification policy remain excluded until separately approved. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
+The settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, `max_page_size`, `attendance_minimum_percentage` (default `80`), `appeal_window_calendar_days` (default `14`), `overdue_notifications_enabled` (default `true`), and `notification_retry_limit` (default `5`). Lecturer, COD, and special-case review deadline settings remain excluded until separately approved. Existing deadline snapshots are never recalculated when settings change. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
 
 Controlled CSV exports are available to administrators:
 

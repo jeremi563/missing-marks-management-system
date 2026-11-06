@@ -8,7 +8,7 @@ import {
 	getDepartments, getDepartmentMembers, getEnrollments, getMappings, getAcademicPeriods, updateAssessment, updateAssessmentType, updateClassroom,
 	updateCourseUnit, updateDepartment, updateAcademicPeriod, createUser, getUsers, updateUser,
 	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports, getDashboard,
-	addDepartmentMember, removeDepartmentMember,
+	addDepartmentMember, removeDepartmentMember, getUser,
 } from "./admin.controller.js";
 import { createUserBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
 import * as validation from "./academic.validation.js";
@@ -18,6 +18,7 @@ const router = Router();
 
 router.use(authenticate, authorize("administrator"));
 router.get("/users", validate(userListQuery, "query"), getUsers);
+router.get("/users/:id", validate(userIdParams, "params"), getUser);
 router.post("/users", validate(createUserBody), createUser);
 router.patch("/users/:id", validate(userIdParams, "params"), validate(updateUserBody), updateUser);
 

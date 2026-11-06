@@ -64,6 +64,24 @@ export async function listAdminUsers({ db = prisma, page = 1, limit = 10, search
 	return { users: users.map(serializeUser), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
+export async function getAdminUser({ db = prisma, userId }) {
+	const user = await db.user.findUnique({
+		where: { id: userId },
+		select: {
+			...userSelect,
+			departmentMemberships: { select: { department: { select: { id: true, code: true, name: true, designatedCodUserId: true } }, createdAt: true } },
+			_count: { select: { auditLogs: true, reportAssignments: true, reportStatusChanges: true } },
+			lecturerProfile: { select: { id: true, staffNumber: true, _count: { select: { unitAssignments: true, assignedReports: true, attendanceSessions: true } } } },
+		},
+	});
+	if (!user) throw new AppError(404, "User not found");
+	return {
+		...serializeUser(user),
+		departments: user.departmentMemberships.map(({ department, createdAt }) => ({ ...department, isDesignatedCod: department.designatedCodUserId === user.id, createdAt })),
+		responsibilities: { auditEvents: user._count.auditLogs, reportAssignments: user._count.reportAssignments, reportStatusChanges: user._count.reportStatusChanges, ...(user.lecturerProfile ? { lecturer: user.lecturerProfile._count } : {}) },
+	};
+}
+
 export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber }) {
 	return db.$transaction(async (tx) => {
 		const roleRecords = await validateRoles(tx, roles);
