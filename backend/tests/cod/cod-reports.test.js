@@ -7,12 +7,14 @@ process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
 const { app } = await import("../../src/app.js");
 const { prisma } = await import("../../src/config/database.js");
+const uniqueSuffix = () => Math.random().toString(36).slice(2, 10).toUpperCase();
 
 const createUser = async ({ email, passwordHash = "hashed-password", roles = [] }) => {
+  const uniqueEmail = email.replace("@", `-${uniqueSuffix()}@`);
   const user = await prisma.user.create({
     data: {
-      email,
-      displayName: email.split("@")[0],
+      email: uniqueEmail,
+      displayName: uniqueEmail.split("@")[0],
       passwordHash,
       roles: {
         create: roles.map((roleName) => ({
@@ -31,7 +33,7 @@ const createUser = async ({ email, passwordHash = "hashed-password", roles = [] 
   return user;
 };
 
-const createDepartment = async ({ name, code }) => prisma.department.create({ data: { name, code } });
+const createDepartment = async ({ name, code }) => prisma.department.create({ data: { name, code: code ? `${code}-${uniqueSuffix()}` : code } });
 
 const createDepartmentMembership = async ({ userId, departmentId }) => prisma.departmentMembership.create({ data: { userId, departmentId } });
 
@@ -39,22 +41,26 @@ const createCourseUnit = async ({ departmentId, code, name }) => prisma.courseUn
 
 const createAcademicPeriod = async ({ name }) => prisma.academicPeriod.create({ data: { name } });
 
-const createStudentProfile = async ({ userEmail, studentNumber }) => prisma.studentProfile.create({
+const createStudentProfile = async ({ userEmail, studentNumber }) => {
+  const uniqueEmail = userEmail.replace("@", `-${uniqueSuffix()}@`);
+  const uniqueStudentNumber = `${studentNumber}-${uniqueSuffix()}`;
+  return prisma.studentProfile.create({
   data: {
     user: {
       connectOrCreate: {
-        where: { email: userEmail },
+        where: { email: uniqueEmail },
         create: {
-          email: userEmail,
-          displayName: userEmail.split("@")[0],
+          email: uniqueEmail,
+          displayName: uniqueEmail.split("@")[0],
           passwordHash: "hashed-password",
         },
       },
     },
-    studentNumber,
-    officialEmail: userEmail,
+    studentNumber: uniqueStudentNumber,
+    officialEmail: uniqueEmail,
   },
 });
+};
 
 const createMissingMarkReport = async ({ studentProfileId, courseUnitId, academicPeriodId, assessmentComponent, status, description }) => prisma.missingMarkReport.create({
   data: {
@@ -497,7 +503,7 @@ test("COD report detail and comments do not expose reports from unauthorized dep
   try {
     for (const path of [`/api/v1/cod/reports/${report.id}`, `/api/v1/cod/reports/${report.id}/comments`]) {
       const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-      assert.ok([403, 404].includes(response.status));
+      assert.equal(response.status, 404);
     }
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

@@ -2,6 +2,7 @@ import { prisma } from "../../config/database.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { lockDepartmentForReview } from "../../shared/services/department-review-lock.service.js";
 import { AppError } from "../../shared/utils/app-error.js";
+import { logger } from "../../shared/utils/logger.js";
 import { getAuthorizedDepartmentIds } from "./cod.service.js";
 
 export const COD_DISCREPANCY_DECISIONS = Object.freeze({
@@ -12,7 +13,7 @@ export const COD_DISCREPANCY_DECISIONS = Object.freeze({
   AUTHORIZE_ATTENDANCE_CORRECTION: "CORRECTION_AUTHORIZED",
 });
 
-const COD_VISIBLE_STATUSES = ["PENDING_COD_REVIEW", "CLARIFICATION_REQUESTED", ...Object.values(COD_DISCREPANCY_DECISIONS).filter((status) => status !== "CLARIFICATION_REQUESTED")];
+const COD_VISIBLE_STATUSES = ["PENDING_COD_REVIEW", "CLARIFICATION_REQUESTED", "CORRECTION_APPLIED", ...Object.values(COD_DISCREPANCY_DECISIONS).filter((status) => status !== "CLARIFICATION_REQUESTED")];
 
 function sourceCount(item) {
   return [item.attendanceRecordId, item.assessmentAttendanceId, item.attendanceAttemptId].filter(Boolean).length;
@@ -115,6 +116,7 @@ async function validateReporterAndReview(db, item, context) {
   } else {
     const lecturer = await db.lecturerProfile.findUnique({ where: { userId: reporter.id }, select: { id: true } });
     if (!lecturer) throw new AppError(409, "Lecturer reporter has no lecturer profile");
+    if (item.assignedLecturerProfileId !== lecturer.id) throw new AppError(409, "Lecturer discrepancy assignment does not match its reporter");
     const assignedToUnit = await db.courseUnitLecturer.findUnique({
       where: { courseUnitId_lecturerProfileId: { courseUnitId: context.courseUnit.id, lecturerProfileId: lecturer.id } },
       select: { id: true },
@@ -123,8 +125,16 @@ async function validateReporterAndReview(db, item, context) {
   }
 }
 
-async function assertCodEligible(db, item) {
+async function assertCodEligible(db, item, decision, context) {
   assertCodVisible(item);
+  if (["RECOMMEND_CORRECTION", "AUTHORIZE_ATTENDANCE_CORRECTION"].includes(decision) && context.type !== "ATTENDANCE_RECORD") {
+    throw new AppError(409, "Attendance corrections are currently supported only for session attendance records");
+  }
+  if (item.status === "CORRECTION_RECOMMENDED") {
+    if (decision !== "AUTHORIZE_ATTENDANCE_CORRECTION") throw new AppError(409, "Only attendance-correction authorization may follow a correction recommendation");
+    return;
+  }
+  if (decision === "AUTHORIZE_ATTENDANCE_CORRECTION") throw new AppError(409, "Attendance correction must be recommended before authorization");
   if (item.status !== "PENDING_COD_REVIEW" && item.status !== "CLARIFICATION_REQUESTED") {
     throw new AppError(409, "This discrepancy is not eligible for a COD decision");
   }
@@ -159,22 +169,37 @@ export async function listCodAttendanceDiscrepancies({ userId, departmentId, sta
     tx.attendanceDiscrepancy.findMany({ where, include: sourceInclude, orderBy: { createdAt: "desc" }, skip: (page - 1) * limit, take: limit }),
     tx.attendanceDiscrepancy.count({ where }),
   ]));
+  const validItems = [];
   for (const item of items) {
-    assertCodVisible(item);
-    const context = assertSourceContext(item);
-    await validateReporterAndReview(db, item, context);
-    validateReportCompatibility(item, context);
+    try {
+      assertCodVisible(item);
+      const context = assertSourceContext(item);
+      await validateReporterAndReview(db, item, context);
+      validateReportCompatibility(item, context);
+      validItems.push(item);
+    } catch (error) {
+      if (!(error instanceof AppError) || error.statusCode !== 409) throw error;
+      logger.warn("Skipping malformed attendance discrepancy from COD page", { discrepancyId: item.id, reason: error.message });
+    }
   }
-  return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+  return { items: validItems, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, integrity: { skippedRecords: items.length - validItems.length } };
 }
 
-export async function getCodAttendanceDiscrepancy({ userId, discrepancyId, db = prisma }) {
-  const item = await db.attendanceDiscrepancy.findUnique({ where: { id: discrepancyId }, include: { ...sourceInclude, comments: { include: { author: { select: { id: true, displayName: true } } }, orderBy: { createdAt: "asc" } } } });
+export async function getAuthorizedCodAttendanceDiscrepancy({ userId, discrepancyId, includeComments = false, db = prisma }) {
+  const item = await db.attendanceDiscrepancy.findUnique({ where: { id: discrepancyId }, include: {
+    ...sourceInclude,
+    ...(includeComments ? { comments: { include: { author: { select: { id: true, displayName: true } } }, orderBy: { createdAt: "asc" } } } : {}),
+  } });
   if (!item) throw new AppError(404, "Attendance discrepancy not found");
   const context = await assertAuthorizedDepartment(db, userId, item);
   assertCodVisible(item);
   await validateReporterAndReview(db, item, context);
   validateReportCompatibility(item, context);
+  return { item, context };
+}
+
+export async function getCodAttendanceDiscrepancy({ userId, discrepancyId, db = prisma }) {
+  const { item, context } = await getAuthorizedCodAttendanceDiscrepancy({ userId, discrepancyId, includeComments: true, db });
   return { ...item, sourceType: context.type, source: context.source, courseUnit: context.courseUnit };
 }
 
@@ -203,14 +228,22 @@ export async function recordCodAttendanceDiscrepancyDecision({ userId, discrepan
     const context = await assertAuthorizedDepartment(tx, userId, item);
     validateReportCompatibility(item, context);
     await validateReporterAndReview(tx, item, context);
-    await assertCodEligible(tx, item);
+    await assertCodEligible(tx, item, decision, context);
     const updated = await tx.attendanceDiscrepancy.updateMany({
       where: { id: item.id, status: item.status },
       data: { status: newStatus, resolution: explanation.trim() },
     });
     if (updated.count !== 1) throw new AppError(409, "Discrepancy state changed; reload before deciding");
     const history = await tx.attendanceDiscrepancyDecision.create({
-      data: { discrepancyId: item.id, actorUserId: userId, decision, explanation: explanation.trim(), previousStatus: item.status, newStatus },
+      data: {
+        discrepancyId: item.id,
+        actorUserId: userId,
+        decision,
+        explanation: explanation.trim(),
+        previousStatus: item.status,
+        newStatus,
+        ...(decision === "AUTHORIZE_ATTENDANCE_CORRECTION" && context.type === "ATTENDANCE_RECORD" ? { sourceStatusAtAuthorization: context.source.status } : {}),
+      },
     });
     await recordAuditEvent({
       prismaClient: tx,
@@ -221,5 +254,94 @@ export async function recordCodAttendanceDiscrepancyDecision({ userId, discrepan
       metadata: { decisionId: history.id, previousStatus: item.status, newStatus },
     });
     return { discrepancyId: item.id, status: newStatus, decision: history };
+  });
+}
+
+export async function revalidateLegacyAttendanceCorrectionAuthorization({ userId, discrepancyId, explanation, db = prisma }) {
+  return db.$transaction(async (tx) => {
+    const item = await tx.attendanceDiscrepancy.findUnique({ where: { id: discrepancyId }, include: sourceInclude });
+    if (!item) throw new AppError(404, "Attendance discrepancy not found");
+    const sourceContext = assertSourceContext(item);
+    await lockDepartmentForReview(tx, sourceContext.courseUnit.departmentId);
+    const context = await assertAuthorizedDepartment(tx, userId, item);
+    assertCodVisible(item);
+    await validateReporterAndReview(tx, item, context);
+    validateReportCompatibility(item, context);
+
+    if (item.status !== "CORRECTION_AUTHORIZED") throw new AppError(409, "Only legacy-authorized discrepancies may be revalidated");
+    if (context.type !== "ATTENDANCE_RECORD" || !item.attendanceRecordId || context.source.id !== item.attendanceRecordId || context.source.studentProfileId !== item.studentProfileId) {
+      throw new AppError(409, "Legacy revalidation supports only the discrepancy's owned session attendance record");
+    }
+    if (!["PRESENT", "ABSENT", "LATE"].includes(context.source.status)) {
+      throw new AppError(409, "Attendance record is not eligible for correction");
+    }
+
+    const [originalAuthorization, latestDecision] = await Promise.all([
+      tx.attendanceDiscrepancyDecision.findFirst({
+        where: { discrepancyId: item.id, decision: "AUTHORIZE_ATTENDANCE_CORRECTION", newStatus: "CORRECTION_AUTHORIZED" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true, actorUserId: true, createdAt: true, previousStatus: true, sourceStatusAtAuthorization: true },
+      }),
+      tx.attendanceDiscrepancyDecision.findFirst({
+        where: { discrepancyId: item.id },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { id: true },
+      }),
+    ]);
+    if (!originalAuthorization || originalAuthorization.sourceStatusAtAuthorization != null || originalAuthorization.previousStatus !== "CORRECTION_RECOMMENDED" || latestDecision?.id !== originalAuthorization.id) {
+      throw new AppError(409, "Discrepancy does not have a current legacy authorization requiring revalidation");
+    }
+    const recommendation = await tx.attendanceDiscrepancyDecision.findFirst({
+      where: { discrepancyId: item.id, decision: "RECOMMEND_CORRECTION", newStatus: "CORRECTION_RECOMMENDED" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true },
+    });
+    if (!recommendation) throw new AppError(409, "Original correction recommendation history is missing");
+    const originalAudit = await tx.auditLog.findMany({
+      where: {
+        entityType: "AttendanceDiscrepancy",
+        entityId: item.id,
+        action: "COD_ATTENDANCE_DISCREPANCY_AUTHORIZE_ATTENDANCE_CORRECTION",
+      },
+      select: { actorId: true, metadata: true, createdAt: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const originalAuditMatches = originalAudit.some((event) =>
+      event.actorId === originalAuthorization.actorUserId &&
+      event.metadata?.decisionId === originalAuthorization.id &&
+      event.createdAt >= originalAuthorization.createdAt
+    );
+    if (!originalAuditMatches) throw new AppError(409, "Original authorization audit history is incomplete");
+
+    const freshDecision = await tx.attendanceDiscrepancyDecision.create({
+      data: {
+        discrepancyId: item.id,
+        actorUserId: userId,
+        decision: "REVALIDATE_LEGACY_AUTHORIZATION",
+        explanation: explanation.trim(),
+        previousStatus: item.status,
+        newStatus: item.status,
+        sourceStatusAtAuthorization: context.source.status,
+        sourceTypeAtAuthorization: context.type,
+        sourceIdAtAuthorization: context.source.id,
+        revalidatesDecisionId: originalAuthorization.id,
+      },
+    });
+    await recordAuditEvent({
+      prismaClient: tx,
+      actorId: userId,
+      action: "COD_ATTENDANCE_CORRECTION_AUTHORIZATION_REVALIDATED",
+      entityType: "AttendanceDiscrepancy",
+      entityId: item.id,
+      metadata: {
+        decisionId: freshDecision.id,
+        originalAuthorizationDecisionId: originalAuthorization.id,
+        sourceType: context.type,
+        sourceId: context.source.id,
+        sourceStatus: context.source.status,
+        outcome: "FRESH_CORRECTION_AUTHORIZATION",
+      },
+    });
+    return { discrepancyId: item.id, status: item.status, decision: freshDecision };
   });
 }

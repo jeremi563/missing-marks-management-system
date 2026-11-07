@@ -62,23 +62,23 @@ This is a conceptual flow, not a final enum list. The team must agree on exact s
 
 ## 6. Attendance-related workflow
 
-The project discussions have included attendance sessions created by lecturers and attendance records associated with students. A QR code or link and location validation have been considered.
+Lecturers create and manage attendance sessions for assigned course units. Attendance records, assessment-attendance rows and attendance attempts remain distinct sources. Attempts record submission outcomes and are not confirmation of attendance. Departmental COD reporting scopes each source through its course unit and does not infer absences from missing rows.
 
-Before implementation, confirm:
+Students may submit a discrepancy only for their own attendance source. A student-submitted discrepancy waits for the assigned lecturer to review it. The lecturer records a rejection with an explanation or forwards it to COD. A lecturer may submit a discrepancy for an attendance source in a course unit to which they are assigned; lecturer submissions enter COD review directly. The original reporter answers a COD clarification request through a discrepancy comment linked to that exact request. A response to an older request does not satisfy a newer request.
 
-- Who may create an attendance session.
-- How a session is associated with a unit, class and time window.
-- How a student is authenticated before recording attendance.
-- Whether QR, link, location or a combination is required.
-- How duplicate attendance submissions are prevented.
-- How corrections and disputes are handled.
-- How the agreed attendance threshold is calculated and which records count.
+There may be only one active discrepancy per student and source, regardless of whether a student or lecturer submitted it. Active states are `PENDING_LECTURER_REVIEW`, `PENDING_COD_REVIEW`, `CLARIFICATION_REQUESTED`, `CORRECTION_RECOMMENDED` and `CORRECTION_AUTHORIZED`; the last remains active while awaiting Admin application. `CONFIRMED`, `REJECTED`, `LECTURER_REJECTED` and `CORRECTION_APPLIED` are terminal. After a terminal state, a new discrepancy may be filed for that source. Each clarification decision accepts at most one response from its original reporter.
 
-The previously discussed 80% attendance threshold should be treated as a proposed project rule until confirmed. Attendance data must not be fabricated or silently changed.
+COD decisions are append-only and department-scoped. `RECOMMEND_CORRECTION` may follow an eligible COD review state; `AUTHORIZE_ATTENDANCE_CORRECTION` may follow only `CORRECTION_RECOMMENDED`. COD authorization records an audit decision and the source status at authorization. It does not change attendance.
+
+Legacy correction authorizations without a recorded source-status snapshot require a separate revalidation by the currently designated, active departmental COD. Revalidation verifies the original authorization and provenance, confirms the discrepancy still references its owned session attendance record, captures its current eligible status in a new append-only decision linked to the original authorization, and does not modify attendance. Admin correction must use this fresh decision and rechecks the captured status before applying; the legacy authorization alone is rejected.
+
+An authenticated Admin applies an authorized correction for a session `AttendanceRecord` through a separate transaction. The operation verifies the COD authorization and unchanged source status, updates the current record, stores original and corrected status, reason, administrator and timestamp in `AttendanceCorrection`, marks the discrepancy applied and writes an audit event. The linked `AttendanceHistory` snapshot remains unchanged. Assessment-attendance and attempt corrections are unsupported by the current correction model and are rejected; they require a separate approved schema/workflow design.
+
+The previously discussed 80% attendance threshold remains a proposed project rule until confirmed. QR, link and location verification details and the official university source of truth remain separate open decisions. Attendance data must not be fabricated or silently changed.
 
 ## 7. CAT and examination attendance
 
-The project scope includes CAT confirmation and examination attendance-related checks. Confirm the source of truth for these records, which role may view them, how they relate to a missing-mark case and what action is permitted when a discrepancy is found.
+Assessment-attendance and attempt sources can be reviewed in departmental reports and discrepancies. The current Admin correction ledger supports session attendance records only. Confirm the official university source of truth for CAT and examination attendance before treating application records as authoritative.
 
 The team has discussed QR verification for an exam booklet. Document the final scanning, matching and exception process before implementation.
 

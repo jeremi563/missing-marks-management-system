@@ -3,15 +3,14 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "../../config/database.js";
 import { createNotification } from "./notification.service.js";
 import { getSystemSettingValue } from "./system-settings.service.js";
+import { isActiveCodDepartmentMember } from "./designated-cod-authorization.service.js";
 
 const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
 const CLAIM_LIMIT = 20;
 const LEASE_MS = 5 * 60 * 1000;
 
 async function isValidDesignatedCod(tx, departmentId, userId) {
-	if (!departmentId || !userId) return false;
-	const user = await tx.user.findFirst({ where: { id: userId, isActive: true, roles: { some: { role: { name: "cod" } } }, departmentMemberships: { some: { departmentId } } }, select: { id: true } });
-	return Boolean(user);
+	return isActiveCodDepartmentMember(tx, userId, departmentId);
 }
 
 export async function enqueueNotification(db, event) {

@@ -18,7 +18,7 @@ const ids = {
   discrepancy: "77777777-7777-4777-8777-777777777777",
 };
 
-function fakeDb({ active = true, codRole = true, memberships = [ids.department], designated = [ids.department], record = null, countOverrides = {}, discrepancy = { id: ids.discrepancy, studentProfileId: ids.student, attendanceRecordId: ids.record, assessmentAttendanceId: null, attendanceAttemptId: null, attendanceRecord: { studentProfileId: ids.student }, assessmentRecord: null, attendanceAttempt: null }, events = [] } = {}) {
+function fakeDb({ active = true, codRole = true, memberships = [ids.department], designated = [ids.department], record = null, countOverrides = {}, discrepancy = { id: ids.discrepancy, studentProfileId: ids.student, attendanceRecordId: ids.record, assessmentAttendanceId: null, attendanceAttemptId: null, assignedLecturerProfileId: "88888888-8888-4888-8888-888888888888", submittedByUserId: ids.user, submitterType: "LECTURER", status: "CONFIRMED", attendanceRecord: { id: ids.record, studentProfileId: ids.student, status: "PRESENT", locationVerified: true, recordedAt: new Date("2026-01-02T10:00:00Z"), session: { id: "session-1", courseUnitId: ids.courseUnit, sessionType: "CLASS", startsAt: new Date("2026-01-02T09:00:00Z"), endsAt: null, courseUnit: { id: ids.courseUnit, code: "CS101", name: "Systems", departmentId: ids.department, department: { id: ids.department, name: "Computing", designatedCodUserId: ids.user } } } }, assessmentRecord: null, attendanceAttempt: null, comments: [], missingMarkReport: null }, events = [] } = {}) {
   const calls = {};
   const capture = (model, method, result) => async (args) => { calls[`${model}.${method}`] = args; return typeof result === "function" ? result(args) : result; };
   const counts = { attendanceRecord: 3, assessmentAttendance: 2, attendanceAttempt: 4, attendanceCorrection: 1, attendanceDiscrepancy: 2, ...countOverrides };
@@ -30,8 +30,11 @@ function fakeDb({ active = true, codRole = true, memberships = [ids.department],
   };
   return {
     calls,
+    discrepancy,
     departmentMembership: { findMany: capture("departmentMembership", "findMany", memberships.map((departmentId) => ({ departmentId }))) },
     user: { findFirst: capture("user", "findFirst", active && codRole ? { id: ids.user } : null) },
+    lecturerProfile: { findUnique: capture("lecturerProfile", "findUnique", { id: "88888888-8888-4888-8888-888888888888" }) },
+    courseUnitLecturer: { findUnique: capture("courseUnitLecturer", "findUnique", { id: "assignment-1" }) },
     department: { findMany: capture("department", "findMany", designated.map((id) => ({ id }))) },
     attendanceRecord: {
       findMany: capture("attendanceRecord", "findMany", []), count: capture("attendanceRecord", "count", counts.attendanceRecord),
@@ -40,7 +43,7 @@ function fakeDb({ active = true, codRole = true, memberships = [ids.department],
     assessmentAttendance: { findMany: capture("assessmentAttendance", "findMany", []), count: capture("assessmentAttendance", "count", counts.assessmentAttendance), groupBy: capture("assessmentAttendance", "groupBy", groups.assessmentAttendance) },
     attendanceAttempt: { findMany: capture("attendanceAttempt", "findMany", []), count: capture("attendanceAttempt", "count", counts.attendanceAttempt), groupBy: capture("attendanceAttempt", "groupBy", groups.attendanceAttempt) },
     attendanceCorrection: { count: capture("attendanceCorrection", "count", counts.attendanceCorrection) },
-    attendanceDiscrepancy: { findFirst: capture("attendanceDiscrepancy", "findFirst", discrepancy), count: capture("attendanceDiscrepancy", "count", counts.attendanceDiscrepancy), groupBy: capture("attendanceDiscrepancy", "groupBy", groups.attendanceDiscrepancy) },
+    attendanceDiscrepancy: { findFirst: capture("attendanceDiscrepancy", "findFirst", discrepancy), findUnique: capture("attendanceDiscrepancy", "findUnique", discrepancy), count: capture("attendanceDiscrepancy", "count", counts.attendanceDiscrepancy), groupBy: capture("attendanceDiscrepancy", "groupBy", groups.attendanceDiscrepancy) },
     auditLog: { findMany: capture("auditLog", "findMany", events) },
   };
 }
@@ -122,16 +125,65 @@ test("discrepancy audit first scopes the discrepancy through its source and allo
     { id: "audit-1", action: "COD_ATTENDANCE_DISCREPANCY_CONFIRMED", actorId: ids.user, createdAt: new Date(), metadata: { decisionId: "d1", previousStatus: "PENDING", newStatus: "CONFIRMED", privateNote: "omit" } },
   ] });
   const rows = await service.listCodAttendanceDiscrepancyAudit({ userId: ids.user, discrepancyId: ids.discrepancy, db });
-  assert.deepEqual(db.calls["attendanceDiscrepancy.findFirst"].where.OR[0].attendanceRecord.is.session.is.courseUnit.is.departmentId.in, [ids.department]);
+  assert.equal(db.calls["attendanceDiscrepancy.findUnique"].where.id, ids.discrepancy);
   assert.equal(db.calls["auditLog.findMany"].where.entityType, "AttendanceDiscrepancy");
-  assert.deepEqual(db.calls["auditLog.findMany"].where.action, { startsWith: "COD_ATTENDANCE_DISCREPANCY_" });
+  assert.deepEqual(db.calls["auditLog.findMany"].where.OR, [
+    { action: { startsWith: "COD_ATTENDANCE_DISCREPANCY_" } },
+    { action: "ADMIN_ATTENDANCE_CORRECTION_APPLIED" },
+  ]);
   assert.deepEqual(rows[0].metadata, { decisionId: "d1", previousStatus: "PENDING", newStatus: "CONFIRMED" });
 });
 
+test("authorized discrepancy audit includes the Admin correction event and excludes unrelated Admin events", async () => {
+  const db = fakeDb({ events: [
+    {
+      id: "correction-audit",
+      action: "ADMIN_ATTENDANCE_CORRECTION_APPLIED",
+      actorId: "admin-1",
+      createdAt: new Date(),
+      metadata: { attendanceCorrectionId: "correction-1", decisionId: "decision-1", attendanceRecordId: ids.record, originalStatus: "PRESENT", correctedStatus: "ABSENT", privateNote: "omit" },
+    },
+    { id: "unrelated-admin-audit", action: "ADMIN_USER_UPDATED", actorId: "admin-1", createdAt: new Date(), metadata: { email: "private@example.test" } },
+  ] });
+  const rows = await service.listCodAttendanceDiscrepancyAudit({ userId: ids.user, discrepancyId: ids.discrepancy, db });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].action, "ADMIN_ATTENDANCE_CORRECTION_APPLIED");
+  assert.deepEqual(rows[0].metadata, {
+    decisionId: "decision-1",
+    attendanceCorrectionId: "correction-1",
+    attendanceRecordId: ids.record,
+    originalStatus: "PRESENT",
+    correctedStatus: "ABSENT",
+  });
+  assert.deepEqual(db.calls["auditLog.findMany"].where.OR[1], { action: "ADMIN_ATTENDANCE_CORRECTION_APPLIED" });
+});
+
 test("discrepancy audit hides an inaccessible discrepancy without querying its audit log", async () => {
-  const db = fakeDb({ designated: [], discrepancy: null });
+  const db = fakeDb({ designated: [] });
   await assert.rejects(service.listCodAttendanceDiscrepancyAudit({ userId: ids.user, discrepancyId: ids.discrepancy, db }), { statusCode: 404 });
   assert.equal(db.calls["auditLog.findMany"], undefined);
+});
+
+test("discrepancy audit rejects non-visible rows before reading audit logs", async () => {
+  const valid = fakeDb().discrepancy;
+  const db = fakeDb({ discrepancy: { ...valid, status: "PENDING_LECTURER_REVIEW" } });
+  await assert.rejects(service.listCodAttendanceDiscrepancyAudit({ userId: ids.user, discrepancyId: ids.discrepancy, db }), { statusCode: 409 });
+  assert.equal(db.calls["auditLog.findMany"], undefined);
+});
+
+test("discrepancy audit rejects invalid provenance, source ownership, lecturer review and report linkage", async () => {
+  const base = fakeDb().discrepancy;
+  const invalidRows = [
+    { ...base, submitterType: null },
+    { ...base, attendanceRecord: { ...base.attendanceRecord, studentProfileId: "other-student" } },
+    { ...base, submitterType: "STUDENT", status: "PENDING_COD_REVIEW", lecturerReviewedByProfileId: null, lecturerReviewedAt: null },
+    { ...base, missingMarkReportId: "report-1", missingMarkReport: null },
+  ];
+  for (const discrepancy of invalidRows) {
+    const db = fakeDb({ discrepancy });
+    await assert.rejects(service.listCodAttendanceDiscrepancyAudit({ userId: ids.user, discrepancyId: ids.discrepancy, db }), { statusCode: 409 });
+    assert.equal(db.calls["auditLog.findMany"], undefined);
+  }
 });
 
 test("summary keeps each source separate and uses correction timestamps independently", async () => {

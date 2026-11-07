@@ -132,7 +132,7 @@ Expected response:
 {"success":true,"data":{"status":"ok"}}
 ```
 
-The shared API foundation currently includes health and authentication routes (`/api/v1/auth/login`, `/logout`, `/me`). Role-specific student, lecturer, COD and administrator workflows are still being developed; the complete product is not yet available end to end.
+The API includes health and authentication routes (`/api/v1/auth/login`, `/logout`, `/me`) plus role-specific student, lecturer, COD and administrator workflows. See [the API inventory](docs/API.md) for implemented routes and their current behavior; deployment readiness still depends on the required database migrations and environment-specific verification.
 
 ### 6. Run tests
 

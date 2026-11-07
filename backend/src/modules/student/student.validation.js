@@ -35,6 +35,17 @@ const studentCommentBodySchema = z.object({
 const studentNotificationIdSchema = z.object({
 	notificationId: z.string().uuid("A valid notification UUID is required."),
 });
+const attendanceDiscrepancySourceSchema = z.object({
+	attendanceRecordId: z.string().uuid().optional(),
+	assessmentAttendanceId: z.string().uuid().optional(),
+	attendanceAttemptId: z.string().uuid().optional(),
+	description: z.string().trim().min(1).max(2000),
+}).strict().superRefine((body, context) => {
+	if ([body.attendanceRecordId, body.assessmentAttendanceId, body.attendanceAttemptId].filter(Boolean).length !== 1) {
+		context.addIssue({ code: "custom", path: [], message: "Exactly one attendance source is required." });
+	}
+});
+const attendanceDiscrepancyParamsSchema = z.object({ id: z.string().uuid() });
 
 export function validateReportListQuery(req, res, next) {
 	const result = reportListQuerySchema.safeParse(req.query);
@@ -121,6 +132,20 @@ export function validateStudentNotificationId(req, res, next) {
 		}));
 	}
 
+	req.validatedParams = result.data;
+	return next();
+}
+
+export function validateAttendanceDiscrepancySource(req, res, next) {
+	const result = attendanceDiscrepancySourceSchema.safeParse(req.body);
+	if (!result.success) return next(Object.assign(new Error("Request validation failed"), { statusCode: 400, details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })) }));
+	req.validatedBody = result.data;
+	return next();
+}
+
+export function validateAttendanceDiscrepancyParams(req, res, next) {
+	const result = attendanceDiscrepancyParamsSchema.safeParse(req.params);
+	if (!result.success) return next(Object.assign(new Error("Request validation failed"), { statusCode: 400, details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })) }));
 	req.validatedParams = result.data;
 	return next();
 }

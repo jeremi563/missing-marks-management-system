@@ -119,9 +119,22 @@ test("rejects COD decisions outside the authorized department", async () => {
   const { db, calls } = makeDecisionDb({ departments: ["dept-2"] });
   await assert.rejects(
     () => decideEscalatedReport({ actorUserId: "cod-user-1", reportId: "report-1", decision: "APPROVE", reason: "Review.", db }),
-    { statusCode: 403 },
+    { statusCode: 404 },
   );
   assert.equal(calls.updateArgs, undefined);
+});
+
+test("COD report detail conceals an out-of-scope report with 404", async () => {
+  const db = {
+    departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
+    user: { findFirst: async () => ({ id: "cod-user-1" }) },
+    department: { findMany: async () => [{ id: "dept-1" }] },
+    missingMarkReport: { findFirst: async ({ where }) => {
+      assert.deepEqual(where.courseUnit.departmentId.in, ["dept-1"]);
+      return null;
+    } },
+  };
+  await assert.rejects(getCodReportDetails({ userId: "cod-user-1", reportId: "restricted-report", db }), { statusCode: 404 });
 });
 
 test("rejects a COD decision when the report is not escalated", async () => {

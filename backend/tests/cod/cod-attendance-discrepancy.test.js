@@ -9,6 +9,7 @@ const {
   getCodAttendanceDiscrepancy,
   listCodAttendanceDiscrepancies,
   listCodAttendanceDiscrepancyDecisions,
+  revalidateLegacyAttendanceCorrectionAuthorization,
   recordCodAttendanceDiscrepancyDecision,
 } = await import("../../src/modules/cod/attendance-discrepancy.service.js");
 
@@ -23,7 +24,7 @@ const ids = {
   lecturerProfile: "88888888-8888-4888-8888-888888888888",
 };
 
-function makeFixture({ sourceType = "record", status = "PENDING_COD_REVIEW", submitterType = "LECTURER", authorized = true, multipleSources = false, mismatch = false, reportMismatch = false, reportAssessmentId = null, sourceAssessmentId = null, failAudit = false } = {}) {
+function makeFixture({ sourceType = "record", status = "PENDING_COD_REVIEW", submitterType = "LECTURER", authorized = true, multipleSources = false, mismatch = false, reportMismatch = false, reportAssessmentId = null, sourceAssessmentId = null, failAudit = false, updateCount = 1, listItems = [], validationFailure = null, initialDecisions = [], initialAuditEvents = [] } = {}) {
   const courseUnit = { id: "99999999-9999-4999-8999-999999999999", code: "CS101", name: "Systems", departmentId: ids.department, department: { id: ids.department, name: "Computing", designatedCodUserId: ids.user } };
   const sourceStudent = mismatch ? ids.otherUser : ids.student;
   const attendanceRecord = sourceType === "record" ? { id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", studentProfileId: sourceStudent, status: "PRESENT", recordedAt: new Date("2026-01-02T10:00:00Z"), history: { id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", status: "PRESENT", signedAt: new Date("2026-01-02T10:00:00Z") }, session: { id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", assessmentId: sourceAssessmentId, startsAt: new Date("2026-01-02T09:00:00Z"), courseUnit } } : null;
@@ -55,9 +56,9 @@ function makeFixture({ sourceType = "record", status = "PENDING_COD_REVIEW", sub
     lecturerReviewer: null,
     comments: [],
   };
-  const records = [];
-  const decisions = [];
-  const audits = [];
+  const records = listItems;
+  const decisions = structuredClone(initialDecisions);
+  const audits = structuredClone(initialAuditEvents);
   const comments = [];
   let capturedWhere;
   const tx = {
@@ -66,16 +67,19 @@ function makeFixture({ sourceType = "record", status = "PENDING_COD_REVIEW", sub
     user: { findFirst: async () => ({ id: ids.user }) },
     department: { findMany: async () => authorized ? [{ id: ids.department }] : [] },
     studentProfile: { findUnique: async () => ({ userId: ids.user }) },
-    lecturerProfile: { findUnique: async ({ where }) => where.id
+    lecturerProfile: { findUnique: async ({ where }) => {
+      if (validationFailure) throw validationFailure;
+      return where.id
       ? { id: ids.lecturerProfile, user: { isActive: true, roles: [{ role: { name: "lecturer" } }] } }
-      : { id: ids.lecturerProfile } },
+      : { id: ids.lecturerProfile };
+    } },
     courseUnitLecturer: { findUnique: async () => ({ id: "assignment-1" }) },
     attendanceDiscrepancy: {
       findUnique: async () => structuredClone(item),
       findMany: async ({ where }) => { capturedWhere = where; return records; },
       count: async () => records.length,
       updateMany: async ({ where, data }) => {
-        if (where.status !== item.status) return { count: 0 };
+        if (where.status !== item.status || updateCount !== 1) return { count: updateCount };
         Object.assign(item, data);
         return { count: 1 };
       },
@@ -83,10 +87,13 @@ function makeFixture({ sourceType = "record", status = "PENDING_COD_REVIEW", sub
     attendanceDiscrepancyDecision: {
       create: async ({ data }) => { const row = { id: `${decisions.length + 1}`, ...data, createdAt: new Date() }; decisions.push(row); return row; },
       findMany: async () => decisions,
-      findFirst: async ({ where }) => decisions.filter((row) => row.discrepancyId === where.discrepancyId && row.decision === where.decision).sort((a, b) => b.createdAt - a.createdAt)[0] ?? null,
+      findFirst: async ({ where }) => decisions.filter((row) => row.discrepancyId === where.discrepancyId && (!where.decision || row.decision === where.decision) && (!where.newStatus || row.newStatus === where.newStatus)).sort((a, b) => b.createdAt - a.createdAt || String(b.id).localeCompare(String(a.id)))[0] ?? null,
     },
     attendanceDiscrepancyComment: { findFirst: async ({ where }) => comments.find((row) => row.discrepancyId === where.discrepancyId && row.authorUserId === where.authorUserId && row.clarificationDecisionId === where.clarificationDecisionId) ?? null },
-    auditLog: { create: async ({ data }) => { if (failAudit) throw new Error("audit write failed"); const row = { id: `${audits.length + 1}`, ...data }; audits.push(row); return row; } },
+    auditLog: {
+      findMany: async () => audits,
+      create: async ({ data }) => { if (failAudit) throw new Error("audit write failed"); const row = { id: `${audits.length + 1}`, createdAt: new Date(), ...data }; audits.push(row); return row; },
+    },
   };
   const db = {
     ...tx,
@@ -112,6 +119,21 @@ test("COD listing scopes the source-derived department and pagination", async ()
   await listCodAttendanceDiscrepancies({ userId: ids.user, page: 2, limit: 5, db: f.db });
   assert.equal(f.getWhere().OR.length, 3);
   assert.deepEqual(f.getWhere().OR[0].attendanceRecord.is.session.is.courseUnit.is.departmentId, { in: [ids.department] });
+});
+
+test("COD listing isolates recognized malformed rows and preserves source-count pagination", async () => {
+  const valid = makeFixture();
+  const malformed = makeFixture({ multipleSources: true }).item;
+  const f = makeFixture({ listItems: [valid.item, malformed] });
+  const result = await listCodAttendanceDiscrepancies({ userId: ids.user, page: 1, limit: 20, db: f.db });
+  assert.equal(result.items.length, 1);
+  assert.deepEqual(result.integrity, { skippedRecords: 1 });
+  assert.deepEqual(result.pagination, { page: 1, limit: 20, total: 2, totalPages: 1 });
+});
+
+test("COD listing propagates unexpected validation failures", async () => {
+  const f = makeFixture({ listItems: [makeFixture().item], validationFailure: new Error("unexpected lookup failure") });
+  await assert.rejects(listCodAttendanceDiscrepancies({ userId: ids.user, db: f.db }), /unexpected lookup failure/);
 });
 
 test("COD cannot retrieve a discrepancy outside currently authorized departments", async () => {
@@ -163,13 +185,12 @@ test("student-submitted discrepancy reaches COD only after assigned lecturer rev
   assert.equal(result.status, "CONFIRMED");
 });
 
-test("all five COD decisions persist explanation, actor, status transition and audit", async () => {
+test("four COD review decisions persist explanation, actor, status transition and audit", async () => {
   const outcomes = {
     CONFIRM_DISCREPANCY: "CONFIRMED",
     REJECT_DISCREPANCY: "REJECTED",
     REQUEST_CLARIFICATION: "CLARIFICATION_REQUESTED",
     RECOMMEND_CORRECTION: "CORRECTION_RECOMMENDED",
-    AUTHORIZE_ATTENDANCE_CORRECTION: "CORRECTION_AUTHORIZED",
   };
   for (const [decision, status] of Object.entries(outcomes)) {
     const f = makeFixture();
@@ -184,6 +205,107 @@ test("all five COD decisions persist explanation, actor, status transition and a
     assert.equal(f.audits[0].entityType, "AttendanceDiscrepancy");
     assert.deepEqual(f.item.attendanceRecord, sourceBefore);
   }
+});
+
+test("correction authorization follows a recommendation and records the authorized source status", async () => {
+  const f = makeFixture();
+  await recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "RECOMMEND_CORRECTION", explanation: "Recommend correcting the record", db: f.db });
+  const result = await recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "AUTHORIZE_ATTENDANCE_CORRECTION", explanation: "Authorized after review", db: f.db });
+  assert.equal(result.status, "CORRECTION_AUTHORIZED");
+  assert.equal(result.decision.previousStatus, "CORRECTION_RECOMMENDED");
+  assert.equal(result.decision.sourceStatusAtAuthorization, "PRESENT");
+  assert.equal(f.item.attendanceRecord.status, "PRESENT");
+  await assert.rejects(recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "AUTHORIZE_ATTENDANCE_CORRECTION", explanation: "Repeat", db: f.db }), { statusCode: 409 });
+});
+
+test("correction authorization before recommendation returns 409 without writes", async () => {
+  const f = makeFixture();
+  await assert.rejects(recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "AUTHORIZE_ATTENDANCE_CORRECTION", explanation: "Authorize", db: f.db }), { statusCode: 409 });
+  assert.equal(f.decisions.length, 0);
+  assert.equal(f.audits.length, 0);
+});
+
+const legacyAuthorization = { id: "99999999-9999-4999-8999-999999999998", discrepancyId: ids.discrepancy, actorUserId: ids.user, decision: "AUTHORIZE_ATTENDANCE_CORRECTION", previousStatus: "CORRECTION_RECOMMENDED", newStatus: "CORRECTION_AUTHORIZED", sourceStatusAtAuthorization: null, createdAt: new Date("2026-01-04T09:00:00Z") };
+const legacyRecommendation = { id: "99999999-9999-4999-8999-999999999997", discrepancyId: ids.discrepancy, actorUserId: ids.user, decision: "RECOMMEND_CORRECTION", previousStatus: "PENDING_COD_REVIEW", newStatus: "CORRECTION_RECOMMENDED", createdAt: new Date("2026-01-03T09:00:00Z") };
+const legacyAuthorizationAudit = { id: "legacy-audit", entityType: "AttendanceDiscrepancy", entityId: ids.discrepancy, actorId: ids.user, action: "COD_ATTENDANCE_DISCREPANCY_AUTHORIZE_ATTENDANCE_CORRECTION", metadata: { decisionId: legacyAuthorization.id }, createdAt: new Date("2026-01-04T09:00:01Z") };
+
+test("designated COD revalidates a legacy authorization with a fresh source snapshot and preserves original history", async () => {
+  const f = makeFixture({ status: "CORRECTION_AUTHORIZED", initialDecisions: [legacyRecommendation, legacyAuthorization], initialAuditEvents: [legacyAuthorizationAudit] });
+  const sourceBefore = structuredClone(f.item.attendanceRecord);
+  const result = await revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Freshly verified the session register", db: f.db });
+  assert.equal(result.decision.decision, "REVALIDATE_LEGACY_AUTHORIZATION");
+  assert.equal(result.decision.actorUserId, ids.user);
+  assert.equal(result.decision.revalidatesDecisionId, legacyAuthorization.id);
+  assert.equal(result.decision.sourceTypeAtAuthorization, "ATTENDANCE_RECORD");
+  assert.equal(result.decision.sourceIdAtAuthorization, f.item.attendanceRecord.id);
+  assert.equal(result.decision.sourceStatusAtAuthorization, "PRESENT");
+  assert.equal(f.decisions[1].id, legacyAuthorization.id);
+  assert.equal(f.decisions[1].sourceStatusAtAuthorization, null);
+  assert.deepEqual(f.item.attendanceRecord, sourceBefore);
+  assert.equal(f.audits[1].action, "COD_ATTENDANCE_CORRECTION_AUTHORIZATION_REVALIDATED");
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Repeat revalidation", db: f.db }), { statusCode: 409 });
+  assert.equal(f.decisions.length, 3);
+});
+
+test("COD revalidation rejects an unauthorized department without writing history", async () => {
+  const f = makeFixture({ status: "CORRECTION_AUTHORIZED", authorized: false, initialDecisions: [legacyRecommendation, legacyAuthorization], initialAuditEvents: [legacyAuthorizationAudit] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: f.db }), { statusCode: 404 });
+  assert.equal(f.decisions.length, 2);
+  assert.equal(f.audits.length, 1);
+});
+
+test("COD revalidation rejects an authorization that already has a source snapshot", async () => {
+  const f = makeFixture({ status: "CORRECTION_AUTHORIZED", initialDecisions: [legacyRecommendation, { ...legacyAuthorization, sourceStatusAtAuthorization: "PRESENT" }], initialAuditEvents: [legacyAuthorizationAudit] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: f.db }), { statusCode: 409 });
+  assert.equal(f.decisions.length, 2);
+});
+
+test("COD revalidation rejects a legacy decision without matching original audit history", async () => {
+  const f = makeFixture({ status: "CORRECTION_AUTHORIZED", initialDecisions: [legacyRecommendation, legacyAuthorization] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: f.db }), { statusCode: 409 });
+  assert.equal(f.decisions.length, 2);
+  assert.equal(f.audits.length, 0);
+});
+
+test("COD revalidation rejects missing and non-session sources", async () => {
+  const missing = makeFixture({ status: "CORRECTION_AUTHORIZED", multipleSources: true, initialDecisions: [legacyRecommendation, legacyAuthorization], initialAuditEvents: [legacyAuthorizationAudit] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: missing.db }), { statusCode: 409 });
+  const noSource = makeFixture({ sourceType: "none", status: "CORRECTION_AUTHORIZED", initialDecisions: [legacyRecommendation, legacyAuthorization], initialAuditEvents: [legacyAuthorizationAudit] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: noSource.db }), { statusCode: 409 });
+  const nonSession = makeFixture({ status: "CORRECTION_AUTHORIZED", sourceType: "assessment", initialDecisions: [legacyRecommendation, legacyAuthorization], initialAuditEvents: [legacyAuthorizationAudit] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: nonSession.db }), { statusCode: 409 });
+  assert.equal(nonSession.decisions.length, 2);
+});
+
+test("COD revalidation audit failure rolls back only the new decision and preserves the legacy authorization", async () => {
+  const f = makeFixture({ status: "CORRECTION_AUTHORIZED", failAudit: true, initialDecisions: [legacyRecommendation, legacyAuthorization], initialAuditEvents: [legacyAuthorizationAudit] });
+  await assert.rejects(revalidateLegacyAttendanceCorrectionAuthorization({ userId: ids.user, discrepancyId: ids.discrepancy, explanation: "Revalidate", db: f.db }), /audit write failed/);
+  assert.equal(f.decisions.length, 2);
+  assert.equal(f.decisions[1].id, legacyAuthorization.id);
+  assert.equal(f.item.status, "CORRECTION_AUTHORIZED");
+  assert.equal(f.audits.length, 1);
+  assert.equal(f.audits[0].id, legacyAuthorizationAudit.id);
+});
+
+test("correction recommendations and authorization are rejected for assessment and attempt sources", async () => {
+  for (const sourceType of ["assessment", "attempt"]) {
+    const f = makeFixture({ sourceType });
+    await assert.rejects(recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "RECOMMEND_CORRECTION", explanation: "Recommend correction", db: f.db }), { statusCode: 409 });
+    assert.equal(f.decisions.length, 0);
+  }
+});
+
+test("terminal discrepancies reject additional COD decisions", async () => {
+  const f = makeFixture({ status: "CONFIRMED" });
+  await assert.rejects(recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "REJECT_DISCREPANCY", explanation: "Repeat", db: f.db }), { statusCode: 409 });
+  assert.equal(f.decisions.length, 0);
+});
+
+test("conditional discrepancy updates reject concurrent COD decisions", async () => {
+  const f = makeFixture({ updateCount: 0 });
+  await assert.rejects(recordCodAttendanceDiscrepancyDecision({ userId: ids.user, discrepancyId: ids.discrepancy, decision: "CONFIRM_DISCREPANCY", explanation: "Confirm", db: f.db }), { statusCode: 409 });
+  assert.equal(f.decisions.length, 0);
+  assert.equal(f.audits.length, 0);
 });
 
 test("a response linked to the latest clarification decision permits a later COD decision", async () => {

@@ -5,6 +5,7 @@ import { getDashboardOverview, listAuditLogs, listReportSummaries, listSettings,
 import { exportAuditLogs, exportReportSummaries } from "./export.service.js";
 import { toCsv } from "./csv.js";
 import { reopenReport, reassignReport } from "./maintenance.service.js";
+import { applyAuthorizedAttendanceCorrection } from "./attendance-correction.service.js";
 
 export async function getUsers(req, res, next) {
 	try {
@@ -73,6 +74,13 @@ export async function reopenAdminReport(req, res, next) {
 
 export async function reassignAdminReport(req, res, next) {
 	try { return sendSuccess(res, "Report reassigned successfully", await reassignReport({ db: req.app.locals.prisma, actorUserId: req.user.id, reportId: req.params.reportId, ...req.body })); } catch (error) { return next(error); }
+}
+
+export async function applyAttendanceCorrection(req, res, next) {
+	try {
+		const correction = await applyAuthorizedAttendanceCorrection({ db: req.app.locals.prisma, administratorUserId: req.user.id, ...req.body });
+		return sendSuccess(res, "Authorized attendance correction applied successfully", correction, 201);
+	} catch (error) { return next(error); }
 }
 
 const handleList = (method, message) => async (req, res, next) => {

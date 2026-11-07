@@ -9,10 +9,12 @@ import {
 	updateCourseUnit, updateDepartment, updateAcademicPeriod, createUser, getUsers, updateUser,
 	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports, getDashboard, reopenAdminReport, reassignAdminReport,
 	addDepartmentMember, removeDepartmentMember, getUser,
+  applyAttendanceCorrection,
 } from "./admin.controller.js";
 import { createUserBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
 import * as validation from "./academic.validation.js";
 import * as operationsValidation from "./operations.validation.js";
+import { attendanceCorrectionBodySchema } from "./attendance-correction.validation.js";
 
 const router = Router();
 
@@ -58,5 +60,6 @@ router.get("/audit-logs", validate(operationsValidation.auditLogQuery, "query"),
 router.get("/audit-logs/export", validate(operationsValidation.auditExportQuery, "query"), exportAuditLogRecords);
 router.post("/reports/:reportId/reopen", validate(operationsValidation.maintenanceReportParams, "params"), validate(operationsValidation.reopenReportBody), reopenAdminReport);
 router.post("/reports/:reportId/reassign", validate(operationsValidation.maintenanceReportParams, "params"), validate(operationsValidation.reassignReportBody), reassignAdminReport);
+router.post("/attendance-corrections", validate(attendanceCorrectionBodySchema), applyAttendanceCorrection);
 
 export default router;

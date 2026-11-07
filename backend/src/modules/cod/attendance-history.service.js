@@ -1,5 +1,6 @@
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../shared/utils/app-error.js";
+import { getAuthorizedCodAttendanceDiscrepancy } from "./attendance-discrepancy.service.js";
 import { getAuthorizedDepartmentIds } from "./cod.service.js";
 
 function dateRange(from, to, field) {
@@ -95,7 +96,7 @@ export async function getCodAttendanceRecordHistory({ userId, recordId, db = pri
     where: { id: recordId, session: { is: { courseUnit: { is: { departmentId: { in: departments } } } } } },
     select: { id: true, session: { select: { courseUnit: { select: { id: true, departmentId: true } } } },
       history: { select: { id: true, courseUnitCode: true, courseUnitName: true, sessionStartedAt: true, status: true, locationVerified: true, signedAt: true, createdAt: true } },
-      corrections: { select: { id: true, originalStatus: true, correctedStatus: true, reason: true, createdAt: true, lecturer: { select: { id: true, staffNumber: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
+      corrections: { select: { id: true, originalStatus: true, correctedStatus: true, reason: true, createdAt: true, lecturer: { select: { id: true, staffNumber: true } }, administrator: { select: { id: true, displayName: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] },
     },
   });
   if (!record) throw new AppError(404, "Attendance record not found");
@@ -103,65 +104,29 @@ export async function getCodAttendanceRecordHistory({ userId, recordId, db = pri
 }
 
 export async function listCodAttendanceDiscrepancyAudit({ userId, discrepancyId, db = prisma }) {
-  const departments = await getScope(db, userId);
-  const item = await db.attendanceDiscrepancy.findFirst({
+  const { item } = await getAuthorizedCodAttendanceDiscrepancy({ userId, discrepancyId, db });
+  const events = await db.auditLog.findMany({
     where: {
-      id: discrepancyId,
+      entityType: "AttendanceDiscrepancy",
+      entityId: item.id,
       OR: [
-        {
-          attendanceRecord: { is: {
-            session: { is: {
-              courseUnit: { is: { departmentId: { in: departments } } },
-            } },
-          } },
-        },
-        {
-          assessmentRecord: { is: {
-            assessment: { is: {
-              courseUnit: { is: { departmentId: { in: departments } } },
-            } },
-          } },
-        },
-        {
-          attendanceAttempt: { is: {
-            session: { is: {
-              courseUnit: { is: { departmentId: { in: departments } } },
-            } },
-          } },
-        },
+        { action: { startsWith: "COD_ATTENDANCE_DISCREPANCY_" } },
+        { action: "ADMIN_ATTENDANCE_CORRECTION_APPLIED" },
       ],
     },
-    select: {
-      id: true,
-      studentProfileId: true,
-      attendanceRecordId: true,
-      assessmentAttendanceId: true,
-      attendanceAttemptId: true,
-      attendanceRecord: { select: { studentProfileId: true } },
-      assessmentRecord: { select: { studentProfileId: true } },
-      attendanceAttempt: { select: { studentProfileId: true } },
-    },
-  });
-  if (!item) throw new AppError(404, "Attendance discrepancy not found");
-  const sources = [
-    [item.attendanceRecordId, item.attendanceRecord],
-    [item.assessmentAttendanceId, item.assessmentRecord],
-    [item.attendanceAttemptId, item.attendanceAttempt],
-  ].filter(([sourceId]) => sourceId);
-  if (sources.length !== 1 || !sources[0][1] || sources[0][1].studentProfileId !== item.studentProfileId) {
-    throw new AppError(404, "Attendance discrepancy not found");
-  }
-  const events = await db.auditLog.findMany({
-    where: { entityType: "AttendanceDiscrepancy", entityId: item.id, action: { startsWith: "COD_ATTENDANCE_DISCREPANCY_" } },
     select: { id: true, action: true, actorId: true, createdAt: true, metadata: true },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
-  return events.map(({ id, action, actorId, createdAt, metadata }) => ({
+  return events.filter(({ action }) => action.startsWith("COD_ATTENDANCE_DISCREPANCY_") || action === "ADMIN_ATTENDANCE_CORRECTION_APPLIED").map(({ id, action, actorId, createdAt, metadata }) => ({
     id, action, actorId, createdAt,
     metadata: metadata && typeof metadata === "object" ? {
       ...(metadata.decisionId != null ? { decisionId: metadata.decisionId } : {}),
       ...(metadata.previousStatus != null ? { previousStatus: metadata.previousStatus } : {}),
       ...(metadata.newStatus != null ? { newStatus: metadata.newStatus } : {}),
+      ...(action === "ADMIN_ATTENDANCE_CORRECTION_APPLIED" && metadata.attendanceCorrectionId != null ? { attendanceCorrectionId: metadata.attendanceCorrectionId } : {}),
+      ...(action === "ADMIN_ATTENDANCE_CORRECTION_APPLIED" && metadata.attendanceRecordId != null ? { attendanceRecordId: metadata.attendanceRecordId } : {}),
+      ...(action === "ADMIN_ATTENDANCE_CORRECTION_APPLIED" && metadata.originalStatus != null ? { originalStatus: metadata.originalStatus } : {}),
+      ...(action === "ADMIN_ATTENDANCE_CORRECTION_APPLIED" && metadata.correctedStatus != null ? { correctedStatus: metadata.correctedStatus } : {}),
     } : {},
   }));
 }

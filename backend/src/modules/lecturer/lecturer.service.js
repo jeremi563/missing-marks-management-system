@@ -1,6 +1,8 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { recordAuditEvent } from '../../shared/services/audit.service.js';
+import { AppError } from '../../shared/utils/app-error.js';
+import { loadAttendanceDiscrepancySource } from '../../shared/services/attendance-discrepancy-source.service.js';
 export const getAssignedReports = async (
   prisma,
   lecturerUserId,
@@ -1231,3 +1233,124 @@ export const getAttendanceSessionRecords = async (
     orderBy: { recordedAt: 'desc' },
   });
 };
+
+async function getDiscrepancyLecturer(db, userId) {
+	const lecturer = await db.lecturerProfile.findUnique({ where: { userId }, select: { id: true } });
+	if (!lecturer) throw new AppError(404, "Lecturer profile not found");
+	return lecturer;
+}
+
+export async function createLecturerAttendanceDiscrepancy(db, userId, input) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const context = await loadAttendanceDiscrepancySource(db, input);
+	if (context.assignedLecturerProfileId !== lecturer.id) throw new AppError(404, "Attendance source not found");
+	const assignment = await db.courseUnitLecturer.findUnique({ where: { courseUnitId_lecturerProfileId: { courseUnitId: context.courseUnitId, lecturerProfileId: lecturer.id } }, select: { id: true } });
+	if (!assignment) throw new AppError(404, "Attendance source not found");
+	try {
+	return await db.$transaction(async (tx) => {
+		const discrepancy = await tx.attendanceDiscrepancy.create({
+			data: {
+				studentProfileId: context.source.studentProfileId,
+				attendanceRecordId: input.attendanceRecordId ?? null,
+				assessmentAttendanceId: input.assessmentAttendanceId ?? null,
+				attendanceAttemptId: input.attendanceAttemptId ?? null,
+				assignedLecturerProfileId: lecturer.id,
+				description: input.description.trim(),
+				status: "PENDING_COD_REVIEW",
+				submittedByUserId: userId,
+				submitterType: "LECTURER",
+			},
+			select: { id: true, status: true, description: true, createdAt: true },
+		});
+		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: "LECTURER_ATTENDANCE_DISCREPANCY_SUBMITTED", entityType: "AttendanceDiscrepancy", entityId: discrepancy.id, metadata: { sourceType: context.sourceType } });
+		return discrepancy;
+	});
+	} catch (error) {
+		const target = (Array.isArray(error?.meta?.target) ? error.meta.target.join(" ") : String(error?.meta?.target ?? "")).toLowerCase();
+		const hasStudent = target.includes("student_profile_id") || target.includes("studentprofileid");
+		const hasSource = ["attendance_record_id", "assessment_attendance_id", "attendance_attempt_id", "attendancerecordid", "assessmentattendanceid", "attendanceattemptid"].some((field) => target.includes(field));
+		if (error?.code === "P2002" && (target.includes("attendance_discrepancies_active_") || (hasStudent && hasSource))) {
+			throw new AppError(409, "An active attendance discrepancy already exists for this student and source");
+		}
+		throw error;
+	}
+}
+
+export async function listLecturerAttendanceDiscrepancies(db, userId, { page = 1, limit = 20 } = {}) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const where = { OR: [
+		{ assignedLecturerProfileId: lecturer.id, status: "PENDING_LECTURER_REVIEW" },
+		{ submittedByUserId: userId, submitterType: "LECTURER", status: "CLARIFICATION_REQUESTED" },
+	] };
+	const [items, total] = await db.$transaction([
+		db.attendanceDiscrepancy.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (page - 1) * limit, take: limit, select: { id: true, studentProfileId: true, attendanceRecordId: true, assessmentAttendanceId: true, attendanceAttemptId: true, assignedLecturerProfileId: true, description: true, status: true, submitterType: true, createdAt: true } }),
+		db.attendanceDiscrepancy.count({ where }),
+	]);
+	return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+}
+
+export async function getLecturerAttendanceDiscrepancy(db, userId, discrepancyId) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const item = await db.attendanceDiscrepancy.findFirst({
+		where: {
+			id: discrepancyId,
+			OR: [
+				{ assignedLecturerProfileId: lecturer.id, status: "PENDING_LECTURER_REVIEW" },
+				{ submittedByUserId: userId, submitterType: "LECTURER", assignedLecturerProfileId: lecturer.id, status: "CLARIFICATION_REQUESTED" },
+			],
+		},
+		select: {
+			id: true, studentProfileId: true, attendanceRecordId: true, assessmentAttendanceId: true, attendanceAttemptId: true,
+			description: true, status: true, createdAt: true,
+			attendanceRecord: { select: { id: true, status: true, locationVerified: true, recordedAt: true, session: { select: { id: true, startsAt: true, courseUnit: { select: { id: true, code: true, name: true } } } } } },
+			assessmentRecord: { select: { id: true, status: true, recordedAt: true, assessment: { select: { id: true, code: true, name: true, assessmentDate: true, courseUnit: { select: { id: true, code: true, name: true } } } } } },
+			attendanceAttempt: { select: { id: true, outcome: true, failureReason: true, occurredAt: true, session: { select: { id: true, startsAt: true, courseUnit: { select: { id: true, code: true, name: true } } } } } },
+		},
+	});
+	if (!item) throw new AppError(404, "Attendance discrepancy not found");
+	return item;
+}
+
+export async function reviewStudentAttendanceDiscrepancy(db, userId, discrepancyId, { decision, explanation }) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	return db.$transaction(async (tx) => {
+		const item = await tx.attendanceDiscrepancy.findUnique({ where: { id: discrepancyId }, select: { id: true, studentProfileId: true, attendanceRecordId: true, assessmentAttendanceId: true, attendanceAttemptId: true, assignedLecturerProfileId: true, submitterType: true, status: true } });
+		if (!item || item.assignedLecturerProfileId !== lecturer.id || item.submitterType !== "STUDENT") throw new AppError(404, "Attendance discrepancy not found");
+		if (item.status !== "PENDING_LECTURER_REVIEW") throw new AppError(409, "This discrepancy is no longer awaiting lecturer review");
+		const context = await loadAttendanceDiscrepancySource(tx, { ...item, studentProfileId: item.studentProfileId });
+		if (context.assignedLecturerProfileId !== lecturer.id) throw new AppError(404, "Attendance discrepancy not found");
+		const forward = decision === "FORWARD_TO_COD";
+		const newStatus = forward ? "PENDING_COD_REVIEW" : "LECTURER_REJECTED";
+		const now = new Date();
+		const updated = await tx.attendanceDiscrepancy.updateMany({ where: { id: item.id, status: item.status, assignedLecturerProfileId: lecturer.id }, data: { status: newStatus, lecturerReviewedByProfileId: lecturer.id, lecturerReviewedAt: now, resolution: forward ? null : explanation.trim() } });
+		if (updated.count !== 1) throw new AppError(409, "Discrepancy state changed; reload before reviewing");
+		const decisionRecord = await tx.attendanceDiscrepancyDecision.create({ data: { discrepancyId: item.id, actorUserId: userId, decision: forward ? "LECTURER_FORWARD" : "LECTURER_REJECT", explanation: explanation.trim(), previousStatus: item.status, newStatus } });
+		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: `LECTURER_ATTENDANCE_DISCREPANCY_${decision}`, entityType: "AttendanceDiscrepancy", entityId: item.id, metadata: { decisionId: decisionRecord.id, previousStatus: item.status, newStatus } });
+		return { discrepancyId: item.id, status: newStatus, decision: decisionRecord };
+	});
+}
+
+export async function respondToLecturerAttendanceDiscrepancy(db, userId, discrepancyId, body) {
+	try {
+	return await db.$transaction(async (tx) => {
+		const lecturer = await getDiscrepancyLecturer(tx, userId);
+		const item = await tx.attendanceDiscrepancy.findFirst({ where: { id: discrepancyId, submittedByUserId: userId, submitterType: "LECTURER", assignedLecturerProfileId: lecturer.id }, select: { id: true, status: true } });
+		if (!item) throw new AppError(404, "Attendance discrepancy not found");
+		if (item.status !== "CLARIFICATION_REQUESTED") throw new AppError(409, "This discrepancy is not awaiting clarification");
+		const request = await tx.attendanceDiscrepancyDecision.findFirst({ where: { discrepancyId: item.id, decision: "REQUEST_CLARIFICATION" }, orderBy: { createdAt: "desc" }, select: { id: true } });
+		if (!request) throw new AppError(409, "No clarification request is available to answer");
+		const previousResponse = await tx.attendanceDiscrepancyComment.findFirst({ where: { discrepancyId: item.id, clarificationDecisionId: request.id, authorUserId: userId }, select: { id: true } });
+		if (previousResponse) throw new AppError(409, "The latest clarification request has already been answered");
+		const comment = await tx.attendanceDiscrepancyComment.create({ data: { discrepancyId: item.id, authorUserId: userId, clarificationDecisionId: request.id, body: body.trim() }, select: { id: true, discrepancyId: true, clarificationDecisionId: true, body: true, createdAt: true } });
+		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: "LECTURER_ATTENDANCE_DISCREPANCY_CLARIFICATION", entityType: "AttendanceDiscrepancy", entityId: item.id, metadata: { clarificationDecisionId: request.id, commentId: comment.id } });
+		return comment;
+	});
+	} catch (error) {
+		const target = (Array.isArray(error?.meta?.target) ? error.meta.target.join(" ") : String(error?.meta?.target ?? "")).toLowerCase();
+		if (error?.code === "P2002" && (target.includes("attendance_discrepancy_comments_clarification_author_key") ||
+			((target.includes("clarification_decision_id") || target.includes("clarificationdecisionid")) && (target.includes("author_user_id") || target.includes("authoruserid"))))) {
+			throw new AppError(409, "The clarification request has already been answered");
+		}
+		throw error;
+	}
+}
