@@ -57,6 +57,7 @@ test("replacement COD can list and decide existing unresolved departmental appea
 	assert.equal(calls.notifications, 1);
 	let appealWhere;
 	const listDb = {
+		departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
 		department: { findMany: async ({ where }) => { assert.equal(where.designatedCodUserId, "cod-new"); return [{ id: "dept-1" }]; } },
 		user: { findFirst: async ({ where }) => ({ id: where.id }) },
 		appeal: {
@@ -154,6 +155,7 @@ function replacementCaseDb() {
 	};
 	const db = {
 		$transaction: (callback) => callback(tx),
+		departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
 		department: { findMany: async ({ where }) => where.designatedCodUserId === designatedCodUserId ? [{ id: "dept-1" }] : [] },
 		user,
 		specialCase,

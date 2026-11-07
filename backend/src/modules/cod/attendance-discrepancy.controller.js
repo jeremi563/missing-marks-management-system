@@ -3,6 +3,7 @@ import {
   getCodAttendanceDiscrepancy,
   listCodAttendanceDiscrepancies,
   listCodAttendanceDiscrepancyDecisions,
+  revalidateLegacyAttendanceCorrectionAuthorization,
   recordCodAttendanceDiscrepancyDecision,
 } from "./attendance-discrepancy.service.js";
 
@@ -42,5 +43,16 @@ export async function postCodAttendanceDiscrepancyDecision(req, res, next) {
       explanation: req.body.explanation,
     });
     return sendSuccess(res, "Attendance discrepancy decision recorded successfully", result, 201);
+  } catch (error) { return next(error); }
+}
+
+export async function postCodLegacyAttendanceRevalidation(req, res, next) {
+  try {
+    const result = await revalidateLegacyAttendanceCorrectionAuthorization({
+      userId: req.user.id,
+      discrepancyId: req.params.id,
+      explanation: req.body.explanation,
+    });
+    return sendSuccess(res, "Legacy attendance correction authorization revalidated successfully", result, 201);
   } catch (error) { return next(error); }
 }

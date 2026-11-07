@@ -5,6 +5,7 @@ import { recordAuditEvent } from "./audit.service.js";
 import { createNotification } from "./notification.service.js";
 import { enqueueNotificationOnce } from "./notification-outbox.service.js";
 import { lockDepartmentForReview } from "./department-review-lock.service.js";
+import { getDesignatedCodDepartmentIds, isActiveCodDepartmentMember } from "./designated-cod-authorization.service.js";
 
 const PAGE_DEFAULT = 1;
 const LIMIT_DEFAULT = 20;
@@ -34,19 +35,8 @@ async function reportContext(db, reportId) {
 	return report;
 }
 
-async function requireDesignatedCod(db, userId, reportId) {
-	const report = await reportContext(db, reportId);
-	if (report.courseUnit.department.designatedCodUserId !== userId) throw new AppError(403, "You are not the designated COD for this report's department");
-	return report;
-}
-
 async function validDesignatedCod(db, departmentId, userId) {
-	if (!userId) return false;
-	const user = await db.user.findFirst({
-		where: { id: userId, isActive: true, roles: { some: { role: { name: "cod" } } }, departmentMemberships: { some: { departmentId } } },
-		select: { id: true },
-	});
-	return Boolean(user);
+	return isActiveCodDepartmentMember(db, userId, departmentId);
 }
 
 async function requireValidDepartmentCod(db, department) {
@@ -57,10 +47,7 @@ async function requireValidDepartmentCod(db, department) {
 }
 
 async function validDesignatedDepartmentIds(db, userId) {
-	const departments = await db.department.findMany({ where: { designatedCodUserId: userId }, select: { id: true } });
-	const valid = [];
-	for (const department of departments) if (await validDesignatedCod(db, department.id, userId)) valid.push(department.id);
-	return valid;
+	return getDesignatedCodDepartmentIds(db, userId);
 }
 
 async function requireValidDesignatedCodForReport(db, userId, department) {

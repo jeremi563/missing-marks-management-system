@@ -31,8 +31,16 @@ import {
   createAttendanceSessionSchema,
   attendanceSessionIdSchema
 } from './lecturer.validation.js';
+import { createLecturerDiscrepancy, getLecturerDiscrepancy, getLecturerDiscrepancies, reviewLecturerDiscrepancy, respondLecturerDiscrepancy } from './attendance-discrepancy.controller.js';
+import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema, createAttendanceDiscrepancySchema, reviewAttendanceDiscrepancySchema } from './lecturer.validation.js';
 
 const router = express.Router();
+
+router.post('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(createAttendanceDiscrepancySchema), createLecturerDiscrepancy);
+router.get('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyListQuerySchema, 'query'), getLecturerDiscrepancies);
+router.get('/attendance-discrepancies/:id', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyParamsSchema, 'params'), getLecturerDiscrepancy);
+router.post('/attendance-discrepancies/:id/review', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyParamsSchema, 'params'), validate(reviewAttendanceDiscrepancySchema), reviewLecturerDiscrepancy);
+router.post('/attendance-discrepancies/:id/clarifications', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyParamsSchema, 'params'), validate(createCommentSchema), respondLecturerDiscrepancy);
 
 router.get('/assessment-types', authenticate, authorize('lecturer'), getAssessmentTypes);
 

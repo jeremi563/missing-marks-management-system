@@ -3,6 +3,9 @@ import { addWorkingDays } from "../../shared/utils/business-days.js";
 import { enqueueNotificationOnce } from "../../shared/services/notification-outbox.service.js";
 import { lockDepartmentForReview } from "../../shared/services/department-review-lock.service.js";
 import { getSystemSettingValue } from "../../shared/services/system-settings.service.js";
+import { AppError } from "../../shared/utils/app-error.js";
+import { recordAuditEvent } from "../../shared/services/audit.service.js";
+import { loadAttendanceDiscrepancySource } from "../../shared/services/attendance-discrepancy-source.service.js";
 
 export async function getStudentProfile(prisma, userId) {
 	const profile = await prisma.studentProfile.findUnique({
@@ -230,6 +233,103 @@ export async function addStudentClarification(prisma, userId, reportId, body) {
 			author: { select: { id: true, displayName: true } },
 		},
 	});
+}
+
+export async function createStudentAttendanceDiscrepancy(db, userId, input) {
+	const student = await db.studentProfile.findUnique({ where: { userId }, select: { id: true } });
+	if (!student) throw new AppError(404, "Student profile not found");
+	try {
+	return await db.$transaction(async (tx) => {
+		const context = await loadAttendanceDiscrepancySource(tx, { ...input, studentProfileId: student.id });
+		const discrepancy = await tx.attendanceDiscrepancy.create({
+			data: {
+				studentProfileId: student.id,
+				attendanceRecordId: input.attendanceRecordId ?? null,
+				assessmentAttendanceId: input.assessmentAttendanceId ?? null,
+				attendanceAttemptId: input.attendanceAttemptId ?? null,
+				assignedLecturerProfileId: context.assignedLecturerProfileId,
+				description: input.description.trim(),
+				status: "PENDING_LECTURER_REVIEW",
+				submittedByUserId: userId,
+				submitterType: "STUDENT",
+			},
+			select: { id: true, status: true, description: true, createdAt: true, assignedLecturerProfileId: true },
+		});
+		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: "STUDENT_ATTENDANCE_DISCREPANCY_SUBMITTED", entityType: "AttendanceDiscrepancy", entityId: discrepancy.id, metadata: { sourceType: context.sourceType } });
+		return discrepancy;
+	});
+	} catch (error) {
+		const target = (Array.isArray(error?.meta?.target) ? error.meta.target.join(" ") : String(error?.meta?.target ?? "")).toLowerCase();
+		const hasStudent = target.includes("student_profile_id") || target.includes("studentprofileid");
+		const hasSource = ["attendance_record_id", "assessment_attendance_id", "attendance_attempt_id", "attendancerecordid", "assessmentattendanceid", "attendanceattemptid"].some((field) => target.includes(field));
+		if (error?.code === "P2002" && (target.includes("attendance_discrepancies_active_") || (hasStudent && hasSource))) {
+			throw new AppError(409, "An active attendance discrepancy already exists for this student and source");
+		}
+		throw error;
+	}
+}
+
+export async function listStudentAttendanceDiscrepancies(db, userId, { page = 1, limit = 10 } = {}) {
+	const student = await db.studentProfile.findUnique({ where: { userId }, select: { id: true } });
+	if (!student) throw new AppError(404, "Student profile not found");
+	const where = { studentProfileId: student.id, submittedByUserId: userId, submitterType: "STUDENT" };
+	const [items, total] = await db.$transaction([
+		db.attendanceDiscrepancy.findMany({ where, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (page - 1) * limit, take: limit, select: { id: true, attendanceRecordId: true, assessmentAttendanceId: true, attendanceAttemptId: true, description: true, status: true, resolution: true, createdAt: true, updatedAt: true } }),
+		db.attendanceDiscrepancy.count({ where }),
+	]);
+	return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+}
+
+export async function getStudentAttendanceDiscrepancy(db, userId, discrepancyId) {
+	const student = await db.studentProfile.findUnique({ where: { userId }, select: { id: true } });
+	if (!student) throw new AppError(404, "Attendance discrepancy not found");
+	const item = await db.attendanceDiscrepancy.findFirst({
+		where: { id: discrepancyId, studentProfileId: student.id, submittedByUserId: userId, submitterType: "STUDENT" },
+		select: {
+			id: true, attendanceRecordId: true, assessmentAttendanceId: true, attendanceAttemptId: true,
+			description: true, status: true, resolution: true, createdAt: true, updatedAt: true,
+			decisions: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, decision: true, explanation: true, previousStatus: true, newStatus: true, createdAt: true } },
+			comments: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, clarificationDecisionId: true, body: true, createdAt: true } },
+		},
+	});
+	if (!item) throw new AppError(404, "Attendance discrepancy not found");
+	return item;
+}
+
+export async function respondToStudentAttendanceDiscrepancy(db, userId, discrepancyId, body) {
+	try {
+	return await db.$transaction(async (tx) => {
+		const student = await tx.studentProfile.findUnique({ where: { userId }, select: { id: true } });
+		if (!student) throw new AppError(404, "Attendance discrepancy not found");
+		const item = await tx.attendanceDiscrepancy.findFirst({
+			where: { id: discrepancyId, studentProfileId: student.id, submittedByUserId: userId, submitterType: "STUDENT" },
+			select: { id: true, status: true },
+		});
+		if (!item) throw new AppError(404, "Attendance discrepancy not found");
+		if (item.status !== "CLARIFICATION_REQUESTED") throw new AppError(409, "This discrepancy is not awaiting clarification");
+		const request = await tx.attendanceDiscrepancyDecision.findFirst({
+			where: { discrepancyId: item.id, decision: "REQUEST_CLARIFICATION" },
+			orderBy: { createdAt: "desc" },
+			select: { id: true },
+		});
+		if (!request) throw new AppError(409, "No clarification request is available to answer");
+		const previousResponse = await tx.attendanceDiscrepancyComment.findFirst({ where: { discrepancyId: item.id, clarificationDecisionId: request.id, authorUserId: userId }, select: { id: true } });
+		if (previousResponse) throw new AppError(409, "The latest clarification request has already been answered");
+		const comment = await tx.attendanceDiscrepancyComment.create({
+			data: { discrepancyId: item.id, authorUserId: userId, clarificationDecisionId: request.id, body: body.trim() },
+			select: { id: true, discrepancyId: true, clarificationDecisionId: true, body: true, createdAt: true },
+		});
+		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: "STUDENT_ATTENDANCE_DISCREPANCY_CLARIFICATION", entityType: "AttendanceDiscrepancy", entityId: item.id, metadata: { clarificationDecisionId: request.id, commentId: comment.id } });
+		return comment;
+	});
+	} catch (error) {
+		const target = (Array.isArray(error?.meta?.target) ? error.meta.target.join(" ") : String(error?.meta?.target ?? "")).toLowerCase();
+		if (error?.code === "P2002" && (target.includes("attendance_discrepancy_comments_clarification_author_key") ||
+			((target.includes("clarification_decision_id") || target.includes("clarificationdecisionid")) && (target.includes("author_user_id") || target.includes("authoruserid"))))) {
+			throw new AppError(409, "The clarification request has already been answered");
+		}
+		throw error;
+	}
 }
 
 export async function submitStudentAppeal(prisma, userId, reportId, input = {}) {

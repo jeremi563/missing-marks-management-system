@@ -38,6 +38,7 @@ model User {
   specialCaseDecisions            SpecialCase[]                 @relation("SpecialCaseDecisionActor")
   managedSpecialCaseCategories  SpecialCaseCategory[]         @relation("SpecialCaseCategoryManager")
   managedPublicHolidays         PublicHoliday[]               @relation("PublicHolidayManager")
+  administeredAttendanceCorrections AttendanceCorrection[] @relation("AdminAttendanceCorrectionActor")
 
   @@map("users")
 }
@@ -454,14 +455,18 @@ model AttendanceHistory {
 model AttendanceCorrection {
   id                 String   @id @default(uuid()) @db.Uuid
   attendanceRecordId String   @map("attendance_record_id") @db.Uuid
-  lecturerProfileId  String   @map("lecturer_profile_id") @db.Uuid
+  lecturerProfileId  String?  @map("lecturer_profile_id") @db.Uuid
+  administratorUserId String? @map("administrator_user_id") @db.Uuid
+  discrepancyDecisionId String? @unique @map("discrepancy_decision_id") @db.Uuid
   originalStatus     String   @map("original_status")
   correctedStatus    String   @map("corrected_status")
   reason             String
   createdAt          DateTime @default(now()) @map("created_at")
 
   attendanceRecord AttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Restrict)
-  lecturer         LecturerProfile  @relation("CorrectionActor", fields: [lecturerProfileId], references: [id], onDelete: Restrict)
+  lecturer         LecturerProfile? @relation("CorrectionActor", fields: [lecturerProfileId], references: [id], onDelete: Restrict)
+  administrator    User?            @relation("AdminAttendanceCorrectionActor", fields: [administratorUserId], references: [id], onDelete: Restrict)
+  discrepancyDecision AttendanceDiscrepancyDecision? @relation(fields: [discrepancyDecisionId], references: [id], onDelete: Restrict)
 
   @@index([attendanceRecordId, createdAt])
   @@map("attendance_corrections")
@@ -622,6 +627,7 @@ model AttendanceDiscrepancyComment {
 
   @@index([discrepancyId, createdAt])
     @@index([clarificationDecisionId])
+  @@unique([clarificationDecisionId, authorUserId], map: "attendance_discrepancy_comments_clarification_author_key")
   @@map("attendance_discrepancy_comments")
 }
 
@@ -633,11 +639,18 @@ model AttendanceDiscrepancyDecision {
   explanation   String
   previousStatus String?  @map("previous_status")
   newStatus      String   @map("new_status")
+  sourceStatusAtAuthorization String? @map("source_status_at_authorization")
+  sourceTypeAtAuthorization String? @map("source_type_at_authorization")
+  sourceIdAtAuthorization String? @map("source_id_at_authorization") @db.Uuid
+  revalidatesDecisionId String? @unique(map: "attendance_discrepancy_decisions_revalidates_decision_id_key") @map("revalidates_decision_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at")
 
   discrepancy AttendanceDiscrepancy @relation(fields: [discrepancyId], references: [id], onDelete: Restrict)
   actor       User                  @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  revalidates AttendanceDiscrepancyDecision? @relation("LegacyAuthorizationRevalidation", fields: [revalidatesDecisionId], references: [id], onDelete: Restrict)
+  revalidations AttendanceDiscrepancyDecision[] @relation("LegacyAuthorizationRevalidation")
     clarificationResponses AttendanceDiscrepancyComment[] @relation("ClarificationDecisionResponses")
+  attendanceCorrection AttendanceCorrection?
 
   @@index([discrepancyId, createdAt])
   @@index([actorUserId, createdAt])

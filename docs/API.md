@@ -2,9 +2,9 @@
 
 ## 1. Purpose and status
 
-This document defines the initial REST API conventions and proposed role-based route layout. The routes below are starting points for team discussion; they are not final until the team confirms request bodies, response fields, permissions and workflow rules.
+This document records the REST API conventions and the currently implemented role-based routes. Routes and workflow details are described in their module sections below; open decisions are identified where they still apply.
 
-The shared Express application now implements the health endpoint and the initial authentication contract below. Role-module routes remain proposals until their owners finalize resource payloads and permissions.
+The shared Express application implements the health endpoint and authentication contract below. The role-module routes listed in this document are implemented; individual sections describe their request, response and authorization behavior.
 
 ## 2. Base path
 
@@ -339,6 +339,16 @@ The attendance session creation response additionally provides the generated QR 
 | POST | `/api/v1/cod/reports/:id/decision` | Record final approval or rejection of an escalated report; body contains `decision` (`APPROVE` or `REJECT`) and `reason`. |
 | GET | `/api/v1/cod/appeals` | List appeals within the authorised scope. |
 | GET | `/api/v1/cod/reports/overdue` | List overdue reports. |
+| GET | `/api/v1/cod/appeals/:appealId` | Retrieve an appeal in the authorised department scope. |
+| POST | `/api/v1/cod/appeals/:appealId/decision` | Decide a scoped appeal. |
+| GET | `/api/v1/cod/appeals/overdue` | List overdue appeals. |
+| GET | `/api/v1/cod/special-cases` | List departmental special cases. |
+| GET | `/api/v1/cod/special-cases/:caseId` | Retrieve a scoped special case. |
+| POST | `/api/v1/cod/special-cases/:caseId/decision` | Decide a scoped special case. |
+| GET | `/api/v1/cod/special-cases/overdue` | List overdue special cases. |
+| GET | `/api/v1/cod/special-case-categories` | List categories available to a designated COD. |
+| POST | `/api/v1/cod/special-case-categories` | Create a category for an authorised department. |
+| PATCH | `/api/v1/cod/special-case-categories/:id` | Update a category for an authorised department. |
 
 COD report detail and comment routes require authentication, the `cod` role, and membership in the report's department. The detail response includes linked enrollment and, when the report is linked to an assessment in the same course unit, the student's CAT submission and assessment-attendance records. These are application records and are not represented as independently verified official university records. Missing application records do not establish that an academic event did not occur. The current schema does not link class attendance sessions to an academic period, so class attendance is not included in report-period review detail.
 
@@ -349,6 +359,58 @@ COD escalated report listing reuses `GET /api/v1/cod/reports?status=ESCALATED`. 
 The decision sequence remains append-only in status history: lecturer decision (`PENDING` → `APPROVED`/`REJECTED`), lecturer escalation (`APPROVED`/`REJECTED` → `ESCALATED`), then COD final decision (`ESCALATED` → `APPROVED`/`REJECTED`). COD detail identifies the lecturer decision separately from any later final decision. Evidence details, when present, contain metadata only and omit `storageKey`; file upload, viewing and retrieval are deferred until a storage approach is agreed. COD does not review actual document contents through this API.
 
 Separate workflow issue: student submission currently creates `Submitted`, while the lecturer decision endpoint requires `PENDING`; no transition between these states is implemented. Feature 4 does not change student or lecturer decision behavior. This requires separate approval and implementation.
+
+### Departmental attendance and discrepancy workflow
+
+All COD attendance endpoints require authentication, the `cod` role, and current designated-COD membership in the department derived through the attendance source's course unit. They do not infer absences from missing rows. Session attendance, assessment attendance and attempts are returned as separate source types.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/cod/attendance-records` | Paginated session attendance; supports department, course unit, student, status and date filters. |
+| GET | `/api/v1/cod/assessment-attendance` | Paginated assessment attendance using supported scope filters. |
+| GET | `/api/v1/cod/attendance-attempts` | Paginated attendance attempts; attempts are not confirmed attendance. |
+| GET | `/api/v1/cod/attendance-records/:id/history` | Retrieve the linked snapshot and correction ledger for an authorized record. |
+| GET | `/api/v1/cod/attendance-discrepancies/:id/audit` | Retrieve allowlisted COD audit events after visibility and provenance checks. |
+| GET | `/api/v1/cod/attendance-summary` | Return separate source totals and correction/discrepancy totals. |
+| GET | `/api/v1/cod/attendance-statistics` | Return status/outcome counts and source-specific rates. |
+| GET | `/api/v1/cod/attendance-discrepancies` | Paginated departmental discrepancy queue. |
+| GET | `/api/v1/cod/attendance-discrepancies/:id` | Retrieve a visible discrepancy and its source. |
+| GET | `/api/v1/cod/attendance-discrepancies/:id/decisions` | Retrieve append-only decision history. |
+| POST | `/api/v1/cod/attendance-discrepancies/:id/decisions` | Record a COD decision. Authorization requires an earlier recommendation. |
+| POST | `/api/v1/cod/attendance-discrepancies/:id/revalidate-legacy-authorization` | Revalidate a legacy authorization with no source-status snapshot and record a fresh authorization. |
+
+Student discrepancy workflow routes are protected by student authentication and scope sources and records to the authenticated student's own profile:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/student/attendance-discrepancies` | Submit a discrepancy for exactly one of the student's attendance sources. |
+| GET | `/api/v1/student/attendance-discrepancies` | List the student's own submissions. |
+| GET | `/api/v1/student/attendance-discrepancies/:id` | Retrieve one of the student's submissions. |
+| POST | `/api/v1/student/attendance-discrepancies/:id/clarifications` | Respond to the latest clarification request as the original student reporter. |
+
+Lecturer discrepancy workflow routes are protected by lecturer authentication and verify course-unit assignment and reporter/reviewer ownership:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/lecturer/attendance-discrepancies` | Submit a discrepancy for an assigned attendance source directly to COD review. |
+| GET | `/api/v1/lecturer/attendance-discrepancies` | List assigned student submissions awaiting review and the lecturer's own submissions. |
+| GET | `/api/v1/lecturer/attendance-discrepancies/:id` | Retrieve a visible assigned or self-reported discrepancy. |
+| POST | `/api/v1/lecturer/attendance-discrepancies/:id/review` | Forward a student submission to COD or reject it with an explanation. |
+| POST | `/api/v1/lecturer/attendance-discrepancies/:id/clarifications` | Respond to the latest clarification request as the original lecturer reporter. |
+
+The Admin correction route is protected by administrator authentication and role authorization:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/admin/attendance-corrections` | Apply an eligible COD-authorized correction to a session attendance record. |
+
+Malformed historical rows that fail recognized integrity checks are omitted from the returned page and counted in `integrity.skippedRecords`; pagination totals still count all matching source-scoped rows, so a page may contain fewer items. Unexpected database and application errors fail the request.
+
+Only one active discrepancy may exist for the same student and attendance source across student and lecturer submissions. A duplicate submission returns `409 Conflict`. `PENDING_LECTURER_REVIEW`, `PENDING_COD_REVIEW`, `CLARIFICATION_REQUESTED`, `CORRECTION_RECOMMENDED` and `CORRECTION_AUTHORIZED` are active; authorization remains active until an Admin applies the correction. `CONFIRMED`, `REJECTED`, `LECTURER_REJECTED` and `CORRECTION_APPLIED` are terminal, after which a new discrepancy may be submitted.
+
+Students submit their own discrepancy through `POST /api/v1/student/attendance-discrepancies` with exactly one source ID and a description, then monitor their own submissions through `GET /api/v1/student/attendance-discrepancies` and `GET /api/v1/student/attendance-discrepancies/:id`. Student submissions enter lecturer review. Lecturers use `POST /api/v1/lecturer/attendance-discrepancies` for assigned course-unit sources and submit directly to COD review; `GET /api/v1/lecturer/attendance-discrepancies` and `GET /api/v1/lecturer/attendance-discrepancies/:id` expose only assigned review work or the lecturer's own clarification requests. An assigned lecturer reviews a student report through `POST /api/v1/lecturer/attendance-discrepancies/:id/review` with `FORWARD_TO_COD` or `REJECT` and an explanation. Original reporters respond through `POST /api/v1/{student|lecturer}/attendance-discrepancies/:id/clarifications`; each response is linked to the latest clarification decision.
+
+COD recommendation and authorization are separate append-only decisions. Authorization records the source status observed at authorization and never changes attendance. Older authorizations without that snapshot require the currently designated active COD to use `POST /api/v1/cod/attendance-discrepancies/:id/revalidate-legacy-authorization` with an explanation. Revalidation checks the original authorization history, discrepancy provenance, source ownership and current source eligibility, then records a fresh source-status snapshot linked to the original authorization without changing attendance. An authorized Admin applies supported session-record corrections through `POST /api/v1/admin/attendance-corrections` with the fresh `discrepancyDecisionId`, `correctedStatus` (`PRESENT`, `ABSENT`, or `LATE`) and `reason`. The transaction verifies the source still has the captured status, updates the current `AttendanceRecord`, adds a linked `AttendanceCorrection`, updates discrepancy state and writes an audit event; the existing `AttendanceHistory` snapshot is preserved. Assessment-attendance and attempt corrections are not supported by the current correction model.
 
 ### Administrator
 
@@ -427,7 +489,7 @@ Approved administrator maintenance actions are:
 
 Both actions reject reports with unresolved appeals or special cases, preserve status/assignment history, and create audit events without sending notifications. Reopening clears the current lecturer assignment so the report can be assigned afresh.
 
-Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
+Attendance, CAT, examination-attendance, special-case and export endpoints are documented in their module sections above. Attendance corrections through Admin apply only to session attendance records; the current correction schema does not support assessment attendance or attempts.
 
 ## 5. Authentication and authorisation
 

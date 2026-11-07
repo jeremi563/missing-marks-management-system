@@ -1,4 +1,4 @@
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead } from "./student.service.js";
+import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead, createStudentAttendanceDiscrepancy, listStudentAttendanceDiscrepancies, getStudentAttendanceDiscrepancy, respondToStudentAttendanceDiscrepancy } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {
@@ -259,6 +259,34 @@ export async function addClarification(req, res, next) {
 	} catch (error) {
 		return next(error);
 	}
+}
+
+export async function createAttendanceDiscrepancy(req, res, next) {
+	try {
+		const result = await createStudentAttendanceDiscrepancy(req.app.locals.prisma, req.user.id, req.validatedBody);
+		return res.status(201).json({ success: true, message: "Attendance discrepancy submitted for lecturer review.", data: result });
+	} catch (error) { return next(error); }
+}
+
+export async function getAttendanceDiscrepancies(req, res, next) {
+	try {
+		const result = await listStudentAttendanceDiscrepancies(req.app.locals.prisma, req.user.id, req.query);
+		return res.status(200).json({ success: true, message: "Attendance discrepancies retrieved successfully.", data: result.items, pagination: result.pagination });
+	} catch (error) { return next(error); }
+}
+
+export async function getAttendanceDiscrepancy(req, res, next) {
+	try {
+		const result = await getStudentAttendanceDiscrepancy(req.app.locals.prisma, req.user.id, req.params.id);
+		return res.status(200).json({ success: true, message: "Attendance discrepancy retrieved successfully.", data: result });
+	} catch (error) { return next(error); }
+}
+
+export async function respondAttendanceDiscrepancy(req, res, next) {
+	try {
+		const result = await respondToStudentAttendanceDiscrepancy(req.app.locals.prisma, req.user.id, req.params.id, req.validatedBody.body);
+		return res.status(201).json({ success: true, message: "Attendance clarification submitted successfully.", data: result });
+	} catch (error) { return next(error); }
 }
 
 export async function submitAppeal(req, res, next) {

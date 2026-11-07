@@ -1,24 +1,10 @@
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../shared/utils/app-error.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
+import { getDesignatedCodDepartmentIds } from "../../shared/services/designated-cod-authorization.service.js";
 
 export async function getAuthorizedDepartmentIds(db, userId) {
-  const memberships = await db.departmentMembership.findMany({
-    where: { userId },
-    select: { departmentId: true },
-  });
-  const departmentIds = memberships.map(({ departmentId }) => departmentId);
-  if (!departmentIds.length) return [];
-  const activeCod = await db.user.findFirst({
-    where: { id: userId, isActive: true, roles: { some: { role: { name: "cod" } } } },
-    select: { id: true },
-  });
-  if (!activeCod) return [];
-  const designated = await db.department.findMany({
-    where: { id: { in: departmentIds }, designatedCodUserId: userId },
-    select: { id: true },
-  });
-  return designated.map(({ id }) => id);
+  return getDesignatedCodDepartmentIds(db, userId);
 }
 
 async function getAuthorizedReport(db, userId, reportId) {
@@ -30,7 +16,7 @@ async function getAuthorizedReport(db, userId, reportId) {
 
   const departmentIds = await getAuthorizedDepartmentIds(db, userId);
   if (!departmentIds.includes(report.courseUnit.departmentId)) {
-    throw new AppError(403, "You do not have access to this department's reports");
+    throw new AppError(404, "Missing-mark report not found");
   }
   return report;
 }
