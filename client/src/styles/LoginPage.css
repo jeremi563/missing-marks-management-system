@@ -221,6 +221,23 @@
   text-align: center;
 }
 
+.login-switch {
+  margin-top: 21px;
+  color: #64748b;
+  font-size: 12px;
+  text-align: center;
+}
+
+.login-switch a {
+  color: var(--login-blue);
+  font-weight: 700;
+}
+
+.login-switch a:hover {
+  color: var(--login-blue-dark);
+  text-decoration: underline;
+}
+
 .login-page :focus-visible {
   outline: 3px solid #93c5fd;
   outline-offset: 3px;

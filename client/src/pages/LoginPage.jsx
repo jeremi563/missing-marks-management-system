@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { getApiErrorMessage } from '../api/errorHandler'
-import { Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { LockKeyhole, Mail, ArrowRight } from 'lucide-react'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { LockKeyhole, Mail, ArrowRight, GraduationCap } from 'lucide-react'
 
 import { useAuth } from '../auth/useAuth'
 import LoadingPage from './LoadingPage'
@@ -32,7 +32,7 @@ function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -74,8 +74,8 @@ function LoginPage() {
     event.preventDefault()
     setError('')
 
-    if (!email.trim() || !password) {
-      setError('Please enter your email and password.')
+    if (!identifier.trim() || !password) {
+      setError('Please enter your email or campus ID and password.')
       return
     }
 
@@ -83,7 +83,7 @@ function LoginPage() {
       setIsSubmitting(true)
 
       const authenticatedUser = await login({
-        email: email.trim(),
+        identifier: identifier.trim(),
         password,
       })
 
@@ -117,7 +117,7 @@ function LoginPage() {
       <section className="login-card">
         <div className="login-brand">
           <div className="login-brand-icon">
-            <LockKeyhole size={25} />
+            <GraduationCap size={26} />
           </div>
 
           <h1>Missing Marks</h1>
@@ -144,7 +144,7 @@ function LoginPage() {
           <>
             <div className="login-heading">
               <h2>Welcome back</h2>
-              <p>Sign in to access your account.</p>
+              <p>Use your university email or campus ID.</p>
             </div>
 
             {error && (
@@ -161,16 +161,16 @@ function LoginPage() {
 
             <form onSubmit={handleSubmit}>
               <div className="login-field">
-                <label htmlFor="email">Email address</label>
+                <label htmlFor="identifier">Email or campus ID</label>
 
                 <div className="login-input-wrapper">
                   <Mail size={19} />
                   <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    placeholder="Enter your email"
+                    id="identifier"
+                    type="text"
+                    value={identifier}
+                    onChange={(event) => setIdentifier(event.target.value)}
+                    placeholder="name@university.edu or student ID"
                     autoComplete="username"
                     required
                   />
@@ -203,6 +203,10 @@ function LoginPage() {
                 {!isSubmitting && <ArrowRight size={18} />}
               </button>
             </form>
+
+            <p className="login-switch">
+              New to Missing Marks? <Link to="/register">Create an account</Link>
+            </p>
           </>
         )}
 
