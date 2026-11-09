@@ -1,12 +1,15 @@
 
-import { createContext, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   loginUser,
   logoutUser,
   getCurrentUser,
 } from '../api/auth'
+import { AuthContext } from './AuthContext'
 
-export const AuthContext = createContext(null)
+function getUserFromResponse(response) {
+  return response?.data?.user ?? response?.user ?? response?.data ?? null
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
@@ -22,7 +25,7 @@ export function AuthProvider({ children }) {
         const response = await getCurrentUser()
 
         if (isMounted) {
-          setUser(response.data)
+          setUser(getUserFromResponse(response))
           setAuthError(null)
         }
       } catch (error) {
@@ -51,20 +54,16 @@ export function AuthProvider({ children }) {
   }, [])
 
   // Authenticate a user.
-const login = async (credentials) => {
-  setAuthError(null)
-
-  try {
+  const login = async (credentials) => {
+    setAuthError(null)
     await loginUser(credentials)
 
     const response = await getCurrentUser()
-    setUser(response.data)
+    const authenticatedUser = getUserFromResponse(response)
+    setUser(authenticatedUser)
 
-    return response.data
-  } catch (error) {
-    throw error
+    return authenticatedUser
   }
-}
 
   // End the authenticated session.
   const logout = async () => {

@@ -46,6 +46,9 @@ function LandingPage() {
         <nav className="landing-nav">
           <a href="#features">Features</a>
           <a href="#how-it-works">How it works</a>
+          <Link to="/register" className="landing-register">
+            Create account
+          </Link>
           <Link to="/login" className="landing-login">
             Sign in
           </Link>
