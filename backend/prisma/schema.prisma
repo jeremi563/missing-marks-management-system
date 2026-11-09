@@ -6,16 +6,38 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AccountApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LoginIdentifierType {
+  STUDENT_NUMBER
+  STAFF_NUMBER
+  ADMIN_NUMBER
+}
+
+enum AccountSecurityTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
   displayName  String?  @map("display_name")
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
+  approvalStatus AccountApprovalStatus @default(APPROVED) @map("approval_status")
+  emailVerifiedAt DateTime? @map("email_verified_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   roles                         UserRole[]
+  loginIdentifiers              AccountLoginIdentifier[]
+  securityTokens                AccountSecurityToken[]
+  claimedStudentRegistration    StudentRegistrationEligibility?
   studentProfile                StudentProfile?
   lecturerProfile               LecturerProfile?
   departmentMemberships         DepartmentMembership[]
@@ -41,6 +63,47 @@ model User {
   administeredAttendanceCorrections AttendanceCorrection[] @relation("AdminAttendanceCorrectionActor")
 
   @@map("users")
+}
+
+model AccountLoginIdentifier {
+  id        String               @id @default(uuid()) @db.Uuid
+  userId    String               @map("user_id") @db.Uuid
+  type      LoginIdentifierType
+  value     String               @unique
+  createdAt DateTime             @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@map("account_login_identifiers")
+}
+
+model AccountSecurityToken {
+  id        String                    @id @default(uuid()) @db.Uuid
+  userId    String                    @map("user_id") @db.Uuid
+  type      AccountSecurityTokenType
+  tokenHash String                    @unique @map("token_hash")
+  expiresAt DateTime                  @map("expires_at")
+  usedAt    DateTime?                 @map("used_at")
+  createdAt DateTime                  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type, expiresAt])
+  @@map("account_security_tokens")
+}
+
+model StudentRegistrationEligibility {
+  id           String   @id @default(uuid()) @db.Uuid
+  studentNumber String  @unique @map("student_number")
+  email        String
+  linkedUserId String?  @unique @map("linked_user_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  linkedUser User? @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@map("student_registration_eligibility")
 }
 
 model Role {
@@ -302,7 +365,7 @@ model AttendanceRecord {
 
 model Appeal {
   id               String   @id @default(uuid()) @db.Uuid
-  reportId         String   @map("report_id") @db.Uuid
+  reportId         String   @unique @map("report_id") @db.Uuid
   studentProfileId String   @map("student_profile_id") @db.Uuid
   reason           String
   status           String

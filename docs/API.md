@@ -42,18 +42,31 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/v1/auth/login` | Authenticate a user. |
+| POST | `/api/v1/auth/register` | Register a student, lecturer, or COD account request. |
+| POST | `/api/v1/auth/login` | Authenticate with a role-specific identifier and password. |
+| POST | `/api/v1/auth/verify-email` | Verify an email using a single-use token. |
+| POST | `/api/v1/auth/resend-verification` | Request another email-verification message. |
+| POST | `/api/v1/auth/forgot-password` | Request a password-reset message. |
+| POST | `/api/v1/auth/reset-password` | Set a new password with a single-use token. |
 | POST | `/api/v1/auth/logout` | End the authenticated session/token where supported. |
 | GET | `/api/v1/auth/me` | Return the authenticated user's permitted profile summary. |
 
-### Implemented authentication baseline
+### Registration and authentication
 
-- `POST /api/v1/auth/login` accepts `{ "email": "...", "password": "..." }` and sets a 15-minute JWT in the `access_token` HttpOnly, SameSite=Strict cookie. The cookie is Secure in production.
+- `POST /api/v1/auth/register` accepts one of these role-specific payloads: `{ "role": "student", "studentNumber": "...", "email": "...", "password": "..." }`, or `{ "role": "lecturer" | "cod", "staffNumber": "...", "email": "...", "password": "..." }`. `displayName` is optional. Public registration cannot request administrator access.
+- Student registration requires an unused registration number and matching email in the administrator-imported student roster. A student can sign in after email verification. Lecturer/COD applications require email verification and administrator approval before sign-in.
+- `POST /api/v1/auth/login` accepts `{ "identifier": "...", "password": "..." }`. Student numbers, staff numbers and administrator numbers are globally unique and normalized to uppercase. A lecturer/COD account may hold both staff roles and uses one staff number. Email login remains temporarily supported for existing clients and accounts that have not yet been assigned a staff number.
+- Login sets a 15-minute JWT in the `access_token` HttpOnly, SameSite=Strict cookie. The cookie is Secure in production.
+- `POST /api/v1/auth/verify-email` accepts `{ "token": "..." }`. Verification tokens are single-use, expire after 24 hours, and are stored only as hashes.
+- `POST /api/v1/auth/resend-verification` accepts `{ "email": "..." }`; the response does not disclose whether an account exists.
+- `POST /api/v1/auth/forgot-password` accepts `{ "email": "..." }`; its response does not disclose whether an account exists. `POST /api/v1/auth/reset-password` accepts `{ "token": "...", "password": "..." }`. Reset tokens are single-use and expire after one hour.
 - `POST /api/v1/auth/logout` clears the cookie. This is stateless logout; an already copied token remains valid until expiry.
 - `GET /api/v1/auth/me` returns the authenticated user's ID, email, display name and database roles.
 - Protected middleware also accepts a Bearer token for non-browser clients. Roles are reloaded from PostgreSQL on each protected request, so role changes take effect immediately.
 - Passwords are stored as bcrypt hashes. Set `JWT_SECRET` to a random secret of at least 32 characters. Never put the secret in source control.
-- Account registration, password reset, lockout policy, refresh tokens, and session revocation are not yet implemented; agree their requirements before adding them.
+- SMTP delivery is configured with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, optional `SMTP_USER`/`SMTP_PASSWORD`, `SMTP_FROM`, and `APP_BASE_URL`. Verification/reset links lead to the frontend, which must submit the token to the corresponding API endpoint.
+- Auth endpoints have per-IP in-memory rate limits. Deployments with multiple API instances should configure a shared rate-limit store.
+- Existing approved accounts are backfilled as verified to preserve access. Existing student/lecturer profile identifiers are backfilled for identifier login; legacy COD accounts without a staff number can continue using email until an administrator assigns one.
 
 ### Student
 
@@ -419,13 +432,16 @@ COD recommendation and authorization are separate append-only decisions. Authori
 | GET | `/api/v1/admin/users` | List users within administrative permissions. |
 | POST | `/api/v1/admin/users` | Create a user account. |
 | PATCH | `/api/v1/admin/users/:id` | Update permitted account fields. |
+| GET | `/api/v1/admin/pending-staff-accounts` | List lecturer/COD applications awaiting approval. |
+| PATCH | `/api/v1/admin/users/:id/approval` | Approve or reject a pending staff application and assign staff roles. |
+| POST | `/api/v1/admin/student-roster/import` | Import eligible student registration-number/email pairs. |
 | GET | `/api/v1/admin/departments` | List departments. |
 | POST | `/api/v1/admin/departments` | Create a department. |
 | GET | `/api/v1/admin/reports` | View system-wide report summaries within permissions. |
 | GET | `/api/v1/admin/audit-logs` | View permitted audit records. |
 | PATCH | `/api/v1/admin/settings` | Update permitted system settings. |
 
-Administrator account management is restricted to authenticated users with the `administrator` role. User creation accepts `email`, `password`, `displayName`, `roles`, and profile identifiers where applicable: `studentNumber` is required for the `student` role and `staffNumber` is required for the `lecturer` role. User updates may change email, password, display name, active status, roles, and profile identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
+Administrator account management is restricted to authenticated users with the `administrator` role. Admin-created accounts are immediately approved and email-verified. User creation accepts an identifier matching the account class: `studentNumber` for a student, `staffNumber` for lecturer/COD staff, or `adminNumber` for an administrator. A user may be a lecturer, a COD, or both staff roles; student and administrator roles cannot be combined with other roles. `PATCH /api/v1/admin/users/:id/approval` accepts `{ "status": "APPROVED" | "REJECTED", "roles": ["lecturer", "cod"] }`, where `roles` is optional and may contain one or both staff roles. Approval does not activate a staff account until its email is verified. The roster import accepts `{ "students": [{ "studentNumber": "...", "email": "..." }] }` with at most 1,000 entries per request. User updates may change email, password, display name, active status, roles, and profile/login identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
 
 `GET /api/v1/admin/users/:id` returns one account's roles, profile identifiers, department memberships, designated-COD membership indicators, and operational responsibility counts. It excludes password hashes, report content, comments, evidence, and official marks.
 

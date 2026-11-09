@@ -8,13 +8,13 @@ if (!demoPassword || demoPassword.length < 12) {
 }
 
 const demoUsers = [
-	{ email: "admin@example.test", displayName: "Demo Administrator", role: "administrator" },
-	{ email: "cod@example.test", displayName: "Demo Academic Officer", role: "cod" },
-	{ email: "lecturer@example.test", displayName: "Demo Lecturer", role: "lecturer" },
-	{ email: "student@example.test", displayName: "Demo Student", role: "student" },
+	{ email: "admin@example.test", displayName: "Demo Administrator", role: "administrator", identifierType: "ADMIN_NUMBER", identifier: "DEMO-ADMIN-001" },
+	{ email: "cod@example.test", displayName: "Demo Academic Officer", role: "cod", identifierType: "STAFF_NUMBER", identifier: "DEMO-COD-001" },
+	{ email: "lecturer@example.test", displayName: "Demo Lecturer", role: "lecturer", identifierType: "STAFF_NUMBER", identifier: "DEMO-STAFF-001" },
+	{ email: "student@example.test", displayName: "Demo Student", role: "student", identifierType: "STUDENT_NUMBER", identifier: "DEMO-STU-001" },
 ];
 
-async function ensureUser({ email, displayName, role, passwordHash }) {
+async function ensureUser({ email, displayName, role, identifierType, identifier, passwordHash }) {
 	const roleRecord = await prisma.role.upsert({
 		where: { name: role },
 		update: {},
@@ -22,14 +22,19 @@ async function ensureUser({ email, displayName, role, passwordHash }) {
 	});
 	const user = await prisma.user.upsert({
 		where: { email },
-		update: { displayName, isActive: true },
-		create: { email, displayName, passwordHash },
+		update: { displayName, isActive: true, approvalStatus: "APPROVED", emailVerifiedAt: new Date() },
+		create: { email, displayName, passwordHash, approvalStatus: "APPROVED", emailVerifiedAt: new Date() },
 	});
 	await prisma.userRole.upsert({
 		where: { userId_roleId: { userId: user.id, roleId: roleRecord.id } },
 		update: {},
 		create: { userId: user.id, roleId: roleRecord.id },
 	});
+	const existingIdentifier = await prisma.accountLoginIdentifier.findUnique({ where: { value: identifier } });
+	if (existingIdentifier && existingIdentifier.userId !== user.id) throw new Error(`Demo login identifier ${identifier} is already assigned`);
+	const userIdentifier = await prisma.accountLoginIdentifier.findFirst({ where: { userId: user.id, type: identifierType } });
+	if (userIdentifier) await prisma.accountLoginIdentifier.update({ where: { id: userIdentifier.id }, data: { value: identifier } });
+	else await prisma.accountLoginIdentifier.create({ data: { userId: user.id, type: identifierType, value: identifier } });
 	return user;
 }
 
@@ -51,8 +56,8 @@ async function main() {
 		},
 	});
 	const lecturer = await prisma.lecturerProfile.upsert({
-		where: { staffNumber: "DEMO-STAFF-001" },
-		update: {},
+		where: { userId: users.get("lecturer").id },
+		update: { staffNumber: "DEMO-STAFF-001" },
 		create: { userId: users.get("lecturer").id, staffNumber: "DEMO-STAFF-001" },
 	});
 

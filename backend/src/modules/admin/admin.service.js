@@ -8,9 +8,12 @@ const userSelect = {
 	email: true,
 	displayName: true,
 	isActive: true,
+	approvalStatus: true,
+	emailVerifiedAt: true,
 	createdAt: true,
 	updatedAt: true,
 	roles: { select: { role: { select: { name: true } } } },
+	loginIdentifiers: { select: { type: true, value: true } },
 	studentProfile: { select: { id: true, studentNumber: true, officialEmail: true, notificationEmail: true } },
 	lecturerProfile: { select: { id: true, staffNumber: true } },
 };
@@ -26,11 +29,24 @@ async function validateRoles(tx, roles) {
 	return roleRecords;
 }
 
-function validateProfileInputs({ roles, studentNumber, staffNumber }) {
-	if (roles.includes("student") && !studentNumber) throw new AppError(422, "Student accounts require a student number");
-	if (roles.includes("lecturer") && !staffNumber) throw new AppError(422, "Lecturer accounts require a staff number");
-	if (studentNumber && !roles.includes("student")) throw new AppError(422, "Student number requires the student role");
-	if (staffNumber && !roles.includes("lecturer")) throw new AppError(422, "Staff number requires the lecturer role");
+function validateProfileInputs({ roles, studentNumber, staffNumber, adminNumber, allowMissingStaffNumber = false }) {
+	if (roles.includes("student") && (roles.length !== 1 || !studentNumber || staffNumber || adminNumber)) throw new AppError(422, "Student accounts require only a student number");
+	if (roles.includes("administrator") && (roles.length !== 1 || !adminNumber || studentNumber || staffNumber)) throw new AppError(422, "Administrator accounts require only an administrator number");
+	if (roles.some((role) => role === "lecturer" || role === "cod") && ((!staffNumber && !allowMissingStaffNumber) || studentNumber || adminNumber)) throw new AppError(422, "Staff accounts require only a staff number");
+	if (!roles.some((role) => role === "lecturer" || role === "cod") && staffNumber) throw new AppError(422, "Staff number requires a staff role");
+	if (!roles.includes("student") && studentNumber) throw new AppError(422, "Student number requires the student role");
+	if (!roles.includes("administrator") && adminNumber) throw new AppError(422, "Administrator number requires the administrator role");
+}
+
+async function setLoginIdentifier(tx, userId, roles, { studentNumber, staffNumber, adminNumber }) {
+	const identifier = roles.includes("student")
+		? { type: "STUDENT_NUMBER", value: studentNumber }
+		: roles.includes("administrator")
+			? { type: "ADMIN_NUMBER", value: adminNumber }
+			: { type: "STAFF_NUMBER", value: staffNumber };
+	const current = await tx.accountLoginIdentifier.findFirst({ where: { userId }, select: { id: true } });
+	if (current) await tx.accountLoginIdentifier.update({ where: { id: current.id }, data: identifier });
+	else await tx.accountLoginIdentifier.create({ data: { userId, ...identifier } });
 }
 
 async function countActiveAdministrators(tx) {
@@ -82,27 +98,39 @@ export async function getAdminUser({ db = prisma, userId }) {
 	};
 }
 
-export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber }) {
+export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber, adminNumber }) {
 	return db.$transaction(async (tx) => {
 		const roleRecords = await validateRoles(tx, roles);
-		validateProfileInputs({ roles, studentNumber, staffNumber });
-		const user = await tx.user.create({ data: { email: email.toLowerCase(), passwordHash: await bcrypt.hash(password, 12), displayName } });
+		const normalizedNumbers = { studentNumber: studentNumber?.toUpperCase(), staffNumber: staffNumber?.toUpperCase(), adminNumber: adminNumber?.toUpperCase() };
+		validateProfileInputs({ roles, ...normalizedNumbers });
+		const user = await tx.user.create({ data: { email: email.toLowerCase(), passwordHash: await bcrypt.hash(password, 12), displayName, emailVerifiedAt: new Date(), approvalStatus: "APPROVED", isActive: true } });
 		await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId: user.id, roleId })) });
-		if (roles.includes("student")) await tx.studentProfile.create({ data: { userId: user.id, studentNumber } });
-		if (roles.includes("lecturer")) await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber } });
+		if (roles.includes("student")) await tx.studentProfile.create({ data: { userId: user.id, studentNumber: normalizedNumbers.studentNumber } });
+		if (roles.includes("lecturer")) await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber: normalizedNumbers.staffNumber } });
+		await setLoginIdentifier(tx, user.id, roles, normalizedNumbers);
 		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_CREATED", entityType: "User", entityId: user.id, metadata: { roles } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
 	});
 }
 
-export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, studentNumber, staffNumber }) {
+export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber }) {
 	return db.$transaction(async (tx) => {
 		const current = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, passwordHash: true } });
 		if (!current) throw new AppError(404, "User not found");
 		const currentRoles = current.roles.map(({ role }) => role.name);
 		const nextRoles = roles ?? currentRoles;
-		validateProfileInputs({ roles: nextRoles, studentNumber: studentNumber ?? current.studentProfile?.studentNumber, staffNumber: staffNumber ?? current.lecturerProfile?.staffNumber });
+		const currentIdentifier = current.loginIdentifiers?.[0]?.value;
+		const normalizedNumbers = {
+			studentNumber: (studentNumber ?? current.studentProfile?.studentNumber)?.toUpperCase(),
+			staffNumber: (staffNumber ?? current.lecturerProfile?.staffNumber ?? (currentRoles.includes("cod") ? currentIdentifier : undefined))?.toUpperCase(),
+			adminNumber: (adminNumber ?? (currentRoles.includes("administrator") ? currentIdentifier : undefined))?.toUpperCase(),
+		};
 		await validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, nextIsActive: isActive ?? current.isActive });
+		validateProfileInputs({
+			roles: nextRoles,
+			...normalizedNumbers,
+			allowMissingStaffNumber: !normalizedNumbers.staffNumber && !roles && !staffNumber && currentRoles.some((role) => role === "lecturer" || role === "cod"),
+		});
 		const roleRecords = roles ? await validateRoles(tx, roles) : null;
 		if ((currentRoles.includes("administrator") && !nextRoles.includes("administrator")) || (current.isActive && isActive === false && currentRoles.includes("administrator"))) {
 			if (await countActiveAdministrators(tx) <= 1) throw new AppError(409, "The last active administrator cannot lose administrator access");
@@ -122,10 +150,62 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 			await tx.userRole.deleteMany({ where: { userId } });
 			await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId, roleId })) });
 		}
-		if (studentNumber !== undefined) await tx.studentProfile.upsert({ where: { userId }, update: { studentNumber }, create: { userId, studentNumber } });
-		if (staffNumber !== undefined) await tx.lecturerProfile.upsert({ where: { userId }, update: { staffNumber }, create: { userId, staffNumber } });
-		const changedFields = Object.entries({ email, password, displayName, isActive, roles, studentNumber, staffNumber }).filter(([, value]) => value !== undefined).map(([key]) => key);
+		if (studentNumber !== undefined && nextRoles.includes("student")) await tx.studentProfile.upsert({ where: { userId }, update: { studentNumber: normalizedNumbers.studentNumber }, create: { userId, studentNumber: normalizedNumbers.studentNumber } });
+		if (staffNumber !== undefined && nextRoles.includes("lecturer")) await tx.lecturerProfile.upsert({ where: { userId }, update: { staffNumber: normalizedNumbers.staffNumber }, create: { userId, staffNumber: normalizedNumbers.staffNumber } });
+		if (roles || studentNumber !== undefined || staffNumber !== undefined || adminNumber !== undefined) await setLoginIdentifier(tx, userId, nextRoles, normalizedNumbers);
+		const changedFields = Object.entries({ email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber }).filter(([, value]) => value !== undefined).map(([key]) => key);
 		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_UPDATED", entityType: "User", entityId: userId, metadata: { changedFields, roles: nextRoles, isActive: isActive ?? current.isActive } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
+	});
+}
+
+export async function listPendingStaffAccounts({ db = prisma }) {
+	const users = await db.user.findMany({
+		where: { approvalStatus: "PENDING", roles: { some: { role: { name: { in: ["lecturer", "cod"] } } } } },
+		select: userSelect,
+		orderBy: { createdAt: "asc" },
+	});
+	return users.map(serializeUser);
+}
+
+export async function decideStaffAccount({ db = prisma, actorUserId, userId, status, roles }) {
+	return db.$transaction(async (tx) => {
+		const user = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, emailVerifiedAt: true } });
+		if (!user) throw new AppError(404, "User not found");
+		const currentRoles = user.roles.map(({ role }) => role.name);
+		if (user.approvalStatus !== "PENDING" || !currentRoles.some((role) => role === "lecturer" || role === "cod")) {
+			throw new AppError(409, "This account is not awaiting staff approval");
+		}
+		const nextRoles = roles ?? currentRoles;
+		if (!nextRoles.length || nextRoles.some((role) => role !== "lecturer" && role !== "cod")) throw new AppError(422, "Approval can assign lecturer and/or COD roles only");
+		const roleRecords = await validateRoles(tx, nextRoles);
+		await tx.userRole.deleteMany({ where: { userId } });
+		await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId, roleId })) });
+		if (nextRoles.includes("lecturer") && !user.lecturerProfile) {
+			const staffIdentifier = user.loginIdentifiers.find(({ type }) => type === "STAFF_NUMBER")?.value;
+			await tx.lecturerProfile.create({ data: { userId, staffNumber: staffIdentifier } });
+		}
+		const isActive = status === "APPROVED" && Boolean(user.emailVerifiedAt);
+		await tx.user.update({ where: { id: userId }, data: { approvalStatus: status, isActive } });
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: `ADMIN_STAFF_ACCOUNT_${status}`, entityType: "User", entityId: userId, metadata: { roles: nextRoles, emailVerified: Boolean(user.emailVerifiedAt) } });
+		return serializeUser(await tx.user.findUnique({ where: { id: userId }, select: userSelect }));
+	});
+}
+
+export async function importStudentRoster({ db = prisma, actorUserId, students }) {
+	const normalizedStudents = students.map(({ studentNumber, email }) => ({ studentNumber: studentNumber.trim().toUpperCase(), email: email.trim().toLowerCase() }));
+	return db.$transaction(async (tx) => {
+		for (const student of normalizedStudents) {
+			const existing = await tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: student.studentNumber } });
+			if (existing?.linkedUserId) throw new AppError(409, `Student number ${student.studentNumber} is already linked to an account`);
+			const rosterEmailOwner = await tx.studentRegistrationEligibility.findFirst({ where: { email: student.email, studentNumber: { not: student.studentNumber } }, select: { id: true } });
+			if (rosterEmailOwner) throw new AppError(409, "A roster email is already assigned to another student number");
+			const emailOwner = await tx.user.findUnique({ where: { email: student.email }, select: { studentProfile: { select: { studentNumber: true } } } });
+			if (emailOwner && emailOwner.studentProfile?.studentNumber !== student.studentNumber) throw new AppError(409, "A roster email is already associated with another account");
+			if (existing) await tx.studentRegistrationEligibility.update({ where: { id: existing.id }, data: { email: student.email } });
+			else await tx.studentRegistrationEligibility.create({ data: student });
+		}
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_STUDENT_ROSTER_IMPORTED", entityType: "StudentRegistrationEligibility", metadata: { count: normalizedStudents.length } });
+		return { imported: normalizedStudents.length };
 	});
 }

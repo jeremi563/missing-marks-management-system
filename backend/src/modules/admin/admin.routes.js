@@ -8,10 +8,9 @@ import {
 	getDepartments, getDepartmentMembers, getEnrollments, getMappings, getAcademicPeriods, updateAssessment, updateAssessmentType, updateClassroom,
 	updateCourseUnit, updateDepartment, updateAcademicPeriod, createUser, getUsers, updateUser,
 	getAuditLogs, getReportSummaries, getSettings, patchSetting, exportAuditLogRecords, exportReports, getDashboard, reopenAdminReport, reassignAdminReport,
-	addDepartmentMember, removeDepartmentMember, getUser,
-  applyAttendanceCorrection,
+	addDepartmentMember, removeDepartmentMember, getUser, getPendingStaffAccounts, decideAccountApproval, importStudentRosterRecords, applyAttendanceCorrection,
 } from "./admin.controller.js";
-import { createUserBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
+import { accountApprovalBody, createUserBody, rosterImportBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
 import * as validation from "./academic.validation.js";
 import * as operationsValidation from "./operations.validation.js";
 import { attendanceCorrectionBodySchema } from "./attendance-correction.validation.js";
@@ -19,6 +18,9 @@ import { attendanceCorrectionBodySchema } from "./attendance-correction.validati
 const router = Router();
 
 router.use(authenticate, authorize("administrator"));
+router.get("/pending-staff-accounts", getPendingStaffAccounts);
+router.patch("/users/:id/approval", validate(userIdParams, "params"), validate(accountApprovalBody), decideAccountApproval);
+router.post("/student-roster/import", validate(rosterImportBody), importStudentRosterRecords);
 router.get("/users", validate(userListQuery, "query"), getUsers);
 router.get("/users/:id", validate(userIdParams, "params"), getUser);
 router.post("/users", validate(createUserBody), createUser);
