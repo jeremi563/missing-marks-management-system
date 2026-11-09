@@ -1,0 +1,68 @@
+#root {
+  min-height: 100vh;
+  width: 100%;
+}
+
+.app {
+  min-height: 100vh;
+}
+.dashboard-home h2 {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.dashboard-home > div:first-child p,
+.dashboard-welcome-card p {
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.dashboard-welcome-card {
+  margin-top: 28px;
+  padding: 24px;
+  max-width: 550px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.dashboard-welcome-card h3 {
+  margin-bottom: 10px;
+}
+
+.dashboard-welcome-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.login-placeholder {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+}
+
+.login-placeholder h1 {
+  font-size: 32px;
+}
+
+.login-placeholder p {
+  color: #64748b;
+}
+
+.login-note {
+  margin: 10px 0;
+}
+
+.login-placeholder a {
+  color: #2563eb;
+  font-weight: 600;
+}
