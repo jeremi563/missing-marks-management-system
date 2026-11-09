@@ -22,6 +22,7 @@ test("administrator user routes require authentication", async () => {
 test("every administrator endpoint requires authentication before database access", async () => {
 	const id = "00000000-0000-4000-8000-000000000001";
 	const endpoints = [
+		["GET", "/api/v1/admin/pending-staff-accounts"], ["PATCH", `/api/v1/admin/users/${id}/approval`], ["POST", "/api/v1/admin/student-roster/import"],
 		["GET", "/api/v1/admin/users"], ["POST", "/api/v1/admin/users"], ["PATCH", `/api/v1/admin/users/${id}`],
 		["GET", "/api/v1/admin/departments"], ["POST", "/api/v1/admin/departments"], ["PATCH", `/api/v1/admin/departments/${id}`],
 		["GET", `/api/v1/admin/departments/${id}/members`], ["POST", `/api/v1/admin/departments/${id}/members`], ["DELETE", `/api/v1/admin/departments/${id}/members/${id}`],

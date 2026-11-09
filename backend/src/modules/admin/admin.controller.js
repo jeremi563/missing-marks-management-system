@@ -1,5 +1,5 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
-import { createAdminUser, getAdminUser, listAdminUsers, updateAdminUser } from "./admin.service.js";
+import { createAdminUser, decideStaffAccount, getAdminUser, importStudentRoster, listAdminUsers, listPendingStaffAccounts, updateAdminUser } from "./admin.service.js";
 import * as academic from "./academic.service.js";
 import { getDashboardOverview, listAuditLogs, listReportSummaries, listSettings, updateSetting } from "./operations.service.js";
 import { exportAuditLogs, exportReportSummaries } from "./export.service.js";
@@ -29,6 +29,24 @@ export async function updateUser(req, res, next) {
 	try {
 		const user = await updateAdminUser({ db: req.app.locals.prisma, actorUserId: req.user.id, userId: req.params.id, ...req.body });
 		return sendSuccess(res, "User updated successfully", user);
+	} catch (error) { return next(error); }
+}
+
+export async function getPendingStaffAccounts(req, res, next) {
+	try { return sendSuccess(res, "Pending staff accounts retrieved successfully", await listPendingStaffAccounts({ db: req.app.locals.prisma })); } catch (error) { return next(error); }
+}
+
+export async function decideAccountApproval(req, res, next) {
+	try {
+		const user = await decideStaffAccount({ db: req.app.locals.prisma, actorUserId: req.user.id, userId: req.params.id, ...req.body });
+		return sendSuccess(res, "Staff account decision saved", user);
+	} catch (error) { return next(error); }
+}
+
+export async function importStudentRosterRecords(req, res, next) {
+	try {
+		const result = await importStudentRoster({ db: req.app.locals.prisma, actorUserId: req.user.id, ...req.body });
+		return sendSuccess(res, "Student roster imported successfully", result, 201);
 	} catch (error) { return next(error); }
 }
 

@@ -2,7 +2,7 @@
 # Requires the VS Code REST Client extension.
 # Base URL matches the local backend default; change it if your server uses another port.
 @baseUrl = http://localhost:3000/api/v1
-@studentEmail = student@example.test
+@studentIdentifier = DEMO-STU-001
 @studentPassword = SET_TO_THE_SAME_VALUE_AS_DEMO_SEED_PASSWORD
 # Get these IDs from Prisma Studio after seeding. The demo seed creates DEMO101,
 # DEMO-PERIOD-2026 enrollment, but does not print the generated UUIDs.
@@ -26,7 +26,7 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "{{studentEmail}}",
+  "identifier": "{{studentIdentifier}}",
   "password": "{{studentPassword}}"
 }
 

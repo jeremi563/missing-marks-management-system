@@ -48,7 +48,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts. Do not share or commit `.env`.
+Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and optional SMTP credentials to deliver verification and password-reset links. Email delivery is unavailable until SMTP is configured. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts. Do not share or commit `.env`.
 
 Validate the shared schema and generate Prisma Client:
 
@@ -68,6 +68,14 @@ Seed synthetic development data after the migration:
 ```bash
 npm run db:seed
 ```
+
+For a non-demo deployment, create the first administrator through the one-time bootstrap instead of seeding demo accounts. Set `BOOTSTRAP_ADMIN_NUMBER`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` (at least 12 characters), and optionally `BOOTSTRAP_ADMIN_NAME` in `.env`, then run:
+
+```bash
+npm run db:bootstrap-admin
+```
+
+The bootstrap refuses to run when an active administrator already exists. Before accepting student registrations, an administrator must preload the authoritative registration-number/email roster through `POST /api/v1/admin/student-roster/import`. Lecturer and COD applications remain inactive until email verification and administrator approval.
 
 Never run development migrations against production or an unapproved shared database. The team lead coordinates schema and migration changes.
 

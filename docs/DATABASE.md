@@ -41,7 +41,6 @@ The schema also includes assessments, classrooms, CAT/examination attendance, re
 
 The current schema uses conservative, flexible relations where the docs leave policy open. Confirm the following with the team/stakeholders before freezing enums, adding policy-specific constraints or applying to a shared database:
 
-- Whether one user can have more than one role.
 - Whether COD and Academic Officer are the same role or separate roles.
 - How departments relate to courses/units and lecturers.
 - How academic years, semesters and class groups are represented.
@@ -118,7 +117,10 @@ This inventory documents the current schema, not a claim that every business rul
 
 | Table | Columns (Prisma field: type) | Purpose |
 |---|---|---|
-| `users` | `id: UUID`, `email: String`, `displayName: String?`, `passwordHash: String`, `isActive: Boolean`, `createdAt/updatedAt: DateTime` | Shared login identity. Email is unique. Password hashes only; never store raw passwords. |
+| `users` | `id: UUID`, `email: String`, `displayName: String?`, `passwordHash: String`, `isActive: Boolean`, `approvalStatus`, `emailVerifiedAt: DateTime?`, timestamps | Shared login identity. Email is unique. Password hashes only; never store raw passwords. Pending staff remain inactive until approved and email-verified. |
+| `account_login_identifiers` | `id/userId: UUID`, `type`, `value: String`, `createdAt: DateTime` | Globally unique student, staff, or administrator login identifier. |
+| `account_security_tokens` | `id/userId: UUID`, `type`, `tokenHash: String`, `expiresAt/usedAt/createdAt` | Hashed, expiring, single-use email-verification and password-reset tokens. |
+| `student_registration_eligibility` | `id: UUID`, `studentNumber/email: String`, `linkedUserId: UUID?`, `createdAt: DateTime` | Administrator-imported authoritative roster entries; a student number can be linked to only one account. |
 | `roles` | `id: UUID`, `name: String`, `description: String?`, `createdAt: DateTime` | Configurable role names; role name is unique. |
 | `user_roles` | `id: UUID`, `userId/roleId: UUID`, `createdAt: DateTime` | Many-to-many user-role assignments; `(userId, roleId)` unique. |
 | `student_profiles` | `id: UUID`, `userId: UUID`, `studentNumber: String`, `officialEmail/notificationEmail: String?`, timestamps | Student identity and institutional number. `userId` and `studentNumber` are unique. |
@@ -202,7 +204,7 @@ Important cross-field consistency checks cannot be expressed as ordinary Prisma 
 
 The schema enforces unique user email, role name, student number, one profile per user, non-null lecturer staff number, non-null department code, provided academic-period code, unit code within department, role and department membership pairs, one student/unit/period enrollment, one lecturer/unit assignment, report reference, one appeal per report, one student/session attendance record, one student/assessment attendance row, one CAT submission per student/assessment, public-holiday date, assessment/category codes and names, notification/outbox dedupe keys, attendance session token hash, evidence storage key, one history row per source attendance record, one Admin correction per COD authorization, and one comment author per clarification decision. A custom SQL migration adds partial unique indexes that permit only one active discrepancy per student and source; these predicates are not expressible in the current Prisma schema language. Special cases are not unique by report. Query indexes support report lists by student/lecturer/status, deadline queues, notifications by user/time, and audit/history lookups.
 
-There is deliberately no partial unique index for “one active report” and no unique appeal-per-report constraint yet. Both depend on rules still marked open in the repository docs. When approved, add a migration and service-level concurrency-safe enforcement together.
+There is deliberately no partial unique index for “one active report”; that concurrency rule remains open. Appeals have a unique `report_id`, enforcing at most one appeal per report.
 
 ## 13. Delete and retention behavior
 
@@ -212,7 +214,7 @@ Academic entities and audit-relevant children use restrictive foreign keys so de
 
 Do not silently treat these as finalized by the schema:
 
-- Whether users may hold multiple roles and whether COD and Academic Officer are one role or distinct roles. Current `UserRole` supports multiple roles to keep the schema extensible.
+- Whether COD and Academic Officer are one role or distinct roles. The current policy allows an account to hold both lecturer and COD roles; student and administrator roles are exclusive in validation and authorization.
 - Academic year/semester/class-group representation and the official uniqueness convention for academic periods.
 - Whether every report must reference an `Assessment` or whether `assessmentComponent` text is sufficient.
 - Exact report, appeal, attendance, session, CAT submission, special-case and discrepancy status values and transitions.
