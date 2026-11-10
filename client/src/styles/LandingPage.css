@@ -82,6 +82,15 @@
   background: #fff;
 }
 
+.landing-register {
+  color: var(--landing-blue);
+  transition: color 160ms ease;
+}
+
+.landing-register:hover {
+  color: var(--landing-blue-dark);
+}
+
 .landing-hero {
   display: grid;
   width: min(1120px, calc(100% - 48px));
@@ -492,10 +501,10 @@
   }
 
   .landing-nav {
-    gap: 0;
+    gap: 12px;
   }
 
-  .landing-nav > a:not(.landing-login) {
+  .landing-nav > a:not(.landing-login):not(.landing-register) {
     display: none;
   }
 

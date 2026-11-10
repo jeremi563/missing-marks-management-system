@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import NotFound from './pages/NotFound'
 import AccessDenied from './pages/AccessDenied'
 
@@ -11,6 +12,13 @@ import DashboardHome from './features/shared/DashboardHome'
 
 import RequireRole from './auth/RequireRole'
 import { navigation } from './config/navigation'
+import StudentDashboard from './features/student/StudentDashboard'
+import StudentReports from './features/student/StudentReports'
+import StudentReportDetails from './features/student/StudentReportDetails'
+import StudentAppeals from './features/student/StudentAppeals'
+import StudentAttendance from './features/student/StudentAttendance'
+import StudentNotifications from './features/student/StudentNotifications'
+import StudentProfile from './features/student/StudentProfile'
 
 function App() {
   return (
@@ -19,6 +27,7 @@ function App() {
         {/* Public pages */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
         <Route path="/403" element={<AccessDenied />} />
 
         {/* Student portal */}
@@ -35,8 +44,17 @@ function App() {
           >
             <Route
               index
-              element={<DashboardHome roleLabel="Student" />}
+              element={<StudentDashboard />}
             />
+            <Route path="reports" element={<StudentReports />} />
+            <Route
+              path="reports/:reportId"
+              element={<StudentReportDetails />}
+            />
+            <Route path="appeals" element={<StudentAppeals />} />
+            <Route path="attendance" element={<StudentAttendance />} />
+            <Route path="notifications" element={<StudentNotifications />} />
+            <Route path="profile" element={<StudentProfile />} />
           </Route>
         </Route>
 
