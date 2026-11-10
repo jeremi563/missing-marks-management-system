@@ -1,6 +1,6 @@
 
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   FileText,
   MessageSquare,
@@ -18,6 +18,13 @@ import {
 } from '../../api/student'
 import '../../styles/StudentAppeals.css'
 
+function extractReports(response) {
+  if (Array.isArray(response)) return response
+
+  const result = response?.data?.reports || response?.data?.data || response?.data || response?.reports || []
+  return Array.isArray(result) ? result : []
+}
+
 function StudentAppeals() {
   const [reports, setReports] = useState([])
   const [selectedReport, setSelectedReport] = useState(null)
@@ -27,62 +34,36 @@ function StudentAppeals() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const extractData = (response) => {
-    if (Array.isArray(response)) return response
-
-    return (
-      response?.data?.reports ||
-      response?.data?.data ||
-      response?.data ||
-      response?.reports ||
-      []
-    )
-  }
-
-  const fetchReports = async () => {
-    try {
-      setLoading(true)
-      setError('')
-
-      const response = await getStudentReports()
-      const result = extractData(response)
-
-      setReports(Array.isArray(result) ? result : [])
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-        'Unable to retrieve your reports.'
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetchReports = useCallback(async () => {
+    return extractReports(await getStudentReports())
+  }, [])
 
   useEffect(() => {
-    fetchReports()
-  }, [])
+    let active = true
+
+    async function load() {
+      try {
+        const nextReports = await fetchReports()
+        if (active) {
+          setReports(nextReports)
+          setError('')
+        }
+      } catch (err) {
+        if (active) {
+          setError(err.response?.data?.message || 'Unable to retrieve your reports.')
+        }
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { active = false }
+  }, [fetchReports])
 
   const rejectedReports = reports.filter(
     (report) => report.status?.toLowerCase() === 'rejected'
   )
-
-  const getStatusIcon = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'approved':
-      case 'resolved':
-        return <CheckCircle size={17} />
-
-      case 'rejected':
-        return <XCircle size={17} />
-
-      case 'pending':
-      case 'under_review':
-        return <Clock size={17} />
-
-      default:
-        return <AlertCircle size={17} />
-    }
-  }
 
   const formatDate = (date) => {
     if (!date) return 'Not available'
@@ -111,7 +92,7 @@ function StudentAppeals() {
       setSelectedReport(null)
       setAppealReason('')
 
-      await fetchReports()
+      setReports(await fetchReports())
     } catch (err) {
       setError(
         err.response?.data?.message ||
