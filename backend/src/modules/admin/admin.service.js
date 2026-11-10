@@ -22,11 +22,33 @@ function serializeUser(user) {
 	return { ...user, roles: user.roles.map(({ role }) => role.name) };
 }
 
+function includeLecturerRole(roles) {
+	const uniqueRoles = [...new Set(roles)];
+	return uniqueRoles.includes("cod") && !uniqueRoles.includes("lecturer")
+		? [...uniqueRoles, "lecturer"]
+		: uniqueRoles;
+}
+
 async function validateRoles(tx, roles) {
 	const requestedRoles = [...new Set(roles)];
-	const roleRecords = await tx.role.findMany({ where: { name: { in: requestedRoles } }, select: { id: true, name: true } });
-	if (roleRecords.length !== requestedRoles.length) throw new AppError(422, "One or more requested roles do not exist");
-	return roleRecords;
+	const supportedRoles = new Set(["student", "lecturer", "cod", "administrator"]);
+	if (requestedRoles.some((name) => !supportedRoles.has(name))) {
+		throw new AppError(422, "One or more requested roles do not exist");
+	}
+	const existingRoles = await tx.role.findMany({ where: { name: { in: requestedRoles } }, select: { id: true, name: true } });
+	const rolesByName = new Map(existingRoles.map((role) => [role.name, role]));
+	for (const name of requestedRoles) {
+		if (!rolesByName.has(name)) {
+			const role = await tx.role.upsert({
+				where: { name },
+				update: {},
+				create: { name, description: `System ${name} role` },
+				select: { id: true, name: true },
+			});
+			rolesByName.set(name, role);
+		}
+	}
+	return requestedRoles.map((name) => rolesByName.get(name));
 }
 
 function validateProfileInputs({ roles, studentNumber, staffNumber, adminNumber, allowMissingStaffNumber = false }) {
@@ -67,14 +89,24 @@ async function validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, next
 	}
 }
 
-export async function listAdminUsers({ db = prisma, page = 1, limit = 10, search, role, isActive }) {
+export async function listAdminUsers({ db = prisma, page = 1, limit = 10, search, role, approvalStatus, isActive }) {
 	const where = {
 		...(role ? { roles: { some: { role: { name: role } } } } : {}),
+		...(approvalStatus ? { approvalStatus } : {}),
 		...(isActive === undefined ? {} : { isActive }),
 		...(search ? { OR: [{ email: { contains: search, mode: "insensitive" } }, { displayName: { contains: search, mode: "insensitive" } }] } : {}),
 	};
 	const [users, total] = await Promise.all([
-		db.user.findMany({ where, select: userSelect, orderBy: [{ displayName: "asc" }, { email: "asc" }], skip: (page - 1) * limit, take: limit }),
+		db.user.findMany({
+			where,
+			select: {
+				...userSelect,
+				departmentMemberships: { select: { departmentId: true, department: { select: { id: true, name: true, code: true } } } },
+			},
+			orderBy: [{ displayName: "asc" }, { email: "asc" }],
+			skip: (page - 1) * limit,
+			take: limit,
+		}),
 		db.user.count({ where }),
 	]);
 	return { users: users.map(serializeUser), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
@@ -100,6 +132,7 @@ export async function getAdminUser({ db = prisma, userId }) {
 
 export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber, adminNumber }) {
 	return db.$transaction(async (tx) => {
+		if (roles.includes("cod")) throw new AppError(422, "Create a lecturer account first, then assign COD responsibility to that lecturer");
 		const roleRecords = await validateRoles(tx, roles);
 		const normalizedNumbers = { studentNumber: studentNumber?.toUpperCase(), staffNumber: staffNumber?.toUpperCase(), adminNumber: adminNumber?.toUpperCase() };
 		validateProfileInputs({ roles, ...normalizedNumbers });
@@ -113,25 +146,64 @@ export async function createAdminUser({ db = prisma, actorUserId, email, passwor
 	});
 }
 
-export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber }) {
+export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber, departmentId }) {
 	return db.$transaction(async (tx) => {
 		const current = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, passwordHash: true } });
 		if (!current) throw new AppError(404, "User not found");
 		const currentRoles = current.roles.map(({ role }) => role.name);
-		const nextRoles = roles ?? currentRoles;
+		if (userId === actorUserId && currentRoles.includes("administrator") && isActive === false) {
+			throw new AppError(409, "Administrators cannot deactivate their own account");
+		}
+		const nextRoles = includeLecturerRole(roles ?? currentRoles);
+		const isStaff = currentRoles.some((role) => role === "lecturer" || role === "cod");
+		if (isActive === true && isStaff && current.approvalStatus !== "APPROVED") {
+			throw new AppError(409, "Approve this lecturer from the Lecturer approvals page before activating the account");
+		}
+		await validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, nextIsActive: isActive ?? current.isActive });
+		if (roles?.includes("cod") && (
+			currentRoles.includes("student")
+			|| !currentRoles.includes("lecturer")
+			|| current.approvalStatus !== "APPROVED"
+			|| !current.isActive
+		)) {
+			throw new AppError(422, "Only an active, approved lecturer can be assigned COD responsibility");
+		}
+		if (roles && currentRoles.includes("student") && roles.some((role) => role !== "student")) {
+			throw new AppError(422, "Student accounts cannot be changed into staff accounts");
+		}
+		if (roles && currentRoles.some((role) => role === "lecturer" || role === "cod") && !roles.includes("lecturer")) {
+			throw new AppError(422, "Staff accounts must retain the lecturer role");
+		}
+		const assigningCod = (!currentRoles.includes("cod") && nextRoles.includes("cod")) || roles?.includes("cod");
+		if (assigningCod && !departmentId) {
+			throw new AppError(422, "Select a department before assigning COD responsibility");
+		}
+		if (departmentId && nextRoles.includes("cod")) {
+			const department = await tx.department.findUnique({ where: { id: departmentId }, select: { id: true, designatedCodUserId: true } });
+			if (!department) throw new AppError(404, "Department not found");
+			if (department.designatedCodUserId && department.designatedCodUserId !== userId) {
+				throw new AppError(409, "Each department can have only one designated COD");
+			}
+			const membership = await tx.departmentMembership.findUnique({ where: { userId_departmentId: { userId, departmentId } }, select: { id: true } });
+			if (!membership) await tx.departmentMembership.create({ data: { userId, departmentId } });
+			if (department.designatedCodUserId !== userId) {
+				await tx.department.update({ where: { id: departmentId }, data: { designatedCodUserId: userId } });
+			}
+		}
 		const currentIdentifier = current.loginIdentifiers?.[0]?.value;
 		const normalizedNumbers = {
 			studentNumber: (studentNumber ?? current.studentProfile?.studentNumber)?.toUpperCase(),
 			staffNumber: (staffNumber ?? current.lecturerProfile?.staffNumber ?? (currentRoles.includes("cod") ? currentIdentifier : undefined))?.toUpperCase(),
 			adminNumber: (adminNumber ?? (currentRoles.includes("administrator") ? currentIdentifier : undefined))?.toUpperCase(),
 		};
-		await validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, nextIsActive: isActive ?? current.isActive });
 		validateProfileInputs({
 			roles: nextRoles,
 			...normalizedNumbers,
 			allowMissingStaffNumber: !normalizedNumbers.staffNumber && !roles && !staffNumber && currentRoles.some((role) => role === "lecturer" || role === "cod"),
 		});
-		const roleRecords = roles ? await validateRoles(tx, roles) : null;
+		const roleRecords = roles || nextRoles.length !== currentRoles.length
+			? await validateRoles(tx, nextRoles)
+			: null;
 		if ((currentRoles.includes("administrator") && !nextRoles.includes("administrator")) || (current.isActive && isActive === false && currentRoles.includes("administrator"))) {
 			if (await countActiveAdministrators(tx) <= 1) throw new AppError(409, "The last active administrator cannot lose administrator access");
 		}
@@ -151,45 +223,114 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 			await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId, roleId })) });
 		}
 		if (studentNumber !== undefined && nextRoles.includes("student")) await tx.studentProfile.upsert({ where: { userId }, update: { studentNumber: normalizedNumbers.studentNumber }, create: { userId, studentNumber: normalizedNumbers.studentNumber } });
-		if (staffNumber !== undefined && nextRoles.includes("lecturer")) await tx.lecturerProfile.upsert({ where: { userId }, update: { staffNumber: normalizedNumbers.staffNumber }, create: { userId, staffNumber: normalizedNumbers.staffNumber } });
+		if (nextRoles.includes("lecturer") && normalizedNumbers.staffNumber && (staffNumber !== undefined || !current.lecturerProfile)) {
+			await tx.lecturerProfile.upsert({
+				where: { userId },
+				update: { staffNumber: normalizedNumbers.staffNumber },
+				create: { userId, staffNumber: normalizedNumbers.staffNumber },
+			});
+		}
 		if (roles || studentNumber !== undefined || staffNumber !== undefined || adminNumber !== undefined) await setLoginIdentifier(tx, userId, nextRoles, normalizedNumbers);
-		const changedFields = Object.entries({ email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber }).filter(([, value]) => value !== undefined).map(([key]) => key);
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_UPDATED", entityType: "User", entityId: userId, metadata: { changedFields, roles: nextRoles, isActive: isActive ?? current.isActive } });
+		const changedFields = Object.entries({ email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber, departmentId }).filter(([, value]) => value !== undefined).map(([key]) => key);
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_UPDATED", entityType: "User", entityId: userId, metadata: { changedFields, roles: nextRoles, isActive: isActive ?? current.isActive, departmentId } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
 	});
 }
 
 export async function listPendingStaffAccounts({ db = prisma }) {
 	const users = await db.user.findMany({
-		where: { approvalStatus: "PENDING", roles: { some: { role: { name: { in: ["lecturer", "cod"] } } } } },
-		select: userSelect,
+		where: {
+			approvalStatus: "PENDING",
+			roles: { some: { role: { name: "lecturer" } } },
+			departmentMemberships: { some: {} },
+		},
+		select: {
+			...userSelect,
+			departmentMemberships: { select: { department: { select: { id: true, name: true, code: true } } } },
+		},
 		orderBy: { createdAt: "asc" },
 	});
 	return users.map(serializeUser);
 }
 
-export async function decideStaffAccount({ db = prisma, actorUserId, userId, status, roles }) {
-	return db.$transaction(async (tx) => {
-		const user = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, emailVerifiedAt: true } });
-		if (!user) throw new AppError(404, "User not found");
-		const currentRoles = user.roles.map(({ role }) => role.name);
-		if (user.approvalStatus !== "PENDING" || !currentRoles.some((role) => role === "lecturer" || role === "cod")) {
-			throw new AppError(409, "This account is not awaiting staff approval");
-		}
-		const nextRoles = roles ?? currentRoles;
-		if (!nextRoles.length || nextRoles.some((role) => role !== "lecturer" && role !== "cod")) throw new AppError(422, "Approval can assign lecturer and/or COD roles only");
-		const roleRecords = await validateRoles(tx, nextRoles);
-		await tx.userRole.deleteMany({ where: { userId } });
-		await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId, roleId })) });
-		if (nextRoles.includes("lecturer") && !user.lecturerProfile) {
-			const staffIdentifier = user.loginIdentifiers.find(({ type }) => type === "STAFF_NUMBER")?.value;
-			await tx.lecturerProfile.create({ data: { userId, staffNumber: staffIdentifier } });
-		}
-		const isActive = status === "APPROVED" && Boolean(user.emailVerifiedAt);
-		await tx.user.update({ where: { id: userId }, data: { approvalStatus: status, isActive } });
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: `ADMIN_STAFF_ACCOUNT_${status}`, entityType: "User", entityId: userId, metadata: { roles: nextRoles, emailVerified: Boolean(user.emailVerifiedAt) } });
-		return serializeUser(await tx.user.findUnique({ where: { id: userId }, select: userSelect }));
+export async function listPendingDepartmentLecturers({ db = prisma, userId }) {
+	const users = await db.user.findMany({
+		where: {
+			approvalStatus: "PENDING",
+			roles: { some: { role: { name: "lecturer" } } },
+			departmentMemberships: { some: { department: { designatedCodUserId: userId } } },
+		},
+		select: {
+			...userSelect,
+			departmentMemberships: { select: { department: { select: { id: true, name: true, code: true, designatedCodUserId: true } } } },
+		},
+		orderBy: { createdAt: "asc" },
 	});
+	return users.map(serializeUser);
+}
+
+async function decidePendingLecturer({ tx, actorUserId, userId, status, codApproval = false }) {
+	const user = await tx.user.findUnique({
+		where: { id: userId },
+		select: {
+			...userSelect,
+			departmentMemberships: { select: { department: { select: { id: true, name: true, designatedCodUserId: true } } } },
+		},
+	});
+	if (!user) throw new AppError(404, "User not found");
+	const currentRoles = user.roles.map(({ role }) => role.name);
+	if (user.approvalStatus !== "PENDING" || !currentRoles.includes("lecturer") || currentRoles.includes("cod")) {
+		throw new AppError(409, "This account is not awaiting lecturer approval");
+	}
+	if (user.departmentMemberships.length !== 1) {
+		throw new AppError(409, "The lecturer must complete department registration before approval");
+	}
+	const department = user.departmentMemberships[0].department;
+	if (codApproval) {
+		const designatedCod = await tx.user.findFirst({
+			where: {
+				id: actorUserId,
+				isActive: true,
+				roles: { some: { role: { name: "cod" } } },
+				departmentMemberships: { some: { departmentId: department.id } },
+			},
+			select: { id: true },
+		});
+		if (!designatedCod || department.designatedCodUserId !== actorUserId) {
+			throw new AppError(403, "Only this department's designated COD can decide the lecturer application");
+		}
+	}
+	if (status === "REJECTED") {
+		await tx.lecturerProfile.deleteMany({ where: { userId } });
+		await recordAuditEvent({
+			prismaClient: tx,
+			actorId: actorUserId,
+			action: `${codApproval ? "COD" : "ADMIN"}_STAFF_ACCOUNT_REJECTED`,
+			entityType: "User",
+			entityId: userId,
+			metadata: { departmentId: department.id, emailVerified: Boolean(user.emailVerifiedAt), accountDeleted: true },
+		});
+		await tx.user.delete({ where: { id: userId } });
+		return { id: userId, approvalStatus: status, deleted: true };
+	}
+	await tx.user.update({ where: { id: userId }, data: { approvalStatus: status, isActive: true } });
+	await recordAuditEvent({
+		prismaClient: tx,
+		actorId: actorUserId,
+		action: `${codApproval ? "COD" : "ADMIN"}_STAFF_ACCOUNT_APPROVED`,
+		entityType: "User",
+		entityId: userId,
+		metadata: { roles: ["lecturer"], departmentId: department.id, emailVerified: Boolean(user.emailVerifiedAt) },
+	});
+	return serializeUser(await tx.user.findUnique({ where: { id: userId }, select: userSelect }));
+}
+
+export async function decideStaffAccount({ db = prisma, actorUserId, userId, status }) {
+	return db.$transaction((tx) => decidePendingLecturer({ tx, actorUserId, userId, status }));
+}
+
+export async function decideDepartmentLecturerAccount({ db = prisma, actorUserId, userId, status }) {
+	return db.$transaction((tx) => decidePendingLecturer({ tx, actorUserId, userId, status, codApproval: true }));
 }
 
 export async function importStudentRoster({ db = prisma, actorUserId, students }) {

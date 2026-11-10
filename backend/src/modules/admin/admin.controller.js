@@ -38,7 +38,7 @@ export async function getPendingStaffAccounts(req, res, next) {
 
 export async function decideAccountApproval(req, res, next) {
 	try {
-		const user = await decideStaffAccount({ db: req.app.locals.prisma, actorUserId: req.user.id, userId: req.params.id, ...req.body });
+		const user = await decideStaffAccount({ db: req.app.locals.prisma, actorUserId: req.user.id, userId: req.params.id, status: req.body.status });
 		return sendSuccess(res, "Staff account decision saved", user);
 	} catch (error) { return next(error); }
 }

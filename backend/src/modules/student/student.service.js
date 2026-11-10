@@ -605,6 +605,11 @@ export async function getStudentAttendanceHistory(prisma, userId, pagination = {
 				createdAt: true,
 				attendanceRecord: {
 					select: {
+						session: {
+							select: {
+								sessionType: true,
+							},
+						},
 						corrections: {
 							select: {
 								originalStatus: true,

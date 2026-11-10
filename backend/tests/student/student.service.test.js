@@ -227,6 +227,9 @@ test("lists only the authenticated student's attendance history with corrections
 	assert.equal(historyQuery.skip, 5);
 	assert.equal(historyQuery.take, 5);
 	assert.deepEqual(historyQuery.orderBy, { signedAt: "desc" });
+	assert.deepEqual(historyQuery.select.attendanceRecord.select.session.select, {
+		sessionType: true,
+	});
 	assert.ok(historyQuery.select.attendanceRecord.select.corrections);
 	assert.deepEqual(result.records, records);
 	assert.deepEqual(result.pagination, { page: 2, limit: 5, total: 12, totalPages: 3 });
