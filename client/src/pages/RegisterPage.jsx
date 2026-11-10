@@ -11,6 +11,7 @@ import {
 
 import { registerUser } from '../api/auth'
 import { getApiErrorMessage } from '../api/errorHandler'
+import { buildRegistrationPayload } from '../features/auth/registration'
 import '../styles/LoginPage.css'
 import '../styles/RegisterPage.css'
 
@@ -34,12 +35,12 @@ function RegisterPage() {
       return
     }
 
-    const registration = {
-      email: email.trim(),
+    const registration = buildRegistrationPayload({
+      displayName,
+      email,
       password,
-      registrationNumber: registrationNumber.trim(),
-      displayName: displayName.trim(),
-    }
+      registrationNumber,
+    })
 
     try {
       setIsSubmitting(true)
