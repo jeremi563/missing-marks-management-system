@@ -11,13 +11,15 @@ import {
 
 import { registerUser } from '../api/auth'
 import { getApiErrorMessage } from '../api/errorHandler'
+import { buildRegistrationPayload } from '../features/auth/registration'
 import '../styles/LoginPage.css'
 import '../styles/RegisterPage.css'
 
 function RegisterPage() {
+  const [role, setRole] = useState('student')
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
-  const [registrationNumber, setRegistrationNumber] = useState('')
+  const [identityNumber, setIdentityNumber] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
@@ -34,23 +36,22 @@ function RegisterPage() {
       return
     }
 
-    const registration = {
-      email: email.trim(),
+    const registration = buildRegistrationPayload({
+      role,
+      displayName,
+      email,
       password,
-      registrationNumber: registrationNumber.trim(),
-      displayName: displayName.trim(),
-    }
+      identityNumber,
+    })
 
     try {
       setIsSubmitting(true)
       const response = await registerUser(registration)
       const registrationStatus = response?.data?.status
 
-      setSuccess(
-        registrationStatus === 'PENDING_EMAIL_AND_ADMIN_APPROVAL'
-          ? 'Your registration number was identified as a staff account. Verify your email; your account will be available after administrator approval.'
-          : 'Your registration number was verified as a student account. Check your email to verify your account before signing in.'
-      )
+      setSuccess(registrationStatus === 'PENDING_EMAIL_AND_ADMIN_APPROVAL'
+        ? 'Check your email to verify your address. An administrator must approve your staff account before you can sign in.'
+        : 'Your student details matched the university roster. Check your email to verify your address before signing in.')
     } catch (registrationError) {
       setError(getApiErrorMessage(registrationError))
     } finally {
@@ -71,7 +72,7 @@ function RegisterPage() {
 
         <div className="login-heading">
           <h2>Create your account</h2>
-          <p>Your university registration number determines your account type.</p>
+          <p>Register as a student, lecturer, or COD.</p>
         </div>
 
         {error && (
@@ -90,6 +91,23 @@ function RegisterPage() {
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
+            <div className="login-field">
+              <label htmlFor="account-role">Account type</label>
+              <select
+                id="account-role"
+                value={role}
+                onChange={(event) => {
+                  setRole(event.target.value)
+                  setIdentityNumber('')
+                }}
+                required
+              >
+                <option value="student">Student</option>
+                <option value="lecturer">Lecturer</option>
+                <option value="cod">COD</option>
+              </select>
+            </div>
+
             <div className="login-field">
               <label htmlFor="display-name">Full name</label>
               <div className="login-input-wrapper">
@@ -125,22 +143,26 @@ function RegisterPage() {
             </div>
 
             <div className="login-field">
-              <label htmlFor="registration-number">University registration number</label>
+              <label htmlFor="identity-number">
+                {role === 'student' ? 'Student registration number' : 'Staff number'}
+              </label>
               <div className="login-input-wrapper">
                 <GraduationCap size={19} />
                 <input
-                  id="registration-number"
+                  id="identity-number"
                   type="text"
-                  value={registrationNumber}
-                  onChange={(event) => setRegistrationNumber(event.target.value)}
-                  placeholder="Your student or staff number"
+                  value={identityNumber}
+                  onChange={(event) => setIdentityNumber(event.target.value)}
+                  placeholder={role === 'student' ? 'Your student number' : 'Your staff number'}
                   autoComplete="off"
                   maxLength={100}
                   required
                 />
               </div>
               <small className="register-hint">
-                Student records are verified against the university roster. Staff accounts require administrator approval.
+                {role === 'student'
+                  ? 'Your student number and email must match the university roster.'
+                  : 'Verify your email; administrator approval is required before staff access is enabled.'}
               </small>
             </div>
 

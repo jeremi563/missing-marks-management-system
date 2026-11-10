@@ -1,17 +1,14 @@
 
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   User,
   Mail,
-  Phone,
-  GraduationCap,
-  Building2,
   Hash,
-  CalendarDays,
   RefreshCw,
 } from 'lucide-react'
 import { getStudentProfile } from '../../api/student'
+import { normalizeStudentProfile } from './profileData'
 import '../../styles/StudentProfile.css'
 
 function StudentProfile() {
@@ -19,35 +16,41 @@ function StudentProfile() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  const loadProfile = async () => {
-    try {
-      setLoading(true)
-      setError('')
-
-      const response = await getStudentProfile()
-      setProfile(response?.data?.data ?? response?.data ?? null)
-    } catch (err) {
-      setError(
-        err.response?.data?.message || 'Failed to load your profile.'
-      )
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadProfile()
+  const loadProfile = useCallback(async () => {
+    const response = await getStudentProfile()
+    return normalizeStudentProfile(response)
   }, [])
 
-  const getFullName = () => {
-    if (!profile) return 'Student'
+  useEffect(() => {
+    let active = true
 
-    if (profile.fullName) return profile.fullName
+    async function load() {
+      try {
+        const nextProfile = await loadProfile()
+        if (active) {
+          setProfile(nextProfile)
+          setError('')
+        }
+      } catch (err) {
+        if (active) {
+          setError(err.response?.data?.message || 'Failed to load your profile.')
+        }
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
 
-    const firstName = profile.firstName || profile.first_name || ''
-    const lastName = profile.lastName || profile.last_name || ''
+    load()
+    return () => { active = false }
+  }, [loadProfile])
 
-    return `${firstName} ${lastName}`.trim() || 'Student'
+  const handleRetry = () => {
+    setLoading(true)
+    setError('')
+    loadProfile()
+      .then(setProfile)
+      .catch((err) => setError(err.response?.data?.message || 'Failed to load your profile.'))
+      .finally(() => setLoading(false))
   }
 
   const getValue = (...values) => {
@@ -69,7 +72,7 @@ function StudentProfile() {
       <div className="student-profile">
         <div className="profile-error">
           <p>{error}</p>
-          <button onClick={loadProfile}>
+          <button onClick={handleRetry}>
             <RefreshCw size={16} />
             Try again
           </button>
@@ -103,15 +106,8 @@ function StudentProfile() {
         </div>
 
         <div>
-          <h2>{getFullName()}</h2>
-          <p>
-            {getValue(
-              profile.registrationNumber,
-              profile.registration_number,
-              profile.studentNumber,
-              profile.student_number
-            )}
-          </p>
+          <h2>{profile.displayName}</h2>
+          <p>{getValue(profile.studentNumber)}</p>
           <span className="profile-role">Student</span>
         </div>
       </section>
@@ -126,7 +122,7 @@ function StudentProfile() {
           <ProfileField
             icon={<User />}
             label="Full Name"
-            value={getFullName()}
+            value={profile.displayName}
           />
 
           <ProfileField
@@ -136,67 +132,9 @@ function StudentProfile() {
           />
 
           <ProfileField
-            icon={<Phone />}
-            label="Phone Number"
-            value={getValue(profile.phone, profile.phoneNumber, profile.phone_number)}
-          />
-
-          <ProfileField
             icon={<Hash />}
             label="Registration Number"
-            value={getValue(
-              profile.registrationNumber,
-              profile.registration_number,
-              profile.studentNumber,
-              profile.student_number
-            )}
-          />
-        </div>
-      </section>
-
-      <section className="profile-section">
-        <div className="profile-section-heading">
-          <GraduationCap size={20} />
-          <h3>Academic Information</h3>
-        </div>
-
-        <div className="profile-grid">
-          <ProfileField
-            icon={<GraduationCap />}
-            label="Course / Programme"
-            value={getValue(
-              profile.programme?.name,
-              profile.programmeName,
-              profile.programme_name,
-              profile.course?.name,
-              profile.courseName
-            )}
-          />
-
-          <ProfileField
-            icon={<Building2 />}
-            label="Department"
-            value={getValue(
-              profile.department?.name,
-              profile.departmentName,
-              profile.department_name
-            )}
-          />
-
-          <ProfileField
-            icon={<CalendarDays />}
-            label="Year of Study"
-            value={getValue(profile.yearOfStudy, profile.year_of_study)}
-          />
-
-          <ProfileField
-            icon={<CalendarDays />}
-            label="Academic Period"
-            value={getValue(
-              profile.academicPeriod?.name,
-              profile.academicPeriodName,
-              profile.academic_period_name
-            )}
+            value={getValue(profile.studentNumber)}
           />
         </div>
       </section>
