@@ -1,27 +1,38 @@
 import { z } from "zod";
+import {
+	isAdminRegistrationNumber,
+	isStaffRegistrationNumber,
+	isStudentRegistrationNumber,
+} from "../../shared/utils/registration-number.js";
+
+const publicRegistrationNumber = z.string().trim().min(1).max(100).refine(
+	(value) => isStudentRegistrationNumber(value) || isStaffRegistrationNumber(value),
+	{ message: "Use a student number (AB/01243/year) or staff number (AB/0123/staffnumber) with a year no later than the current year." },
+).refine((value) => !isAdminRegistrationNumber(value), {
+	message: "Administrator accounts can only be created by an administrator.",
+});
 
 export const loginSchema = z.object({
-	identifier: z.string().trim().min(1).max(254).optional(),
-	email: z.string().trim().email().max(254).optional(),
+	identifier: z.string().trim().min(1).max(100),
 	password: z.string().min(1).max(128),
-}).strict().refine((body) => Boolean(body.identifier) !== Boolean(body.email), {
-	message: "Provide exactly one login identifier.",
-	path: ["identifier"],
-});
+}).strict();
 
 export const registerSchema = z.object({
-	role: z.enum(["student", "lecturer", "cod"]),
 	email: z.string().trim().email().max(254),
-	password: z.string().min(12).max(128),
-	displayName: z.string().trim().min(1).max(200).optional(),
-	studentNumber: z.string().trim().min(1).max(100).optional(),
-	staffNumber: z.string().trim().min(1).max(100).optional(),
-}).strict().refine((body) => body.role === "student"
-	? Boolean(body.studentNumber) && !body.staffNumber
-	: Boolean(body.staffNumber) && !body.studentNumber, {
-	message: "Provide only the identifier required for the selected account type.",
-	path: ["role"],
-});
+	password: z.string().min(8).max(128),
+	displayName: z.string().trim().min(1).max(200),
+	registrationNumber: publicRegistrationNumber,
+}).strict();
+
+export const lecturerDepartmentRegistrationSchema = z.object({
+	email: z.string().trim().email().max(254),
+	password: z.string().min(8).max(128),
+	displayName: z.string().trim().min(1).max(200),
+	registrationNumber: z.string().trim().min(1).max(100).refine(isStaffRegistrationNumber, {
+		message: "Use the staff number format AB/0123/staffnumber.",
+	}),
+	departmentId: z.string().uuid(),
+}).strict();
 
 export const emailBodySchema = z.object({
 	email: z.string().trim().email().max(254),
@@ -32,5 +43,10 @@ export const tokenBodySchema = z.object({
 }).strict();
 
 export const passwordResetSchema = tokenBodySchema.extend({
-	password: z.string().min(12).max(128),
+	password: z.string().min(8).max(128),
+}).strict();
+
+export const passwordChangeSchema = z.object({
+	currentPassword: z.string().min(1).max(128),
+	newPassword: z.string().min(8).max(128),
 }).strict();

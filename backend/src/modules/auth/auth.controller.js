@@ -4,10 +4,13 @@ import { AppError } from "../../shared/utils/app-error.js";
 import {
 	loginWithCredentials,
 	registerAccount,
+	listRegistrationDepartments,
+	completeLecturerDepartmentRegistration,
 	requestEmailVerification,
 	verifyEmailAddress,
 	requestPasswordReset,
 	resetPassword,
+	changePassword,
 } from "./auth.service.js";
 
 const cookieOptions = {
@@ -30,7 +33,21 @@ export async function login(req, res, next) {
 export async function register(req, res, next) {
 	try {
 		const result = await registerAccount(req.body);
-		return sendSuccess(res, "Registration received. Check your email to verify the address.", result, 202);
+		const message = result.requiresDepartmentRegistration
+			? "Initial registration received. Complete the lecturer department form before your department COD can review the application."
+			: "Registration successful. You can now sign in with your registration number and password.";
+		return sendSuccess(res, message, result, 202);
+	} catch (error) { return next(error); }
+}
+
+export async function getRegistrationDepartments(req, res, next) {
+	try { return sendSuccess(res, "Registration departments retrieved successfully", await listRegistrationDepartments(req.app.locals.prisma)); } catch (error) { return next(error); }
+}
+
+export async function registerLecturerDepartment(req, res, next) {
+	try {
+		const result = await completeLecturerDepartmentRegistration(req.body, req.app.locals.prisma);
+		return sendSuccess(res, "Lecturer department registration received", result, 202);
 	} catch (error) { return next(error); }
 }
 
@@ -54,6 +71,13 @@ export async function forgotPassword(req, res, next) {
 
 export async function resetPasswordController(req, res, next) {
 	try { await resetPassword(req.body.token, req.body.password); return sendSuccess(res, "Password reset successfully", null); } catch (error) { return next(error); }
+}
+
+export async function changePasswordController(req, res, next) {
+	try {
+		await changePassword(req.user.id, req.body.currentPassword, req.body.newPassword);
+		return sendSuccess(res, "Password changed successfully", null);
+	} catch (error) { return next(error); }
 }
 
 export function logout(req, res) {

@@ -1,5 +1,29 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
+import { decideDepartmentLecturerAccount, listPendingDepartmentLecturers } from "../admin/admin.service.js";
 import { addCodReportComment, assignReportToLecturer, decideEscalatedReport, getCodReportDetails, listCodReportComments, listEligibleLecturers, listDepartmentReports } from "./cod.service.js";
+
+export async function getPendingLecturerApprovals(req, res, next) {
+  try {
+    const accounts = await listPendingDepartmentLecturers({ db: req.app.locals.prisma, userId: req.user.id });
+    return sendSuccess(res, "Pending department lecturer approvals retrieved successfully", accounts);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function decideLecturerApproval(req, res, next) {
+  try {
+    const result = await decideDepartmentLecturerAccount({
+      db: req.app.locals.prisma,
+      actorUserId: req.user.id,
+      userId: req.params.id,
+      status: req.body.status,
+    });
+    return sendSuccess(res, "Lecturer approval decision saved", result);
+  } catch (error) {
+    return next(error);
+  }
+}
 
 export async function getCodReport(req, res, next) {
   try {

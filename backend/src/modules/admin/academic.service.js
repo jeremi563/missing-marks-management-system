@@ -18,7 +18,7 @@ async function mutate({ db, actorUserId, action, entityType, entityId, operation
 	});
 }
 
-export const listDepartments = ({ db = prisma, page, limit }) => paginated(db.department, { page, limit, orderBy: [{ name: "asc" }], include: { _count: { select: { courseUnits: true, members: true } } } });
+export const listDepartments = ({ db = prisma, page, limit }) => paginated(db.department, { page, limit, orderBy: [{ name: "asc" }], include: { designatedCod: { select: { id: true, displayName: true, email: true } }, _count: { select: { courseUnits: true, members: true } } } });
 export const listDepartmentMembers = ({ db = prisma, page, limit, departmentId, role }) => paginated(db.departmentMembership, { page, limit, where: { departmentId, ...(role ? { user: { roles: { some: { role: { name: role } } } } } : {}) }, orderBy: { createdAt: "asc" }, include: { user: { select: { id: true, email: true, displayName: true, isActive: true, roles: { select: { role: { select: { name: true } } } }, lecturerProfile: { select: { id: true, staffNumber: true } } } }, department: { select: { id: true, name: true, code: true } } } });
 export const listCourseUnits = ({ db = prisma, page, limit, departmentId }) => paginated(db.courseUnit, { page, limit, where: departmentId ? { departmentId } : {}, orderBy: [{ code: "asc" }], include: { department: { select: { id: true, name: true, code: true } }, _count: { select: { enrollments: true, lecturerMappings: true, assessments: true } } } });
 export const listAcademicPeriods = ({ db = prisma, page, limit }) => paginated(db.academicPeriod, { page, limit, orderBy: [{ startsAt: "desc" }, { name: "asc" }], include: { _count: { select: { enrollments: true, reports: true } } } });
