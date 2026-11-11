@@ -77,7 +77,7 @@ Edit `backend/.env` and set:
 - `DATABASE_URL` to your local PostgreSQL connection. URL-encode special characters in the username or password.
 - `JWT_SECRET` to a private random value of at least 32 characters.
 - `PORT` if port `3000` is already in use.
-- `DEMO_SEED_PASSWORD` to a non-production password of at least 12 characters if you plan to seed demo accounts.
+- `DEMO_SEED_PASSWORD` to a non-production password of at least 8 characters if you plan to seed demo accounts.
 
 Never commit or share `.env`. It is ignored by Git.
 
