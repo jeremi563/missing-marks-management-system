@@ -1343,7 +1343,8 @@
 
   .student-portal .topbar {
     height: 62px;
-    padding: 0 14px;
+    gap: 9px;
+    padding: 0 12px;
   }
 
   .student-portal .topbar-user {
