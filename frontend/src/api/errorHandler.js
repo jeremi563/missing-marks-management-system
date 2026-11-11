@@ -7,6 +7,7 @@ const ERROR_MESSAGES = {
   409: 'This action conflicts with the current record state. Refresh and try again.',
   422: 'The request could not be processed because of a business rule.',
   500: 'A server error occurred. Please try again later.',
+  502: 'The application server is unavailable. Please try again shortly.',
   503: 'The service is temporarily unavailable. Please try again later.',
 }
 
