@@ -3,8 +3,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/config/database.js";
 
 const demoPassword = process.env.DEMO_SEED_PASSWORD;
-if (!demoPassword || demoPassword.length < 12) {
-	throw new Error("Set DEMO_SEED_PASSWORD to a non-production value of at least 12 characters before seeding.");
+if (!demoPassword || demoPassword.length < 8) {
+	throw new Error("Set DEMO_SEED_PASSWORD to a non-production value of at least 8 characters before seeding.");
 }
 
 const demoUsers = [

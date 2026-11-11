@@ -1,15 +1,19 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/config/database.js";
+import { isAdminRegistrationNumber } from "../src/shared/utils/registration-number.js";
 
 const { BOOTSTRAP_ADMIN_NUMBER, BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, BOOTSTRAP_ADMIN_NAME } = process.env;
 
 async function main() {
-	if (!BOOTSTRAP_ADMIN_NUMBER || !BOOTSTRAP_ADMIN_EMAIL || !BOOTSTRAP_ADMIN_PASSWORD || BOOTSTRAP_ADMIN_PASSWORD.length < 12) {
-		throw new Error("Set BOOTSTRAP_ADMIN_NUMBER, BOOTSTRAP_ADMIN_EMAIL, and a BOOTSTRAP_ADMIN_PASSWORD of at least 12 characters.");
+	if (!BOOTSTRAP_ADMIN_NUMBER || !BOOTSTRAP_ADMIN_EMAIL || !BOOTSTRAP_ADMIN_PASSWORD || BOOTSTRAP_ADMIN_PASSWORD.length < 8) {
+		throw new Error("Set BOOTSTRAP_ADMIN_NUMBER, BOOTSTRAP_ADMIN_EMAIL, and a BOOTSTRAP_ADMIN_PASSWORD of at least 8 characters.");
 	}
 	const email = BOOTSTRAP_ADMIN_EMAIL.trim().toLowerCase();
 	const adminNumber = BOOTSTRAP_ADMIN_NUMBER.trim().toUpperCase();
+	if (!isAdminRegistrationNumber(adminNumber)) {
+		throw new Error("BOOTSTRAP_ADMIN_NUMBER must use the format admin/12/year, with a year no later than the current year.");
+	}
 	await prisma.$transaction(async (tx) => {
 		const existingAdmin = await tx.user.findFirst({ where: { isActive: true, roles: { some: { role: { name: "administrator" } } } }, select: { id: true } });
 		if (existingAdmin) throw new Error("An active administrator already exists; bootstrap is only for initial setup.");

@@ -69,13 +69,13 @@ Seed synthetic development data after the migration:
 npm run db:seed
 ```
 
-For a non-demo deployment, create the first administrator through the one-time bootstrap instead of seeding demo accounts. Set `BOOTSTRAP_ADMIN_NUMBER`, `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` (at least 12 characters), and optionally `BOOTSTRAP_ADMIN_NAME` in `.env`, then run:
+For a non-demo deployment, create the first administrator through the one-time bootstrap instead of seeding demo accounts. Set `BOOTSTRAP_ADMIN_NUMBER` in `admin/DD/YYYY` format: `admin/` is fixed, `DD` is any two digits, and `YYYY` is a four-digit year no later than the current year. Set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` (at least 8 characters), and optionally `BOOTSTRAP_ADMIN_NAME` in `.env`, then run:
 
 ```bash
 npm run db:bootstrap-admin
 ```
 
-The bootstrap refuses to run when an active administrator already exists. Before accepting student registrations, an administrator must preload the authoritative registration-number/email roster through `POST /api/v1/admin/student-roster/import`. Lecturer and COD applications remain inactive until email verification and administrator approval.
+The bootstrap refuses to run when an active administrator already exists. Before accepting student registrations, an administrator must preload the authoritative registration-number/email roster through `POST /api/v1/admin/student-roster/import`. New lecturers first use the shared registration form, then re-enter their account details and choose a department in the lecturer department form. This confirms and updates the same pending account; it does not create a second account. A department must have a designated COD before it is offered to applicants. The department's designated COD approves or rejects the lecturer; accounts remain inactive until approval. Lecturer email verification is disabled, so approved staff can sign in without it. Administrators create departments in Academic setup and assign one active COD per department. Assigning a COD also adds them to that department. COD is a lecturer responsibility, and students cannot be promoted to COD.
 
 Never run development migrations against production or an unapproved shared database. The team lead coordinates schema and migration changes.
 

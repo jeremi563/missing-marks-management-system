@@ -449,4 +449,3 @@ export async function savePublicHoliday({ db = prisma, userId, id, date, name, s
 		return result;
 	});
 }
-
