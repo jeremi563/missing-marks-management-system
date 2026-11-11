@@ -1,0 +1,14 @@
+:root {
+  font-family: Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #17233c;
+  background: #f5f7fb;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #17233c;
+  --muted: #64748b;
+  --line: #e4e9f1;
+  --blue: #315fe8;
+  --blue-dark: #234ac3;
+  --surface: #ffffff;
+  --radius: 16px;
+}

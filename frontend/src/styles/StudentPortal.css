@@ -1,0 +1,1500 @@
+.student-portal {
+  --student-ink: #122a35;
+  --student-muted: #637983;
+  --student-line: #dce7e9;
+  --student-teal: #087e83;
+  --student-teal-dark: #06676c;
+  --student-canvas: #f3f7f7;
+  min-height: 100vh;
+  color: var(--student-ink);
+  background: var(--student-canvas);
+}
+
+.student-portal .sidebar {
+  width: 252px;
+  padding: 26px 17px 20px;
+  color: #e8f3f4;
+  background: #102a35;
+  border: 0;
+  box-shadow: 12px 0 32px #102a3510;
+}
+
+.student-portal .sidebar-brand {
+  padding: 0 5px;
+  color: #fff;
+}
+
+.student-portal .sidebar-brand small {
+  color: #9ab0b8;
+}
+
+.student-portal .brand-icon {
+  color: #102a35;
+  background: #83d6c6;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.student-portal .sidebar-role {
+  margin: 35px 9px 13px;
+  color: #84a1aa;
+}
+
+.student-portal .sidebar-nav {
+  gap: 7px;
+}
+
+.student-portal .sidebar-link {
+  min-height: 46px;
+  padding: 0 13px;
+  color: #b6c8cd;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-weight: 550;
+  transition: background .16s ease, color .16s ease, border-color .16s ease;
+}
+
+.student-portal .sidebar-link svg {
+  color: #91aab1;
+}
+
+.student-portal .sidebar-link:hover {
+  color: #fff;
+  background: #ffffff0d;
+}
+
+.student-portal .sidebar-link.active {
+  color: #fff;
+  background: #ffffff12;
+  border-color: #ffffff16;
+  box-shadow: inset 3px 0 #83d6c6;
+}
+
+.student-portal .sidebar-link.active svg {
+  color: #83d6c6;
+}
+
+.student-portal .dashboard-main {
+  margin-left: 252px;
+}
+
+.student-portal .topbar {
+  height: 72px;
+  padding: 0 clamp(22px, 3.2vw, 48px);
+  background: #f9fbfbf2;
+  border-color: var(--student-line);
+  backdrop-filter: blur(14px);
+}
+
+.student-portal .topbar h1 {
+  color: #48606a;
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+
+.student-portal .topbar-user {
+  color: var(--student-ink);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.student-portal .topbar-user .icon-button {
+  width: 38px;
+  height: 38px;
+  color: #526a73;
+  background: #edf3f3;
+  border: 1px solid #e0e9ea;
+  border-radius: 50%;
+}
+
+.student-portal .topbar-user .icon-button:hover {
+  color: #a63e39;
+  background: #fff0ed;
+}
+
+.student-portal .dashboard-content {
+  width: min(100%, 1480px);
+  padding: clamp(22px, 3vw, 42px);
+}
+
+.student-portal .student-dashboard,
+.student-portal .student-reports-page,
+.student-portal .student-profile,
+.student-portal .student-attendance,
+.student-portal .student-appeals,
+.student-portal .student-notifications,
+.student-portal .student-report-details,
+.student-portal .student-report-create-page {
+  gap: 25px;
+}
+
+.student-portal .student-eyebrow,
+.student-portal .page-heading .eyebrow {
+  margin: 0 0 9px;
+  color: var(--student-teal);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.student-portal .student-welcome {
+  position: relative;
+  min-height: 206px;
+  padding: 32px 36px;
+  overflow: hidden;
+  color: #f6ffff;
+  background: #123b45;
+  border: 1px solid #1c4a53;
+  border-radius: 17px;
+  box-shadow: 0 12px 26px #173a4517;
+}
+
+.student-portal .student-welcome::after {
+  position: absolute;
+  top: -100px;
+  right: 12%;
+  width: 270px;
+  height: 270px;
+  border: 1px solid #a7e5d52b;
+  border-radius: 50%;
+  box-shadow: 0 0 0 32px #a7e5d50b, 0 0 0 68px #a7e5d508;
+  content: "";
+  pointer-events: none;
+}
+
+.student-portal .student-welcome > div,
+.student-portal .student-welcome > a {
+  position: relative;
+  z-index: 1;
+}
+
+.student-portal .student-welcome .student-eyebrow {
+  color: #8dd9c8;
+}
+
+.student-portal .student-welcome h2 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 720;
+  letter-spacing: -.035em;
+}
+
+.student-portal .student-welcome p:not(.student-eyebrow) {
+  margin: 0;
+  color: #c1d5d9;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.student-portal .student-registration {
+  display: inline-flex;
+  margin-top: 17px;
+  padding: 7px 10px;
+  color: #d1e8e7;
+  background: #ffffff0c;
+  border: 1px solid #ffffff20;
+  border-radius: 7px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.student-portal .student-primary-button,
+.student-portal .student-reports-header a,
+.student-portal .student-report-create-page .button-primary {
+  min-height: 43px;
+  padding: 0 15px;
+  color: #102f38;
+  background: #91dfcb;
+  border: 1px solid #91dfcb;
+  border-radius: 9px;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 750;
+  transition: background .16s ease, transform .16s ease;
+}
+
+.student-portal .student-primary-button:hover,
+.student-portal .student-reports-header a:hover,
+.student-portal .student-report-create-page .button-primary:hover {
+  color: #102f38;
+  background: #b0ecdb;
+  transform: translateY(-1px);
+}
+
+.student-portal .student-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 15px;
+}
+
+.student-portal .student-summary-card {
+  min-height: 112px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 13px;
+  box-shadow: 0 4px 14px #18384008;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+
+.student-portal .student-summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px #18384012;
+}
+
+.student-portal .student-summary-card p {
+  color: var(--student-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.student-portal .student-summary-card h3 {
+  color: var(--student-ink);
+  font-size: 27px;
+  font-variant-numeric: tabular-nums;
+}
+
+.student-portal .student-stat-icon {
+  width: 44px;
+  height: 44px;
+  color: #087e83;
+  background: #e4f4f1;
+  border-radius: 12px;
+}
+
+.student-portal .student-stat-orange {
+  color: #a36a12;
+  background: #fff3dc;
+}
+
+.student-portal .student-stat-green {
+  color: #16704f;
+  background: #e5f5ec;
+}
+
+.student-portal .student-stat-red {
+  color: #a7423e;
+  background: #fff0ed;
+}
+
+.student-portal .student-recent-section,
+.student-portal .student-report-create-page .panel,
+.student-portal .details-card,
+.student-portal .attendance-records,
+.student-portal .appeals-section,
+.student-portal .profile-section {
+  padding: 23px;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 14px;
+  box-shadow: 0 4px 14px #18384008;
+}
+
+.student-portal .student-section-heading {
+  margin-bottom: 17px;
+}
+
+.student-portal .student-section-heading h3,
+.student-portal .attendance-records-header h2,
+.student-portal .appeals-section-heading h2 {
+  margin: 0 0 5px;
+  color: var(--student-ink);
+  font-size: 16px;
+  letter-spacing: -.01em;
+}
+
+.student-portal .student-section-heading p,
+.student-portal .attendance-records-header p,
+.student-portal .appeals-section-heading p {
+  margin: 0;
+  color: var(--student-muted);
+  font-size: 12px;
+}
+
+.student-portal .student-section-heading > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--student-teal);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.student-portal .student-reports-table-wrapper,
+.student-portal .attendance-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid var(--student-line);
+  border-radius: 10px;
+}
+
+.student-portal .student-reports-table,
+.student-portal .attendance-table {
+  min-width: 650px;
+}
+
+.student-portal .student-reports-table th,
+.student-portal .attendance-table th {
+  padding: 12px 14px;
+  color: #627780;
+  background: #f5f8f8;
+  border-bottom: 1px solid var(--student-line);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.student-portal .student-reports-table td,
+.student-portal .attendance-table td {
+  padding: 14px;
+  color: #344e58;
+  border-bottom-color: #edf2f2;
+  font-size: 12px;
+}
+
+.student-portal .student-reports-table tbody tr:hover,
+.student-portal .attendance-table tbody tr:hover {
+  background: #f8fbfb;
+}
+
+.student-portal .student-view-link,
+.student-portal .student-report-actions a {
+  color: var(--student-teal);
+  font-weight: 750;
+}
+
+.student-portal .student-empty-reports,
+.student-portal .notifications-empty,
+.student-portal .attendance-empty,
+.student-portal .appeals-empty {
+  padding: 36px 20px;
+  color: var(--student-muted);
+  background: #f8fbfb;
+  border: 1px dashed #cbdcde;
+  border-radius: 11px;
+  text-align: center;
+}
+
+.student-portal .student-empty-reports > svg,
+.student-portal .notifications-empty > svg,
+.student-portal .attendance-empty > svg,
+.student-portal .appeals-empty > svg {
+  color: var(--student-teal);
+}
+
+.student-portal .student-empty-reports h4,
+.student-portal .notifications-empty h3,
+.student-portal .attendance-empty h3,
+.student-portal .appeals-empty h3 {
+  margin: 12px 0 5px;
+  color: var(--student-ink);
+}
+
+.student-portal .student-empty-reports p,
+.student-portal .notifications-empty p,
+.student-portal .attendance-empty p,
+.student-portal .appeals-empty p {
+  margin: 0 0 14px;
+  color: var(--student-muted);
+  font-size: 13px;
+}
+
+.student-portal .student-empty-reports a {
+  color: var(--student-teal);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.student-portal .student-reports-header,
+.student-portal .notifications-header,
+.student-portal .profile-header,
+.student-portal .attendance-header,
+.student-portal .appeals-header,
+.student-portal .details-header,
+.student-portal .page-heading {
+  align-items: flex-end;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--student-line);
+}
+
+.student-portal .student-reports-header h2,
+.student-portal .notifications-header h1,
+.student-portal .profile-header h1,
+.student-portal .attendance-header h1,
+.student-portal .appeals-header h1,
+.student-portal .details-header h1,
+.student-portal .page-heading h2 {
+  margin: 0 0 7px;
+  color: var(--student-ink);
+  font-size: clamp(24px, 2.4vw, 30px);
+  font-weight: 740;
+  letter-spacing: -.035em;
+}
+
+.student-portal .student-reports-header > div > p:last-child,
+.student-portal .notifications-header > div > p,
+.student-portal .profile-header > div > p,
+.student-portal .attendance-header > div > p,
+.student-portal .appeals-header > div > p,
+.student-portal .details-header > div > p,
+.student-portal .page-heading > div > p:last-child {
+  margin: 0;
+  color: var(--student-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.student-portal .student-reports-toolbar,
+.student-portal .notifications-toolbar {
+  min-height: 52px;
+  margin: 0;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 11px;
+}
+
+.student-portal .student-reports-count,
+.student-portal .notification-count {
+  color: #48636d;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.student-portal .student-reports-count svg {
+  color: var(--student-teal);
+}
+
+.student-portal .student-filter label {
+  color: var(--student-muted);
+  font-size: 11px;
+}
+
+.student-portal .student-filter select,
+.student-portal .attendance-filters select {
+  width: auto;
+  min-width: 150px;
+  min-height: 38px;
+  padding: 8px 30px 8px 10px;
+  border-color: var(--student-line);
+  font-size: 12px;
+}
+
+.student-portal .student-report-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin: 0;
+  padding: 17px 19px;
+  border-color: var(--student-line);
+  border-radius: 12px;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.student-portal .student-report-card:hover {
+  border-color: #a7c7c7;
+  box-shadow: 0 8px 20px #173a450d;
+  transform: translateY(-1px);
+}
+
+.student-portal .student-report-icon {
+  width: 44px;
+  height: 44px;
+  color: var(--student-teal);
+  background: #e5f4f2;
+  border-radius: 11px;
+}
+
+.student-portal .student-report-information h3 {
+  color: var(--student-ink);
+  font-size: 14px;
+}
+
+.student-portal .student-report-information p {
+  color: #415e68;
+  font-size: 12px;
+}
+
+.student-portal .student-report-information small {
+  color: #7a8e95;
+  font-size: 11px;
+}
+
+.student-portal .student-report-actions {
+  justify-content: flex-end;
+}
+
+.student-portal .status-chip {
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  font-size: 10px;
+  letter-spacing: .01em;
+}
+
+.student-portal .status-approved,
+.student-portal .status-resolved {
+  color: #166341;
+  background: #e6f5eb;
+  border-color: #d2eadb;
+}
+
+.student-portal .status-rejected,
+.student-portal .status-withdrawn {
+  color: #a33e3b;
+  background: #fff0ed;
+  border-color: #f3d9d4;
+}
+
+.student-portal .status-pending,
+.student-portal .status-submitted,
+.student-portal .status-under-review {
+  color: #8b5a11;
+  background: #fff5df;
+  border-color: #f2e4c4;
+}
+
+.student-portal .pager {
+  color: var(--student-muted);
+}
+
+.student-portal .button-secondary,
+.student-portal .student-clear-filter {
+  color: #35525d;
+  background: #fff;
+  border-color: var(--student-line);
+}
+
+.student-portal .button-secondary:hover {
+  color: var(--student-teal-dark);
+  background: #f5fafa;
+  border-color: #abc9c9;
+}
+
+.student-portal .student-clear-filter {
+  padding: 9px 12px;
+  border: 1px solid var(--student-line);
+  border-radius: 8px;
+}
+
+.student-portal .page-heading .button-secondary {
+  margin-left: auto;
+}
+
+.student-portal .student-report-create-page .panel {
+  max-width: 900px;
+  padding: clamp(20px, 3vw, 30px);
+}
+
+.student-portal .form-field label {
+  color: #344f59;
+  font-size: 12px;
+}
+
+.student-portal input,
+.student-portal select,
+.student-portal textarea {
+  min-height: 44px;
+  color: var(--student-ink);
+  background: #fbfdfd;
+  border-color: #d7e3e5;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.student-portal textarea {
+  min-height: 120px;
+}
+
+.student-portal input:focus,
+.student-portal select:focus,
+.student-portal textarea:focus {
+  border-color: #54a7a5;
+  box-shadow: 0 0 0 3px #087e8318;
+}
+
+.student-portal .field-hint {
+  color: #758992;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.student-portal .student-report-create-page .button-primary {
+  color: #fff;
+  background: var(--student-teal);
+  border-color: var(--student-teal);
+}
+
+.student-portal .student-report-create-page .button-primary:hover {
+  color: #fff;
+  background: var(--student-teal-dark);
+}
+
+.student-portal .student-report-details {
+  max-width: 1080px;
+}
+
+.student-portal .back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 7px 0;
+  color: #52717a;
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.student-portal .back-button:hover {
+  color: var(--student-teal);
+}
+
+.student-portal .details-header {
+  align-items: center;
+}
+
+.student-portal .details-status,
+.student-portal .attendance-status,
+.student-portal .location-status,
+.student-portal .appeal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 7px 10px;
+  color: #8b5a11;
+  background: #fff5df;
+  border: 1px solid #f2e4c4;
+  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.student-portal .details-status.approved,
+.student-portal .attendance-status.present,
+.student-portal .location-status.verified {
+  color: #166341;
+  background: #e6f5eb;
+  border-color: #d2eadb;
+}
+
+.student-portal .details-status.rejected,
+.student-portal .attendance-status.absent {
+  color: #a33e3b;
+  background: #fff0ed;
+  border-color: #f3d9d4;
+}
+
+.student-portal .attendance-status.late {
+  color: #8b5a11;
+  background: #fff5df;
+  border-color: #f2e4c4;
+}
+
+.student-portal .location-status.unverified {
+  color: #687d85;
+  background: #f0f4f4;
+  border-color: #dfe8e8;
+}
+
+.student-portal .card-heading,
+.student-portal .profile-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  color: var(--student-teal);
+}
+
+.student-portal .card-heading h2,
+.student-portal .profile-section-heading h3 {
+  margin: 0;
+  color: var(--student-ink);
+  font-size: 15px;
+}
+
+.student-portal .details-grid,
+.student-portal .profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.student-portal .details-grid > div,
+.student-portal .profile-field {
+  min-width: 0;
+  padding: 14px;
+  background: #f7fafa;
+  border: 1px solid #e7eeee;
+  border-radius: 9px;
+}
+
+.student-portal .details-grid span,
+.student-portal .profile-field span {
+  display: block;
+  margin-bottom: 6px;
+  color: #748991;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.student-portal .details-grid strong,
+.student-portal .profile-field p {
+  overflow-wrap: anywhere;
+  color: #27434d;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.student-portal .report-description {
+  margin: 0;
+  padding: 15px;
+  color: #405b64;
+  background: #f7fafa;
+  border: 1px solid #e7eeee;
+  border-radius: 9px;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.student-portal .report-timeline {
+  display: grid;
+  gap: 0;
+  padding-left: 7px;
+}
+
+.student-portal .timeline-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 11px;
+  padding-bottom: 20px;
+}
+
+.student-portal .timeline-item:not(:last-child)::before {
+  position: absolute;
+  top: 14px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: #d9e7e7;
+  content: "";
+}
+
+.student-portal .timeline-dot {
+  z-index: 1;
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+  background: #73c9b6;
+  border: 3px solid #e1f3ef;
+  border-radius: 50%;
+}
+
+.student-portal .timeline-item strong {
+  color: #27434d;
+  font-size: 12px;
+}
+
+.student-portal .timeline-item p,
+.student-portal .timeline-item small,
+.student-portal .comment-item p,
+.student-portal .comment-header small {
+  color: var(--student-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.student-portal .comment-item {
+  border-bottom-color: #e8eeee;
+}
+
+.student-portal .comment-header strong {
+  color: #27434d;
+  font-size: 12px;
+}
+
+.student-portal .comment-form button,
+.student-portal .mark-all-button,
+.student-portal .mark-read-button,
+.student-portal .submit-appeal-button,
+.student-portal .confirm-appeal-button {
+  min-height: 38px;
+  padding: 0 13px;
+  color: #fff;
+  background: var(--student-teal);
+  border: 1px solid var(--student-teal);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.student-portal .comment-form button:hover,
+.student-portal .mark-all-button:hover,
+.student-portal .mark-read-button:hover,
+.student-portal .submit-appeal-button:hover,
+.student-portal .confirm-appeal-button:hover {
+  background: var(--student-teal-dark);
+}
+
+.student-portal .student-appeals,
+.student-portal .student-attendance,
+.student-portal .student-notifications,
+.student-portal .student-profile {
+  gap: 21px;
+}
+
+.student-portal .appeals-count,
+.student-portal .notification-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  color: #37606a;
+  background: #e8f3f2;
+  border: 1px solid #d5e7e5;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.student-portal .appeals-count svg,
+.student-portal .notification-count svg {
+  color: var(--student-teal);
+}
+
+.student-portal .appeal-report-card {
+  padding: 19px;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px #18384008;
+}
+
+.student-portal .appeal-report-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  color: var(--student-teal);
+  background: #e5f4f2;
+  border-radius: 10px;
+}
+
+.student-portal .appeal-report-info h3 {
+  color: var(--student-ink);
+  font-size: 14px;
+}
+
+.student-portal .appeal-report-info p,
+.student-portal .appeal-report-meta,
+.student-portal .appeal-description,
+.student-portal .existing-appeal p {
+  color: var(--student-muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.student-portal .appeal-status.rejected {
+  color: #a33e3b;
+  background: #fff0ed;
+  border-color: #f3d9d4;
+}
+
+.student-portal .existing-appeal {
+  background: #f4f8f8;
+  border-color: var(--student-line);
+}
+
+.student-portal .appeal-modal-overlay {
+  z-index: 50;
+  padding: 20px;
+  background: #102a35a8;
+  backdrop-filter: blur(3px);
+}
+
+.student-portal .appeal-modal {
+  width: min(100%, 560px);
+  padding: 25px;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 15px;
+  box-shadow: 0 24px 70px #102a3540;
+}
+
+.student-portal .appeal-modal-header h2 {
+  color: var(--student-ink);
+  font-size: 20px;
+}
+
+.student-portal .appeal-modal-header p,
+.student-portal .selected-report-info span {
+  color: var(--student-muted);
+  font-size: 12px;
+}
+
+.student-portal .selected-report-info {
+  padding: 12px;
+  background: #f5f9f9;
+  border: 1px solid #e4eeee;
+  border-radius: 9px;
+}
+
+.student-portal .cancel-appeal-button {
+  min-height: 38px;
+  padding: 0 13px;
+  color: #455f68;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 8px;
+}
+
+.student-portal .notification-filters button {
+  padding: 8px 12px;
+  color: #526a73;
+  background: #fff;
+  border-color: var(--student-line);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.student-portal .notification-filters button.active {
+  color: #086c70;
+  background: #e6f4f2;
+  border-color: #c5e3df;
+}
+
+.student-portal .notification-card {
+  align-items: flex-start;
+  padding: 17px 18px;
+  border-color: var(--student-line);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px #18384008;
+}
+
+.student-portal .notification-card.unread {
+  background: #f8fcfb;
+  border-left: 3px solid #42a896;
+}
+
+.student-portal .notification-card.read {
+  opacity: 1;
+}
+
+.student-portal .notification-icon {
+  width: 40px;
+  height: 40px;
+  color: var(--student-teal);
+  background: #e5f4f2;
+  border-radius: 10px;
+}
+
+.student-portal .notification-card h3 {
+  color: var(--student-ink);
+  font-size: 13px;
+}
+
+.student-portal .notification-card p {
+  margin: 5px 0 10px;
+  color: #536d76;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.student-portal .notification-date {
+  color: #788c93;
+}
+
+.student-portal .unread-indicator {
+  padding: 4px 7px;
+  color: #08766f;
+  background: #e2f5ef;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.student-portal .profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 23px;
+  background: #123b45;
+  border: 1px solid #1c4a53;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px #173a4512;
+}
+
+.student-portal .profile-avatar {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  color: #0e4b50;
+  background: #9be0ce;
+  border: 3px solid #c8f2e6;
+  border-radius: 50%;
+}
+
+.student-portal .profile-summary h2 {
+  margin: 0 0 5px;
+  color: #fff;
+  font-size: 18px;
+}
+
+.student-portal .profile-summary p {
+  margin: 0 0 8px;
+  color: #c1d5d9;
+  font-size: 12px;
+}
+
+.student-portal .profile-role {
+  display: inline-flex;
+  padding: 4px 8px;
+  color: #d6f5e9;
+  background: #ffffff12;
+  border: 1px solid #ffffff20;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.student-portal .profile-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.student-portal .profile-field-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  color: var(--student-teal);
+  background: #e5f4f2;
+  border-radius: 9px;
+}
+
+.student-portal .profile-field-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.student-portal .profile-field p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.student-portal .attendance-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.student-portal .attendance-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 98px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 12px;
+  box-shadow: 0 4px 14px #18384008;
+}
+
+.student-portal .attendance-stat-card span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--student-muted);
+  font-size: 11px;
+}
+
+.student-portal .attendance-stat-card strong {
+  color: var(--student-ink);
+  font-size: 23px;
+}
+
+.student-portal .stat-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  color: var(--student-teal);
+  background: #e5f4f2;
+  border-radius: 11px;
+}
+
+.student-portal .stat-icon.present {
+  color: #16704f;
+  background: #e5f5ec;
+}
+
+.student-portal .stat-icon.absent {
+  color: #a7423e;
+  background: #fff0ed;
+}
+
+.student-portal .stat-icon.late {
+  color: #a36a12;
+  background: #fff3dc;
+}
+
+.student-portal .attendance-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.student-portal .attendance-type-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 5px;
+  overflow-x: auto;
+  background: #f0f5f5;
+  border: 1px solid var(--student-line);
+  border-radius: 11px;
+}
+
+.student-portal .attendance-type-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 0 14px;
+  color: #526a73;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.student-portal .attendance-type-tabs button.active {
+  color: var(--student-teal-dark);
+  background: #fff;
+  border-color: #d7e6e5;
+  box-shadow: 0 2px 6px #1838400d;
+}
+
+.student-portal .attendance-type-count {
+  min-width: 22px;
+  padding: 2px 6px;
+  color: #567078;
+  background: #e8f0f0;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.student-portal .attendance-type-tabs button.active .attendance-type-count {
+  color: #086c70;
+  background: #e3f3f0;
+}
+
+.student-portal .attendance-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: min(100%, 330px);
+  padding-left: 11px;
+  color: #71868d;
+  background: #fbfdfd;
+  border: 1px solid #d7e3e5;
+  border-radius: 8px;
+}
+
+.student-portal .attendance-search input {
+  min-height: 38px;
+  padding-left: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.student-portal .attendance-table td strong {
+  display: block;
+  color: #294650;
+  font-size: 12px;
+}
+
+.student-portal .attendance-table td small {
+  display: block;
+  margin-top: 4px;
+  color: #7b9096;
+  font-size: 10px;
+}
+
+.student-portal .notifications-error,
+.student-portal .attendance-error,
+.student-portal .appeals-alert,
+.student-portal .profile-error {
+  padding: 12px 14px;
+  background: #fff2ef;
+  border: 1px solid #f2d5d0;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.student-portal .appeals-alert.success {
+  color: #166341;
+  background: #eaf7ef;
+  border-color: #d2eadb;
+}
+
+.student-portal .profile-error {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  color: #a33e3b;
+}
+
+.student-portal .profile-error button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  color: #fff;
+  background: var(--student-teal);
+  border: 0;
+  border-radius: 8px;
+}
+
+.student-portal .profile-loading,
+.student-portal .notifications-loading,
+.student-portal .attendance-loading,
+.student-portal .appeals-loading,
+.student-portal .report-details-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 220px;
+  color: var(--student-muted);
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 14px;
+  font-size: 13px;
+}
+
+.student-portal .report-details-error {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-height: 220px;
+  padding: 30px;
+  color: #a33e3b;
+  background: #fff;
+  border: 1px solid var(--student-line);
+  border-radius: 14px;
+  text-align: center;
+}
+
+.student-portal .report-details-error button {
+  padding: 9px 13px;
+  color: #fff;
+  background: var(--student-teal);
+  border: 0;
+  border-radius: 8px;
+}
+
+.student-portal .loading-spinner,
+.student-portal .appeals-spinner,
+.student-portal .attendance-spinner {
+  color: var(--student-teal);
+}
+
+.student-portal :focus-visible {
+  outline: 3px solid #48aaa0;
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .student-portal .sidebar {
+    width: 252px;
+  }
+
+  .student-portal .dashboard-main {
+    margin-left: 0;
+  }
+
+  .student-portal .sidebar-overlay {
+    background: #0d2731a6;
+  }
+
+  .student-portal .sidebar-close {
+    color: #dce9eb;
+  }
+}
+
+@media (max-width: 680px) {
+  .student-portal .dashboard-content {
+    padding: 22px 15px 32px;
+  }
+
+  .student-portal .topbar {
+    height: 62px;
+    padding: 0 14px;
+  }
+
+  .student-portal .topbar-user {
+    gap: 6px;
+  }
+
+  .student-portal .student-welcome {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 22px;
+    min-height: 0;
+    padding: 24px 21px;
+  }
+
+  .student-portal .student-welcome::after {
+    right: -120px;
+  }
+
+  .student-portal .student-welcome h2 {
+    font-size: 27px;
+  }
+
+  .student-portal .student-summary-grid,
+  .student-portal .attendance-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .student-portal .student-summary-card,
+  .student-portal .attendance-stat-card {
+    min-height: 88px;
+    padding: 13px;
+    gap: 10px;
+  }
+
+  .student-portal .student-summary-card h3,
+  .student-portal .attendance-stat-card strong {
+    font-size: 21px;
+  }
+
+  .student-portal .student-summary-card p,
+  .student-portal .attendance-stat-card span {
+    font-size: 10px;
+  }
+
+  .student-portal .student-section-heading,
+  .student-portal .student-report-card,
+  .student-portal .student-report-main,
+  .student-portal .student-report-actions,
+  .student-portal .notifications-header,
+  .student-portal .notifications-toolbar,
+  .student-portal .attendance-filters {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-portal .student-report-card {
+    gap: 13px;
+    padding: 15px;
+  }
+
+  .student-portal .student-report-actions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 12px;
+    border-top: 1px solid #edf2f2;
+  }
+
+  .student-portal .student-reports-toolbar {
+    align-items: stretch;
+  }
+
+  .student-portal .student-filter {
+    align-items: flex-start;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .student-portal .student-filter select,
+  .student-portal .attendance-filters select,
+  .student-portal .attendance-search {
+    width: 100%;
+    max-width: none;
+  }
+
+  .student-portal .page-heading,
+  .student-portal .student-reports-header,
+  .student-portal .profile-header,
+  .student-portal .attendance-header,
+  .student-portal .appeals-header,
+  .student-portal .details-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .student-portal .page-heading .button-secondary {
+    margin-left: 0;
+  }
+
+  .student-portal .details-grid,
+  .student-portal .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-portal .student-recent-section,
+  .student-portal .student-report-create-page .panel,
+  .student-portal .details-card,
+  .student-portal .attendance-records,
+  .student-portal .appeals-section,
+  .student-portal .profile-section {
+    padding: 17px;
+  }
+
+  .student-portal .student-section-heading {
+    gap: 8px;
+  }
+
+  .student-portal .notification-card {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+
+  .student-portal .notification-content {
+    min-width: 0;
+  }
+
+  .student-portal .mark-read-button {
+    margin-left: 52px;
+  }
+
+  .student-portal .profile-summary {
+    padding: 18px;
+  }
+
+  .student-portal .appeals-count,
+  .student-portal .notification-count {
+    align-self: flex-start;
+  }
+
+  .student-portal .appeal-modal {
+    padding: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .student-portal *,
+  .student-portal *::before,
+  .student-portal *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}
