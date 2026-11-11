@@ -12,8 +12,17 @@ import {
   CheckCircle,
   XCircle,
   LoaderCircle,
+  Pencil,
+  Trash2,
 } from 'lucide-react'
-import { getStudentReport, getStudentReportComments, addStudentReportComment } from '../../api/student'
+import {
+  addStudentReportComment,
+  getStudentReport,
+  getStudentReportComments,
+  updateStudentReport,
+  withdrawStudentReport,
+} from '../../api/student'
+import ConfirmDialog from '../../components/ui/ConfirmDialog'
 import '../../styles/StudentReportDetails.css'
 
 function StudentReportDetails() {
@@ -27,6 +36,14 @@ function StudentReportDetails() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [commentError, setCommentError] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+  const [editAssessmentComponent, setEditAssessmentComponent] = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [actionSuccess, setActionSuccess] = useState('')
+  const [isSavingEdit, setIsSavingEdit] = useState(false)
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false)
 
   useEffect(() => {
     const fetchReportDetails = async () => {
@@ -77,6 +94,62 @@ function StudentReportDetails() {
       )
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleStartEditing = () => {
+    setEditAssessmentComponent(report.assessmentComponent || '')
+    setEditDescription(report.description || '')
+    setActionError('')
+    setActionSuccess('')
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = async (event) => {
+    event.preventDefault()
+    const assessmentComponent = editAssessmentComponent.trim()
+    const description = editDescription.trim()
+
+    if (!assessmentComponent || !description) {
+      setActionError('Assessment component and description are required.')
+      return
+    }
+
+    try {
+      setIsSavingEdit(true)
+      setActionError('')
+      const response = await updateStudentReport(reportId, {
+        assessmentComponent,
+        description,
+      })
+      const updatedReport = response.data?.data ?? response.data
+      setReport((current) => ({ ...current, ...updatedReport }))
+      setIsEditing(false)
+      setActionSuccess('Report updated successfully.')
+    } catch (err) {
+      setActionError(
+        err.response?.data?.message || 'Unable to update this report.'
+      )
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  const handleWithdraw = async () => {
+    try {
+      setIsWithdrawing(true)
+      setActionError('')
+      const response = await withdrawStudentReport(reportId)
+      const updatedReport = response.data?.data ?? response.data
+      setReport((current) => ({ ...current, ...updatedReport }))
+      setIsWithdrawDialogOpen(false)
+      setActionSuccess('Report withdrawn successfully.')
+    } catch (err) {
+      setActionError(
+        err.response?.data?.message || 'Unable to withdraw this report.'
+      )
+    } finally {
+      setIsWithdrawing(false)
     }
   }
 
@@ -202,11 +275,64 @@ function StudentReportDetails() {
           <h2>Report Description</h2>
         </div>
 
-        <p className="report-description">
-          {report.description ||
-            report.reason ||
-            'No description provided.'}
-        </p>
+        {isEditing ? (
+          <form className="report-edit-form" onSubmit={handleSaveEdit}>
+            <label htmlFor="edit-assessment-component">Assessment component</label>
+            <input
+              id="edit-assessment-component"
+              value={editAssessmentComponent}
+              onChange={(event) => setEditAssessmentComponent(event.target.value)}
+              maxLength={100}
+              required
+            />
+            <label htmlFor="edit-report-description">Description</label>
+            <textarea
+              id="edit-report-description"
+              value={editDescription}
+              onChange={(event) => setEditDescription(event.target.value)}
+              maxLength={5000}
+              rows={5}
+              required
+            />
+            <div className="report-action-buttons">
+              <button type="submit" disabled={isSavingEdit}>
+                {isSavingEdit ? 'Saving...' : 'Save changes'}
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                onClick={() => setIsEditing(false)}
+                disabled={isSavingEdit}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <p className="report-description">
+              {report.description || report.reason || 'No description provided.'}
+            </p>
+            {String(status).toLowerCase() === 'submitted' && (
+              <div className="report-action-buttons">
+                <button type="button" onClick={handleStartEditing}>
+                  <Pencil size={16} />
+                  Edit report
+                </button>
+                <button
+                  type="button"
+                  className="danger-action"
+                  onClick={() => setIsWithdrawDialogOpen(true)}
+                >
+                  <Trash2 size={16} />
+                  Withdraw report
+                </button>
+              </div>
+            )}
+          </>
+        )}
+        {actionError && <p className="form-error" role="alert">{actionError}</p>}
+        {actionSuccess && <p className="action-success" role="status">{actionSuccess}</p>}
       </section>
 
       <section className="details-card">
@@ -295,6 +421,15 @@ function StudentReportDetails() {
           </button>
         </form>
       </section>
+      <ConfirmDialog
+        isOpen={isWithdrawDialogOpen}
+        title="Withdraw report?"
+        message="This report will be marked withdrawn and can no longer be reviewed."
+        confirmText="Withdraw report"
+        isLoading={isWithdrawing}
+        onConfirm={handleWithdraw}
+        onCancel={() => setIsWithdrawDialogOpen(false)}
+      />
     </div>
   )
 }

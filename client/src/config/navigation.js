@@ -5,6 +5,8 @@ import {
   ClipboardList,
   Users,
   Settings,
+  MessageSquare,
+  UserRound,
 } from 'lucide-react'
 
 export const navigation = {
@@ -13,6 +15,8 @@ export const navigation = {
     { label: 'My Reports', to: '/student/reports', icon: FileText },
     { label: 'Attendance', to: '/student/attendance', icon: ClipboardList },
     { label: 'Notifications', to: '/student/notifications', icon: Users },
+    { label: 'Appeals', to: '/student/appeals', icon: MessageSquare },
+    { label: 'Profile', to: '/student/profile', icon: UserRound },
   ],
 
   lecturer: [
