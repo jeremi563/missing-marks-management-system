@@ -19,7 +19,7 @@ export async function authenticate(req, res, next) {
 			where: { id: claims.sub },
 			include: { roles: { include: { role: true } } },
 		});
-		if (!user?.isActive || user.approvalStatus !== "APPROVED") throw new AppError(401, "Invalid authentication credentials");
+		if (!user?.isActive) throw new AppError(401, "Invalid authentication credentials");
 
 		req.user = {
 			id: user.id,
