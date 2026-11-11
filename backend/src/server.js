@@ -1,29 +1,16 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
 import { prisma } from "./config/database.js";
-import { logger } from "./shared/utils/logger.js";
 
 const server = app.listen(env.PORT, () => {
-	logger.info("API server started", { port: env.PORT, environment: env.NODE_ENV });
-	prisma.$connect()
-		.then(() => logger.info("Database connection established"))
-		.catch((error) => logger.error("Database connection failed", {
-			errorName: error.name,
-			errorCode: error.code,
-		}));
+	console.info(`API listening on port ${env.PORT}`);
 });
 
 async function shutdown(signal) {
-	logger.info("Graceful shutdown started", { signal });
+	console.info(`${signal} received; shutting down`);
 	server.close(async () => {
-		try {
-			await prisma.$disconnect();
-			logger.info("Graceful shutdown complete");
-			process.exitCode = 0;
-		} catch (error) {
-			logger.error("Database disconnect failed", { errorName: error.name, errorCode: error.code });
-			process.exitCode = 1;
-		}
+		await prisma.$disconnect();
+		process.exit(0);
 	});
 }
 

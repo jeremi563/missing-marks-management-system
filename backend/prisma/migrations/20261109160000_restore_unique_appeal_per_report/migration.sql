@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX "appeals_report_id_key" ON "appeals"("report_id");
