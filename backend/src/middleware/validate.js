@@ -7,7 +7,16 @@ export function validate(schema, source = "body") {
 				details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
 			}));
 		}
-		req[source] = result.data;
+		if (source === "query") {
+			Object.defineProperty(req, "query", {
+				configurable: true,
+				enumerable: true,
+				writable: true,
+				value: result.data,
+			});
+		} else {
+			req[source] = result.data;
+		}
 		return next();
 	};
 }

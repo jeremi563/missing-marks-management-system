@@ -48,7 +48,7 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts. Do not share or commit `.env`.
+Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and optional SMTP credentials to deliver verification and password-reset links. Email delivery is unavailable until SMTP is configured. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts. Do not share or commit `.env`.
 
 Validate the shared schema and generate Prisma Client:
 
@@ -69,6 +69,14 @@ Seed synthetic development data after the migration:
 npm run db:seed
 ```
 
+For a non-demo deployment, create the first administrator through the one-time bootstrap instead of seeding demo accounts. Set `BOOTSTRAP_ADMIN_NUMBER` in `admin/DD/YYYY` format: `admin/` is fixed, `DD` is any two digits, and `YYYY` is a four-digit year no later than the current year. Set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` (at least 8 characters), and optionally `BOOTSTRAP_ADMIN_NAME` in `.env`, then run:
+
+```bash
+npm run db:bootstrap-admin
+```
+
+The bootstrap refuses to run when an active administrator already exists. Before accepting student registrations, an administrator must preload the authoritative registration-number/email roster through `POST /api/v1/admin/student-roster/import`. New lecturers first use the shared registration form, then re-enter their account details and choose a department in the lecturer department form. This confirms and updates the same pending account; it does not create a second account. A department must have a designated COD before it is offered to applicants. The department's designated COD approves or rejects the lecturer; accounts remain inactive until approval. Lecturer email verification is disabled, so approved staff can sign in without it. Administrators create departments in Academic setup and assign one active COD per department. Assigning a COD also adds them to that department. COD is a lecturer responsibility, and students cannot be promoted to COD.
+
 Never run development migrations against production or an unapproved shared database. The team lead coordinates schema and migration changes.
 
 ## Development
@@ -79,6 +87,17 @@ The shared scripts include:
 npm run dev
 npm test
 ```
+
+The API and the Feature 5 notification worker run as separate processes:
+
+```bash
+npm start
+npm run worker:notifications
+```
+
+Both use the configured PostgreSQL database. The worker claims outbox rows with leases and PostgreSQL `SKIP LOCKED`; do not start it against a production or shared database without an approved deployment configuration.
+
+Run the database-independent tests with `node --test tests/shared/*.test.js tests/lecturer/lecturer.validation.test.js`. The full suite includes database-backed integration tests and must use a dedicated local test database.
 
 Use the actual scripts present in `package.json`; do not invent local scripts that other team members cannot run.
 
@@ -111,4 +130,4 @@ The current shared tests use Node's built-in test runner (`node --test`) and do 
 
 ## API documentation
 
-See `../docs/API.md` for the initial API conventions. Treat example routes as proposed contracts until the team confirms and implements them.
+See `../docs/API.md` for the actual API routes, including Feature 5. Private file upload/download remains pending a storage provider decision; metadata-only evidence responses omit storage keys.

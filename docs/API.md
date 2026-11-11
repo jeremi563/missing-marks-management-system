@@ -2,9 +2,9 @@
 
 ## 1. Purpose and status
 
-This document defines the initial REST API conventions and proposed role-based route layout. The routes below are starting points for team discussion; they are not final until the team confirms request bodies, response fields, permissions and workflow rules.
+This document records the REST API conventions and the currently implemented role-based routes. Routes and workflow details are described in their module sections below; open decisions are identified where they still apply.
 
-The shared Express application now implements the health endpoint and the initial authentication contract below. Role-module routes remain proposals until their owners finalize resource payloads and permissions.
+The shared Express application implements the health endpoint and authentication contract below. The role-module routes listed in this document are implemented; individual sections describe their request, response and authorization behavior.
 
 ## 2. Base path
 
@@ -42,54 +42,388 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/v1/auth/login` | Authenticate a user. |
+| POST | `/api/v1/auth/register` | Register a student, lecturer, or COD account request. |
+| POST | `/api/v1/auth/login` | Authenticate with a role-specific identifier and password. |
+| POST | `/api/v1/auth/verify-email` | Verify an email using a single-use token. |
+| POST | `/api/v1/auth/resend-verification` | Request another email-verification message. |
+| POST | `/api/v1/auth/forgot-password` | Request a password-reset message. |
+| POST | `/api/v1/auth/reset-password` | Set a new password with a single-use token. |
 | POST | `/api/v1/auth/logout` | End the authenticated session/token where supported. |
 | GET | `/api/v1/auth/me` | Return the authenticated user's permitted profile summary. |
 
-### Implemented authentication baseline
+### Registration and authentication
 
-- `POST /api/v1/auth/login` accepts `{ "email": "...", "password": "..." }` and sets a 15-minute JWT in the `access_token` HttpOnly, SameSite=Strict cookie. The cookie is Secure in production.
+- `POST /api/v1/auth/register` accepts one of these role-specific payloads: `{ "role": "student", "studentNumber": "...", "email": "...", "password": "..." }`, or `{ "role": "lecturer" | "cod", "staffNumber": "...", "email": "...", "password": "..." }`. `displayName` is optional. Public registration cannot request administrator access.
+- Student registration requires an unused registration number and matching email in the administrator-imported student roster. A student can sign in after email verification. Lecturer/COD applications require email verification and administrator approval before sign-in.
+- `POST /api/v1/auth/login` accepts `{ "identifier": "...", "password": "..." }`. Student numbers, staff numbers and administrator numbers are globally unique and normalized to uppercase. A lecturer/COD account may hold both staff roles and uses one staff number. Email login remains temporarily supported for existing clients and accounts that have not yet been assigned a staff number.
+- Login sets a 15-minute JWT in the `access_token` HttpOnly, SameSite=Strict cookie. The cookie is Secure in production.
+- `POST /api/v1/auth/verify-email` accepts `{ "token": "..." }`. Verification tokens are single-use, expire after 24 hours, and are stored only as hashes.
+- `POST /api/v1/auth/resend-verification` accepts `{ "email": "..." }`; the response does not disclose whether an account exists.
+- `POST /api/v1/auth/forgot-password` accepts `{ "email": "..." }`; its response does not disclose whether an account exists. `POST /api/v1/auth/reset-password` accepts `{ "token": "...", "password": "..." }`. Reset tokens are single-use and expire after one hour.
 - `POST /api/v1/auth/logout` clears the cookie. This is stateless logout; an already copied token remains valid until expiry.
 - `GET /api/v1/auth/me` returns the authenticated user's ID, email, display name and database roles.
 - Protected middleware also accepts a Bearer token for non-browser clients. Roles are reloaded from PostgreSQL on each protected request, so role changes take effect immediately.
 - Passwords are stored as bcrypt hashes. Set `JWT_SECRET` to a random secret of at least 32 characters. Never put the secret in source control.
-- Account registration, password reset, lockout policy, refresh tokens, and session revocation are not yet implemented; agree their requirements before adding them.
+- SMTP delivery is configured with `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, optional `SMTP_USER`/`SMTP_PASSWORD`, `SMTP_FROM`, and `APP_BASE_URL`. Verification/reset links lead to the frontend, which must submit the token to the corresponding API endpoint.
+- Auth endpoints have per-IP in-memory rate limits. Deployments with multiple API instances should configure a shared rate-limit store.
+- Existing approved accounts are backfilled as verified to preserve access. Existing student/lecturer profile identifiers are backfilled for identifier login; legacy COD accounts without a staff number can continue using email until an administrator assigns one.
 
 ### Student
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | `/api/v1/student/profile` | Get own profile. |
-| GET | `/api/v1/student/reports` | List own reports. |
-| POST | `/api/v1/student/reports` | Submit a missing-mark report. |
-| GET | `/api/v1/student/reports/:id` | View own report details if authorised. |
-| PATCH | `/api/v1/student/reports/:id` | Update a report where its status permits. |
-| POST | `/api/v1/student/reports/:id/withdraw` | Request/perform withdrawal where permitted. |
-| POST | `/api/v1/student/reports/:id/appeals` | Submit an appeal where permitted. |
-| GET | `/api/v1/student/attendance` | View own permitted attendance information. |
+All routes below are mounted under `/api/v1`. Each requires a valid authenticated user with the `student` role. Ownership is derived from that user; clients must not send a student profile ID. Report and notification lookups are scoped to the authenticated owner, and records outside that scope return `404`.
+
+| Method | Path | Request | Success |
+|---|---|---|---|
+| GET | `/api/v1/student/profile` | No body. | `200`, own profile. |
+| GET | `/api/v1/student/reports` | Optional `page` and `limit`. | `200`, own reports and pagination. |
+| POST | `/api/v1/student/reports` | Required `courseUnitId`, `academicPeriodId`, `assessmentComponent`, `description`; optional `assessmentId`. | `201`, submitted report. |
+| GET | `/api/v1/student/reports/:reportId` | UUID `reportId`; no body. | `200`, own report with status timeline. |
+| GET | `/api/v1/student/reports/:reportId/comments` | UUID `reportId`; no body. | `200`, comments visible to the student. |
+| POST | `/api/v1/student/reports/:reportId/comments` | UUID `reportId`; `{ "body": "..." }`. | `201`, clarification comment. |
+| PATCH | `/api/v1/student/reports/:reportId` | UUID `reportId`; at least one of `assessmentId`, `assessmentComponent`, `description`. | `200`, updated report. |
+| POST | `/api/v1/student/reports/:reportId/withdraw` | UUID `reportId`; no body. | `200`, report with `Withdrawn` status. |
+| POST | `/api/v1/student/reports/:reportId/appeals` | UUID `reportId`; `{ "reason": "...", "comments": "..." }`, where `comments` is optional. | `201`, submitted appeal. |
+| GET | `/api/v1/student/attendance` | Optional `page` and `limit`. | `200`, own attendance history and pagination. |
+| GET | `/api/v1/student/notifications` | Optional `page` and `limit`. | `200`, own notifications, unread count, and pagination. |
+| PATCH | `/api/v1/student/notifications/:notificationId/read` | UUID `notificationId`; no body. | `200`, own notification with `readAt` set. |
+
+### Student request and behavior details
+
+- `page` is an integer of at least `1`, default `1`. `limit` is an integer from `1` to `100`, default `10`. Unknown query fields are rejected. These parameters apply to report lists, attendance, and notifications.
+- Report submission trims `assessmentComponent` (1-100 characters) and `description` (1-5,000 characters). It verifies the student is enrolled in the selected unit and academic period and, if supplied, that the assessment belongs to the unit. It creates the report as `Submitted` and records initial status history and an audit event in one transaction. Duplicate report submissions are currently allowed.
+- Report editing accepts optional `assessmentId` (UUID), `assessmentComponent` (1-100 characters), and `description` (1-5,000 characters); at least one field is required and unknown fields are rejected. A replacement assessment must belong to the report's existing course unit. Unit and period cannot be changed through this endpoint. Editing is allowed only in `Submitted`; the update is conditional on the report still being in that state.
+- Withdrawal has no request body and is allowed only while the report is `Submitted`. The status change is conditional on the current state and is recorded in status history.
+- Appeals require a non-empty `reason` (maximum 5,000 characters) and allow optional `comments` (maximum 2,000 characters). Only a report with status `REJECTED` is eligible, and at most one appeal may be created per report. An owned report row is locked during the duplicate check. No deadline is enforced because one has not been configured; appeal review and decision authority are not implemented by this student submission endpoint.
+- Student comment bodies are trimmed and must contain 1-2,000 characters. Students can post clarification comments only to their own report; the API assigns authorship from the authenticated identity. The read endpoint returns comments marked `isStudentVisible: true` plus comments authored by the requesting student. Lecturer comment creation currently has no visibility toggle, so lecturer-authored comments will remain hidden until that integration is coordinated and implemented.
+- Attendance reads the student's `AttendanceHistory` snapshots, newest sign-in first, including available correction history. Notifications are queried by authenticated user ID, newest first, and include `readAt`, linked report summary when available, and an unread count. Mark-as-read is idempotent and owner-scoped; another user's notification returns `404`.
+
+Validation failures return `400`; missing profile or out-of-scope records return `404`; invalid enrollment/assessment relations return `422`; and state conflicts such as editing or withdrawing a non-`Submitted` report, appealing an ineligible report, or submitting a duplicate appeal return `409`. Successful list responses use the standard `{ success, message, count, data, pagination }` envelope; notification lists also include `unreadCount`. Successful writes and reads use `{ success, message, data }` with `200` or `201` as shown above.
+
+Examples:
+
+```http
+POST /api/v1/student/reports
+Content-Type: application/json
+
+{"courseUnitId":"<uuid>","academicPeriodId":"<uuid>","assessmentId":"<uuid>","assessmentComponent":"CAT 1","description":"My CAT 1 mark is missing."}
+```
+
+```http
+PATCH /api/v1/student/reports/{reportId}
+Content-Type: application/json
+
+{"assessmentComponent":"CAT 2","description":"My CAT 2 mark is missing."}
+```
+
+```http
+POST /api/v1/student/reports/{reportId}/comments
+Content-Type: application/json
+
+{"body":"I submitted the assessment on the scheduled date."}
+```
+
+```http
+POST /api/v1/student/reports/{reportId}/appeals
+Content-Type: application/json
+
+{"reason":"The rejection did not consider my submitted evidence.","comments":"Please review the record."}
+```
+
+```http
+PATCH /api/v1/student/notifications/{notificationId}/read
+```
 
 ### Lecturer
 
-| Method | Path | Purpose |
+All routes below are mounted under `/api/v1/lecturer`. Each requires a valid authenticated user with the `lecturer` role. The lecturer identity is derived from the authenticated user; clients must not supply a lecturer profile ID to determine ownership. Report and attendance-session access is restricted to the authenticated lecturer's assigned records. Records outside that scope return `404`.
+
+| Method | Path | Request | Success |
+|---|---|---|---|
+| GET | `/api/v1/lecturer/reports` | Optional pagination and supported report filters. No body. | `200`, assigned reports and pagination. |
+| GET | `/api/v1/lecturer/reports/:reportId` | UUID `reportId`; no body. | `200`, individual assigned report. |
+| GET | `/api/v1/lecturer/reports/:reportId/comments` | UUID `reportId`; no body. | `200`, comments associated with the report. |
+| POST | `/api/v1/lecturer/reports/:reportId/comments` | UUID `reportId`; validated comment payload. | `201`, created comment. |
+| POST | `/api/v1/lecturer/reports/:reportId/decision` | UUID `reportId`; validated approval or rejection decision payload. | `200`, updated report decision. |
+| POST | `/api/v1/lecturer/reports/:reportId/escalate` | UUID `reportId`; `{ "reason": "..." }` with a trimmed 1-2,000 character reason. Requires an assigned lecturer decision of `APPROVED` or `REJECTED`. | `200`, report status `ESCALATED` and escalation history. |
+| POST | `/api/v1/lecturer/reports/:reportId/corrections` | UUID `reportId`; validated mark-correction proposal payload. | `201`, submitted correction proposal. |
+| POST | `/api/v1/lecturer/attendance/sessions` | Attendance session details: `sessionType`, `courseUnitId`, `classroomId`, optional `assessmentId`, `startsAt`, and optional `endsAt`. | `201`, created session and generated QR token. |
+| GET | `/api/v1/lecturer/attendance/sessions` | Optional `page`, `limit`, `courseUnitId`, `sessionType`, and `status`. No body. | `200`, lecturer's attendance sessions and pagination. |
+| GET | `/api/v1/lecturer/attendance/sessions/:sessionId` | UUID `sessionId`; no body. | `200`, individual attendance session. |
+| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/start` | UUID `sessionId`; no body. | `200`, session with `active` status. |
+| POST | `/api/v1/lecturer/attendance/sessions/:sessionId/end` | UUID `sessionId`; no body. | `200`, session with `completed` status. |
+| GET | `/api/v1/lecturer/attendance/sessions/:sessionId/records` | UUID `sessionId`; no body. | `200`, attendance records with `count` and `data`, newest first. |
+
+### Lecturer request and behaviour details
+
+#### 1. Authentication and ownership
+
+- All Lecturer Module endpoints require authentication and the `lecturer` role.
+- The lecturer profile is resolved using the authenticated user's identity.
+- Clients must not provide a lecturer profile ID to access another lecturer's records.
+- Lecturers can only retrieve reports and attendance sessions within their permitted ownership or assignment scope.
+- An attendance session belonging to another lecturer is not accessible through the individual session endpoint.
+
+#### 2. Missing-mark report management
+
+- The report listing endpoint retrieves reports assigned to the authenticated lecturer.
+- Individual report retrieval uses a valid report UUID.
+- Comments are associated with the relevant report.
+- Comment submission is validated to reject missing, empty, or whitespace-only comments.
+- Leading and trailing whitespace is trimmed.
+- Comments must contain between 1 and 2,000 characters.
+- The lecturer's identity is derived from authentication rather than supplied by the client.
+- Report decisions support approval and rejection.
+- A lecturer may escalate only their assigned report after an `APPROVED` or `REJECTED` decision. Escalation records `APPROVED`/`REJECTED` → `ESCALATED` status history and a `REPORT_ESCALATED` audit event in one transaction; the lecturer decision history remains unchanged.
+- Appeals following a lecturer's rejection are handled by the COD module, not the Lecturer Module.
+- Mark-correction proposals are submitted separately from report decisions. Submitting a proposal does not directly modify the official student marks.
+
+#### 3. Attendance session management
+
+The Lecturer Module uses one unified attendance-session API for three session types:
+
+| Session type | Description | Assessment requirement |
 |---|---|---|
-| GET | `/api/v1/lecturer/reports` | List reports assigned to the lecturer. |
-| GET | `/api/v1/lecturer/reports/:id` | View an assigned report. |
-| POST | `/api/v1/lecturer/reports/:id/comments` | Add an investigation comment. |
-| POST | `/api/v1/lecturer/reports/:id/approve` | Record an approval where authorised. |
-| POST | `/api/v1/lecturer/reports/:id/reject` | Record a rejection with a reason. |
-| POST | `/api/v1/lecturer/attendance-sessions` | Create an attendance session. |
-| GET | `/api/v1/lecturer/attendance-sessions` | List sessions within lecturer's scope. |
+| `CLASS` | Regular classroom attendance. | No assessment required. |
+| `CAT` | Continuous Assessment Test attendance. | Existing registered CAT assessment required. |
+| `EXAM` | Examination attendance. | Existing registered EXAM assessment required. |
+
+Attendance session creation accepts the following fields:
+
+| Field | Requirement | Description |
+|---|---|---|
+| `sessionType` | Required | `CLASS`, `CAT`, or `EXAM`. |
+| `courseUnitId` | Required | UUID of the selected course unit. |
+| `classroomId` | Required | UUID of the registered classroom. |
+| `assessmentId` | Conditional | Required for CAT and EXAM; must not be supplied for CLASS. |
+| `startsAt` | Required | Valid ISO datetime with timezone offset. |
+| `endsAt` | Optional | Valid ISO datetime with timezone offset, later than `startsAt`. |
+
+Additional business rules:
+
+- The lecturer must be assigned to the selected course unit.
+- The classroom must exist and be active.
+- A CAT session must reference an existing CAT assessment.
+- An EXAM session must reference an existing EXAM assessment.
+- The selected assessment must belong to the selected course unit.
+- A CLASS session must not reference an assessment.
+- The session is created with the initial `scheduled` status.
+- Attendance sessions are associated with registered classrooms to support GPS-based location verification.
+
+#### 4. Attendance listing and retrieval
+
+The attendance-session listing endpoint supports filtering by:
+
+- `courseUnitId`
+- `sessionType`
+- `status`
+
+Pagination uses:
+
+- `page`: integer of at least `1`, default `1`.
+- `limit`: integer from `1` to `100`, default `10`.
+
+The listing response includes attendance sessions, their relevant course unit, classroom and assessment information where available, record counts, and pagination metadata.
+
+The individual session endpoint retrieves a session only when it belongs to the authenticated lecturer.
+
+#### 5. QR-code and GPS attendance workflow
+
+All three attendance types (`CLASS`, `CAT`, and `EXAM`) are designed to use QR-code and GPS-based verification.
+
+**QR-code workflow:**
+
+1. The lecturer creates an attendance session.
+2. The backend generates a cryptographically secure random QR token.
+3. The backend stores the SHA-256 hash of the token in the database rather than storing the raw token.
+4. The raw token is returned in the session creation response for frontend QR-code generation.
+5. The student scans the generated QR code.
+6. The Student Module handles token submission and verification.
+
+**GPS workflow:**
+
+1. The attendance session is associated with a registered classroom.
+2. The Student Module obtains the student's coordinates, subject to device permission.
+3. The student's location is checked against the registered classroom location.
+4. The location verification result contributes to attendance validation.
+
+**Module responsibilities:**
+
+| Responsibility | Module |
+|---|---|
+| Create attendance sessions | Lecturer |
+| Generate and securely store QR tokens | Backend attendance service |
+| Display QR-code images | Frontend |
+| Scan QR codes | Student |
+| Submit QR tokens | Student |
+| Collect and submit GPS coordinates | Student |
+| Verify student attendance submissions | Student-side attendance backend |
+| View attendance sessions | Lecturer |
+| View attendance records | Lecturer |
+
+GPS is an additional verification mechanism, not conclusive proof of physical presence. Location readings can be inaccurate or manipulated.
+
+The Lecturer Module's session creation, listing, and individual retrieval endpoints are implemented. Student-side QR scanning and GPS verification are separate integration responsibilities and should not be considered operational until implemented and tested.
+
+#### 6. CAT submission and examination review
+
+CAT submission review and examination-specific academic review are separate from attendance session management.
+
+The unified attendance API supports CAT and EXAM session creation. It does not, by itself, implement CAT submission review or examination-specific academic review endpoints.
+
+No additional CAT submission or examination-review routes should be treated as available until they are registered and verified in the implementation.
+
+### Validation and response behaviour
+
+- Request payloads and route parameters are validated before controller execution.
+- Report and attendance-session identifiers must be valid UUIDs.
+- Invalid request data returns `400`.
+- Missing authentication returns `401`.
+- Missing lecturer profile or records outside the lecturer's permitted scope return `404`.
+- Business-rule or state conflicts are returned using the appropriate application error status.
+- Unexpected server or database errors are handled by the application's error middleware.
+
+Successful list responses follow the standard response envelope:
+
+```json
+{
+  "success": true,
+  "message": "Request completed successfully.",
+  "count": 0,
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
+
+Successful individual reads and writes follow the standard response envelope:
+
+```json
+{
+  "success": true,
+  "message": "Request completed successfully.",
+  "data": {}
+}
+```
+
+The attendance session creation response additionally provides the generated QR token alongside the created session.
+
+### Implementation status
+
+| Feature | Status |
+|---|---|
+| Retrieve assigned missing-mark reports | Implemented |
+| Retrieve individual missing-mark reports | Implemented |
+| Retrieve report comments | Implemented |
+| Add investigation comments | Implemented |
+| Submit approval/rejection decisions | Implemented |
+| Submit mark-correction proposals | Implemented |
+| Create CLASS, CAT, and EXAM sessions | Implemented |
+| List attendance sessions | Implemented |
+| Retrieve individual attendance sessions | Implemented |
+| Start attendance sessions | Implemented |
+| End attendance sessions | Implemented |
+| Retrieve attendance records | Implemented |
+| Student QR-code scanning and submission | Student Module integration pending |
+| Student GPS collection and verification | Student Module integration pending |
+| CAT submission review | Not confirmed |
+| Examination-specific academic review | Not confirmed |
+
+**Integration note:** This API reference describes the Lecturer Module development record. Before integrating, confirm the exact request payload fields and response structures against the corresponding validation schemas and controllers. Also confirm that the routes have been merged into the shared `develop` branch before treating them as available to other modules.
+
+---
+
+**Module:** Lecturer Module  
+**Project:** Web Based Missing Marks Management System  
+**Base Path:** `/api/v1/lecturer`
 
 ### COD / Academic Officer
 
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/v1/cod/reports` | List departmental reports. |
+| GET | `/api/v1/cod/reports/:id` | Retrieve an authorized departmental report and linked application records. Reports that have been escalated also include lecturer-decision history, escalation reason, report-scoped status/audit history and safe evidence metadata when present. |
 | POST | `/api/v1/cod/reports/:id/assign` | Assign or reassign a report where permitted. |
-| POST | `/api/v1/cod/reports/:id/approve` | Record a departmental decision where authorised. |
-| POST | `/api/v1/cod/reports/:id/reject` | Record a departmental rejection with a reason. |
+| GET | `/api/v1/cod/reports/:id/comments` | List report comments available to staff in the authorized department. |
+| POST | `/api/v1/cod/reports/:id/comments` | Add a private staff comment to a report. |
+| POST | `/api/v1/cod/reports/:id/decision` | Record final approval or rejection of an escalated report; body contains `decision` (`APPROVE` or `REJECT`) and `reason`. |
 | GET | `/api/v1/cod/appeals` | List appeals within the authorised scope. |
 | GET | `/api/v1/cod/reports/overdue` | List overdue reports. |
+| GET | `/api/v1/cod/appeals/:appealId` | Retrieve an appeal in the authorised department scope. |
+| POST | `/api/v1/cod/appeals/:appealId/decision` | Decide a scoped appeal. |
+| GET | `/api/v1/cod/appeals/overdue` | List overdue appeals. |
+| GET | `/api/v1/cod/special-cases` | List departmental special cases. |
+| GET | `/api/v1/cod/special-cases/:caseId` | Retrieve a scoped special case. |
+| POST | `/api/v1/cod/special-cases/:caseId/decision` | Decide a scoped special case. |
+| GET | `/api/v1/cod/special-cases/overdue` | List overdue special cases. |
+| GET | `/api/v1/cod/special-case-categories` | List categories available to a designated COD. |
+| POST | `/api/v1/cod/special-case-categories` | Create a category for an authorised department. |
+| PATCH | `/api/v1/cod/special-case-categories/:id` | Update a category for an authorised department. |
+
+COD report detail and comment routes require authentication, the `cod` role, and membership in the report's department. The detail response includes linked enrollment and, when the report is linked to an assessment in the same course unit, the student's CAT submission and assessment-attendance records. These are application records and are not represented as independently verified official university records. Missing application records do not establish that an academic event did not occur. The current schema does not link class attendance sessions to an academic period, so class attendance is not included in report-period review detail.
+
+COD comment creation accepts `{ "body": "..." }`; the trimmed body must contain 1-2,000 characters. The API derives authorship from the authenticated user, stores COD comments as staff-private, and creates the comment and a `COD_REPORT_COMMENT_ADDED` audit event in one transaction. Audit metadata contains the new comment ID and does not contain its text.
+
+COD escalated report listing reuses `GET /api/v1/cod/reports?status=ESCALATED`. COD final decisions use the separate decision endpoint and require a 1-2,000 character reason. The API records `ESCALATED` → `APPROVED`/`REJECTED`, actor, reason and timestamp in report status history and records `COD_REPORT_DECISION_RECORDED` in the audit log in one transaction. Conditional status updates reject repeated or concurrent decisions with a conflict response.
+
+The decision sequence remains append-only in status history: lecturer decision (`PENDING` → `APPROVED`/`REJECTED`), lecturer escalation (`APPROVED`/`REJECTED` → `ESCALATED`), then COD final decision (`ESCALATED` → `APPROVED`/`REJECTED`). COD detail identifies the lecturer decision separately from any later final decision. Evidence details, when present, contain metadata only and omit `storageKey`; file upload, viewing and retrieval are deferred until a storage approach is agreed. COD does not review actual document contents through this API.
+
+Separate workflow issue: student submission currently creates `Submitted`, while the lecturer decision endpoint requires `PENDING`; no transition between these states is implemented. Feature 4 does not change student or lecturer decision behavior. This requires separate approval and implementation.
+
+### Departmental attendance and discrepancy workflow
+
+All COD attendance endpoints require authentication, the `cod` role, and current designated-COD membership in the department derived through the attendance source's course unit. They do not infer absences from missing rows. Session attendance, assessment attendance and attempts are returned as separate source types.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/cod/attendance-records` | Paginated session attendance; supports department, course unit, student, status and date filters. |
+| GET | `/api/v1/cod/assessment-attendance` | Paginated assessment attendance using supported scope filters. |
+| GET | `/api/v1/cod/attendance-attempts` | Paginated attendance attempts; attempts are not confirmed attendance. |
+| GET | `/api/v1/cod/attendance-records/:id/history` | Retrieve the linked snapshot and correction ledger for an authorized record. |
+| GET | `/api/v1/cod/attendance-discrepancies/:id/audit` | Retrieve allowlisted COD audit events after visibility and provenance checks. |
+| GET | `/api/v1/cod/attendance-summary` | Return separate source totals and correction/discrepancy totals. |
+| GET | `/api/v1/cod/attendance-statistics` | Return status/outcome counts and source-specific rates. |
+| GET | `/api/v1/cod/attendance-discrepancies` | Paginated departmental discrepancy queue. |
+| GET | `/api/v1/cod/attendance-discrepancies/:id` | Retrieve a visible discrepancy and its source. |
+| GET | `/api/v1/cod/attendance-discrepancies/:id/decisions` | Retrieve append-only decision history. |
+| POST | `/api/v1/cod/attendance-discrepancies/:id/decisions` | Record a COD decision. Authorization requires an earlier recommendation. |
+| POST | `/api/v1/cod/attendance-discrepancies/:id/revalidate-legacy-authorization` | Revalidate a legacy authorization with no source-status snapshot and record a fresh authorization. |
+
+Student discrepancy workflow routes are protected by student authentication and scope sources and records to the authenticated student's own profile:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/student/attendance-discrepancies` | Submit a discrepancy for exactly one of the student's attendance sources. |
+| GET | `/api/v1/student/attendance-discrepancies` | List the student's own submissions. |
+| GET | `/api/v1/student/attendance-discrepancies/:id` | Retrieve one of the student's submissions. |
+| POST | `/api/v1/student/attendance-discrepancies/:id/clarifications` | Respond to the latest clarification request as the original student reporter. |
+
+Lecturer discrepancy workflow routes are protected by lecturer authentication and verify course-unit assignment and reporter/reviewer ownership:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/lecturer/attendance-discrepancies` | Submit a discrepancy for an assigned attendance source directly to COD review. |
+| GET | `/api/v1/lecturer/attendance-discrepancies` | List assigned student submissions awaiting review and the lecturer's own submissions. |
+| GET | `/api/v1/lecturer/attendance-discrepancies/:id` | Retrieve a visible assigned or self-reported discrepancy. |
+| POST | `/api/v1/lecturer/attendance-discrepancies/:id/review` | Forward a student submission to COD or reject it with an explanation. |
+| POST | `/api/v1/lecturer/attendance-discrepancies/:id/clarifications` | Respond to the latest clarification request as the original lecturer reporter. |
+
+The Admin correction route is protected by administrator authentication and role authorization:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/admin/attendance-corrections` | Apply an eligible COD-authorized correction to a session attendance record. |
+
+Malformed historical rows that fail recognized integrity checks are omitted from the returned page and counted in `integrity.skippedRecords`; pagination totals still count all matching source-scoped rows, so a page may contain fewer items. Unexpected database and application errors fail the request.
+
+Only one active discrepancy may exist for the same student and attendance source across student and lecturer submissions. A duplicate submission returns `409 Conflict`. `PENDING_LECTURER_REVIEW`, `PENDING_COD_REVIEW`, `CLARIFICATION_REQUESTED`, `CORRECTION_RECOMMENDED` and `CORRECTION_AUTHORIZED` are active; authorization remains active until an Admin applies the correction. `CONFIRMED`, `REJECTED`, `LECTURER_REJECTED` and `CORRECTION_APPLIED` are terminal, after which a new discrepancy may be submitted.
+
+Students submit their own discrepancy through `POST /api/v1/student/attendance-discrepancies` with exactly one source ID and a description, then monitor their own submissions through `GET /api/v1/student/attendance-discrepancies` and `GET /api/v1/student/attendance-discrepancies/:id`. Student submissions enter lecturer review. Lecturers use `POST /api/v1/lecturer/attendance-discrepancies` for assigned course-unit sources and submit directly to COD review; `GET /api/v1/lecturer/attendance-discrepancies` and `GET /api/v1/lecturer/attendance-discrepancies/:id` expose only assigned review work or the lecturer's own clarification requests. An assigned lecturer reviews a student report through `POST /api/v1/lecturer/attendance-discrepancies/:id/review` with `FORWARD_TO_COD` or `REJECT` and an explanation. Original reporters respond through `POST /api/v1/{student|lecturer}/attendance-discrepancies/:id/clarifications`; each response is linked to the latest clarification decision.
+
+COD recommendation and authorization are separate append-only decisions. Authorization records the source status observed at authorization and never changes attendance. Older authorizations without that snapshot require the currently designated active COD to use `POST /api/v1/cod/attendance-discrepancies/:id/revalidate-legacy-authorization` with an explanation. Revalidation checks the original authorization history, discrepancy provenance, source ownership and current source eligibility, then records a fresh source-status snapshot linked to the original authorization without changing attendance. An authorized Admin applies supported session-record corrections through `POST /api/v1/admin/attendance-corrections` with the fresh `discrepancyDecisionId`, `correctedStatus` (`PRESENT`, `ABSENT`, or `LATE`) and `reason`. The transaction verifies the source still has the captured status, updates the current `AttendanceRecord`, adds a linked `AttendanceCorrection`, updates discrepancy state and writes an audit event; the existing `AttendanceHistory` snapshot is preserved. Assessment-attendance and attempt corrections are not supported by the current correction model.
 
 ### Administrator
 
@@ -98,13 +432,80 @@ Use plural resource names for collections, for example `/reports`. Use `:id` for
 | GET | `/api/v1/admin/users` | List users within administrative permissions. |
 | POST | `/api/v1/admin/users` | Create a user account. |
 | PATCH | `/api/v1/admin/users/:id` | Update permitted account fields. |
+| GET | `/api/v1/admin/pending-staff-accounts` | List lecturer/COD applications awaiting approval. |
+| PATCH | `/api/v1/admin/users/:id/approval` | Approve or reject a pending staff application and assign staff roles. |
+| POST | `/api/v1/admin/student-roster/import` | Import eligible student registration-number/email pairs. |
 | GET | `/api/v1/admin/departments` | List departments. |
 | POST | `/api/v1/admin/departments` | Create a department. |
 | GET | `/api/v1/admin/reports` | View system-wide report summaries within permissions. |
 | GET | `/api/v1/admin/audit-logs` | View permitted audit records. |
 | PATCH | `/api/v1/admin/settings` | Update permitted system settings. |
 
-Additional routes for attendance, CAT, examination attendance, notifications, special cases and exports should be added when the team confirms their requirements.
+Administrator account management is restricted to authenticated users with the `administrator` role. Admin-created accounts are immediately approved and email-verified. User creation accepts an identifier matching the account class: `studentNumber` for a student, `staffNumber` for lecturer/COD staff, or `adminNumber` for an administrator. A user may be a lecturer, a COD, or both staff roles; student and administrator roles cannot be combined with other roles. `PATCH /api/v1/admin/users/:id/approval` accepts `{ "status": "APPROVED" | "REJECTED", "roles": ["lecturer", "cod"] }`, where `roles` is optional and may contain one or both staff roles. Approval does not activate a staff account until its email is verified. The roster import accepts `{ "students": [{ "studentNumber": "...", "email": "..." }] }` with at most 1,000 entries per request. User updates may change email, password, display name, active status, roles, and profile/login identifiers. Accounts are deactivated rather than deleted, and the last active administrator cannot be deactivated or lose the administrator role. User mutations create actor-attributed audit events transactionally. User listings support paginated `page`, `limit`, `search`, `role`, and `isActive` filters and return operational account/profile data without password hashes.
+
+`GET /api/v1/admin/users/:id` returns one account's roles, profile identifiers, department memberships, designated-COD membership indicators, and operational responsibility counts. It excludes password hashes, report content, comments, evidence, and official marks.
+
+Phase 2 academic structure endpoints are also restricted to administrators:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET, POST, PATCH | `/api/v1/admin/departments` and `/api/v1/admin/departments/:id` | Manage departments. |
+| GET, POST, PATCH | `/api/v1/admin/course-units` and `/api/v1/admin/course-units/:id` | Manage course units and department relationships. |
+| GET, POST, PATCH | `/api/v1/admin/academic-periods` and `/api/v1/admin/academic-periods/:id` | Manage academic periods. Overlapping periods are allowed. |
+| GET, POST, DELETE | `/api/v1/admin/enrolments` and `/api/v1/admin/enrolments/:id` | Manage student-unit-period enrolments. Protected historical references prevent deletion. |
+| GET, POST, DELETE | `/api/v1/admin/lecturer-mappings` and `/api/v1/admin/lecturer-mappings/:id` | Manage lecturer-to-unit mappings. Protected historical references prevent deletion. |
+| GET, POST, PATCH | `/api/v1/admin/classrooms` and `/api/v1/admin/classrooms/:id` | Manage attendance classrooms and active status. |
+| GET, POST, PATCH | `/api/v1/admin/assessments` and `/api/v1/admin/assessments/:id` | Manage unit assessments. |
+| GET, POST, PATCH | `/api/v1/admin/assessment-types` and `/api/v1/admin/assessment-types/:id` | Manage the global assessment-type catalogue. |
+
+Academic structure mutations validate related records, preserve protected history, and create actor-attributed audit events transactionally. Assessment creation records the administrator as the creating user. These endpoints do not alter official marks or report workflow decisions.
+
+Enrolment creation requires an active user with the `student` role behind the selected student profile. Lecturer-mapping creation requires an active user with the `lecturer` role behind the selected lecturer profile. This prevents deactivated or role-inconsistent profiles from receiving new academic relationships.
+
+Administrators cannot deactivate a designated COD or remove that user's `cod` role before changing the department designation. Administrators also cannot deactivate a lecturer or remove the `lecturer` role while that lecturer has unit mappings, assigned reports, or attendance sessions that require reassignment or resolution.
+
+Department membership governance is available through:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/departments/:departmentId/members` | List department members with optional role filtering. |
+| POST | `/api/v1/admin/departments/:departmentId/members` | Add an active lecturer, COD, or administrator account to a department. |
+| DELETE | `/api/v1/admin/departments/:departmentId/members/:userId` | Remove a department membership. |
+
+The current designated COD cannot be removed from a department until the designation is changed. Designated-COD updates and public-holiday maintenance continue to use the existing Feature 5 services and transactional audit behavior; they are not duplicated in the administrator module.
+
+Phase 3 operational endpoints are restricted to administrators:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/settings` | List stored operational settings. |
+| PATCH | `/api/v1/admin/settings/:key` | Update an explicitly allowlisted operational setting. |
+| GET | `/api/v1/admin/reports` | View paginated system-wide report summaries and status aggregates. |
+| GET | `/api/v1/admin/audit-logs` | View read-only, paginated audit records. |
+
+The settings allowlist contains `notification_batch_size`, `notification_poll_interval_ms`, `max_page_size`, `attendance_minimum_percentage` (default `80`), `appeal_window_calendar_days` (default `14`), `overdue_notifications_enabled` (default `true`), and `notification_retry_limit` (default `5`). Lecturer, COD, and special-case review deadline settings remain excluded until separately approved. Existing deadline snapshots are never recalculated when settings change. Report summaries omit report descriptions, comments, evidence, and official marks; audit queries support action, entity type, actor, and date filters.
+
+Controlled CSV exports are available to administrators:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/reports/export` | Export operational report-summary columns as CSV. |
+| GET | `/api/v1/admin/audit-logs/export` | Export filtered audit records as CSV. |
+
+Both exports accept the relevant report or audit filters and a `maxRows` value from `1` to `5000`, defaulting to `1000`. Report exports exclude descriptions, comments, evidence, and official marks. Export requests are transactionally recorded as audit events; an audit export event appears in later audit exports, not the snapshot that initiated it.
+
+The administrator dashboard is available at `GET /api/v1/admin/dashboard`. It returns read-only aggregate counts for active and total users, active students and lecturers, departments, course units, academic periods, enrolments, lecturer mappings, active classrooms, assessments, and report counts by status. It does not expose individual student records, report descriptions, comments, evidence, or marks.
+
+Approved administrator maintenance actions are:
+
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/v1/admin/reports/:reportId/reopen` | Reopen a rejected or withdrawn report to `PENDING` with a required reason. |
+| POST | `/api/v1/admin/reports/:reportId/reassign` | Reassign an unresolved report to an active lecturer mapped to its course unit. |
+
+Both actions reject reports with unresolved appeals or special cases, preserve status/assignment history, and create audit events without sending notifications. Reopening clears the current lecturer assignment so the report can be assigned afresh.
+
+Attendance, CAT, examination-attendance, special-case and export endpoints are documented in their module sections above. Attendance corrections through Admin apply only to session attendance records; the current correction schema does not support assessment attendance or attempts.
 
 ## 5. Authentication and authorisation
 
@@ -184,7 +585,38 @@ Before changing a route, payload or response:
 
 ## 11. Shared API bootstrap
 
-- `GET /health` returns `{ "success": true, "data": { "status": "ok" } }` and does not query the database.
+- `GET /health` is a liveness check. It returns `{ "success": true, "data": { "status": "ok" } }` and does not query the database.
+- `GET /health/ready` checks PostgreSQL with a read-only `SELECT 1`. It returns HTTP `200` with database status `connected` when ready, or HTTP `503` with status `unavailable` if the database cannot be reached. Error details and connection information are not exposed.
 - Unknown routes return a consistent JSON error response.
 - `backend/src/app.js` owns middleware and route mounting; `backend/src/server.js` owns process startup and shutdown.
 - Errors use `{ "success": false, "message": "..." }`, with validation details only for client input errors. Internal exceptions are logged server-side and are not returned to clients.
+- Application logs are structured JSON written to stdout/stderr. HTTP request completion logs include request ID, method, route, status, and duration; request bodies, query strings, and credentials are not logged. Set `LOG_LEVEL` to `debug`, `info`, `warn`, or `error` (default `info`).
+- Startup and shutdown events, initial database connection success/failure, readiness failures, and unexpected server errors are logged. A database outage does not stop the API process; readiness remains `503` while liveness can remain `200`.
+
+## Feature 5: missing-mark workflow
+
+All paths below use `/api/v1`; protected paths require the listed role and authenticate through the existing middleware.
+
+| Method and path | Role | Behaviour |
+|---|---|---|
+| `GET /student/appeals`, `GET /student/appeals/:appealId` | Student | List/view only the authenticated student's appeals and final reasons. |
+| `POST /student/reports/:reportId/appeals` | Student | Submit one appeal for an owned `REJECTED` report within 14 calendar days of its recorded rejection. Body: `{reason, comments?}`. |
+| `POST /student/reports/:reportId/special-cases` | Student | Submit a case for an owned report in `PENDING`, `ESCALATED`, or `REJECTED`. Body: `{categoryId, description}`. |
+| `GET /student/special-cases`, `GET /student/special-cases/:caseId` | Student | List and view cases submitted by the authenticated student, including decisions; evidence bytes are not served. |
+| `GET /lecturer/assessment-types` | Lecturer | List active decision assessment types. |
+| `POST /lecturer/reports/:reportId/start` | Lecturer | Start work on the currently assigned pending report once. |
+| `POST /lecturer/reports/:reportId/decision` | Lecturer | Final decision requires `decision`, `reason`, and active `assessmentTypeId`; `assessmentTypeOtherDescription` is required only for `OTHER`. |
+| `POST /lecturer/reports/:reportId/special-cases` | Lecturer | Submit a case for a currently assigned eligible report. Body: `{categoryId, description}`. |
+| `GET /lecturer/special-cases`, `GET /lecturer/special-cases/:caseId` | Lecturer | List submitted cases and view own/currently assigned report cases. Evidence metadata is visible only to the current assignee. |
+| `GET /cod/appeals`, `GET /cod/appeals/:appealId` | COD | List and view appeals for departments where the caller is the designated COD. Optional list query: `page`, `limit`, `status`. |
+| `POST /cod/appeals/:appealId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. Approval returns the report to `PENDING`. |
+| `GET /cod/special-cases`, `GET /cod/special-cases/:caseId` | COD | List and view cases only for designated departments. Optional list query: `page`, `limit`, `status`. |
+| `POST /cod/special-cases/:caseId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. This does not change report status. |
+| `GET /cod/special-case-categories` | COD | List categories for category management. Caller must be designated COD. |
+| `POST /cod/special-case-categories`, `PATCH /cod/special-case-categories/:id` | COD | Create/update categories using `code`, `name`, optional `description`, and update-only `isActive`. |
+| `GET /cod/reports/overdue`, `GET /cod/appeals/overdue`, `GET /cod/special-cases/overdue` | COD | Paginated unresolved overdue work for the caller's designated departments. |
+| `GET /public-holidays?from=YYYY-MM-DD&to=YYYY-MM-DD` | Public | Read the holiday calendar. |
+| `POST /admin/public-holidays`, `PATCH /admin/public-holidays/:id`, `DELETE /admin/public-holidays/:id` | Administrator | Maintain holidays. Create/update body: `{date, name, source?, description?}`. Existing deadlines are not recalculated. |
+| `PATCH /admin/departments/:departmentId/designated-cod` | Administrator | Assign a department's COD. Body: `{codUserId}`; target must be active, have the COD role, and be a member of that department. |
+
+Special-case evidence upload/download is not exposed because no private storage provider has been selected. Existing report-level evidence metadata remains available through the COD report review. No API response includes a storage key.
