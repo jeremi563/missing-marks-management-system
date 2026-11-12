@@ -124,24 +124,26 @@ test("does not change password when the current password is incorrect", async ()
 	assert.equal(updateCalled, false);
 });
 
-test("updates an email immediately after verifying the current password", async () => {
+test("requests an email change only after verifying the current password", async () => {
 	const user = await makeUser();
-	const tokenUpdates = [];
+	const tokenWrites = [];
+	const sent = [];
 	const db = {
-		user: {
-			findUnique: async ({ where }) => where.id ? user : null,
-		},
+		user: { findUnique: async ({ where }) => where.id ? user : null },
 		$transaction: async (callback) => callback({
-			user: { update: async ({ data }) => { Object.assign(user, data); return { email: user.email }; } },
-			accountSecurityToken: { updateMany: async (args) => { tokenUpdates.push(args); return { count: 0 }; } },
+			user: { update: async ({ data }) => Object.assign(user, data) },
+			accountSecurityToken: {
+				updateMany: async () => ({ count: 0 }),
+				create: async ({ data }) => tokenWrites.push(data),
+			},
 		}),
 	};
-	const result = await requestEmailChange(user.id, " New@Example.Test ", "student-password", db);
-	assert.deepEqual(result, { email: "new@example.test" });
-	assert.equal(user.email, "new@example.test");
-	assert.equal(user.pendingEmail, null);
-	assert.ok(user.emailVerifiedAt instanceof Date);
-	assert.deepEqual(tokenUpdates[0].where, { userId: user.id, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null });
+	const result = await requestEmailChange(user.id, " New@Example.Test ", "student-password", db, async (email, token) => sent.push({ email, token }));
+	assert.deepEqual(result, { pendingEmail: "new@example.test", verificationEmailSent: true });
+	assert.equal(user.email, "student@example.test");
+	assert.equal(user.pendingEmail, "new@example.test");
+	assert.equal(tokenWrites[0].type, "EMAIL_CHANGE");
+	assert.equal(sent[0].email, "new@example.test");
 });
 
 test("does not request an email change when the current password is incorrect", async () => {

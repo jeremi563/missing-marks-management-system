@@ -101,7 +101,7 @@ export async function changePasswordController(req, res, next) {
 export async function changeEmailController(req, res, next) {
 	try {
 		const result = await requestEmailChange(req.user.id, req.body.email, req.body.currentPassword);
-		return sendSuccess(res, "Email address updated successfully", result);
+		return sendSuccess(res, "Verify your new email address to finish the change", result);
 	} catch (error) { return next(error); }
 }
 

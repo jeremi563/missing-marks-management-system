@@ -261,7 +261,7 @@ export async function verifyEmailAddress(token, db = prisma) {
 	});
 }
 
-export async function requestEmailChange(userId, email, currentPassword, db = prisma) {
+export async function requestEmailChange(userId, email, currentPassword, db = prisma, send = sendVerificationEmail) {
 	const normalizedEmail = normalizeEmail(email);
 	const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, passwordHash: true } });
 	if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
@@ -276,26 +276,18 @@ export async function requestEmailChange(userId, email, currentPassword, db = pr
 		throw new AppError(409, "This email address is already associated with an account");
 	}
 
-	let updatedUser;
+	let token;
 	try {
-		const now = new Date();
-		updatedUser = await db.$transaction(async (tx) => {
-			const updated = await tx.user.update({
-				where: { id: userId },
-				data: { email: normalizedEmail, emailVerifiedAt: now, pendingEmail: null },
-				select: { email: true },
-			});
-			await tx.accountSecurityToken.updateMany({
-				where: { userId, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null },
-				data: { usedAt: now },
-			});
-			return updated;
+		token = await db.$transaction(async (tx) => {
+			await tx.user.update({ where: { id: userId }, data: { pendingEmail: normalizedEmail } });
+			return storeSecurityToken(tx, userId, "EMAIL_CHANGE", 24 * 60 * 60 * 1000);
 		});
 	} catch (error) {
 		if (error.code === "P2002") throw new AppError(409, "This email address is already associated with an account");
 		throw error;
 	}
-	return { email: updatedUser.email };
+	const verificationEmailSent = await attemptEmailDelivery(send, normalizedEmail, token, "email_change");
+	return { pendingEmail: normalizedEmail, verificationEmailSent };
 }
 
 export async function requestPasswordReset(email, db = prisma) {

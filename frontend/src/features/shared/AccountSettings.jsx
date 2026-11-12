@@ -16,6 +16,7 @@ export default function AccountSettings({ roleLabel }) {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [email, setEmail] = useState('')
   const [emailPassword, setEmailPassword] = useState('')
+  const [pendingEmail, setPendingEmail] = useState('')
   const [emailError, setEmailError] = useState('')
   const [emailSuccess, setEmailSuccess] = useState('')
   const [emailSaving, setEmailSaving] = useState(false)
@@ -64,15 +65,20 @@ export default function AccountSettings({ roleLabel }) {
     setEmailSuccess('')
     setEmailSaving(true)
     try {
-      const requestedEmail = email.trim()
-      await requestEmailChange(requestedEmail, emailPassword)
+      const response = await requestEmailChange(email.trim(), emailPassword)
+      const requestedEmail = response.data?.pendingEmail || email.trim()
+      setPendingEmail(requestedEmail)
       setEmail('')
       setEmailPassword('')
-      setEmailSuccess(`Your email address has been updated to ${requestedEmail}.`)
+      if (response.data?.verificationEmailSent) {
+        setEmailSuccess(`A verification link was sent to ${requestedEmail}. Your current email stays active until you confirm it.`)
+      } else {
+        setEmailError(`The change is saved for ${requestedEmail}, but the verification email could not be sent. Submit the same address again after email delivery is restored.`)
+      }
       try {
         await refreshUser()
       } catch {
-        setEmailError('Your email address was updated, but your profile could not be refreshed. Reload the page to see the new address.')
+        setEmailError('Your email change is pending, but your profile could not be refreshed. Reload the page to see the pending address.')
       }
     } catch (requestError) {
       setEmailError(requestError.userMessage || 'Unable to change your email. Please try again.')
@@ -124,6 +130,7 @@ export default function AccountSettings({ roleLabel }) {
 
   const displayName = user?.displayName || user?.fullName || user?.name || 'Account holder'
   const displayedAvatar = avatarDraft || (savedAvatar === undefined ? user?.avatarData : savedAvatar)
+  const confirmationEmail = pendingEmail || user?.pendingEmail
 
   return (
     <section className="account-settings">
@@ -172,9 +179,10 @@ export default function AccountSettings({ roleLabel }) {
             <span className="settings-icon"><Mail size={20} /></span>
             <div>
               <h3 id="settings-email-title">Email address</h3>
-              <p>Your new email address takes effect immediately without email verification.</p>
+              <p>Verify a new address before it replaces your current one.</p>
             </div>
           </div>
+          {confirmationEmail && <div className="settings-pending-note" role="status">Verification pending for <strong>{confirmationEmail}</strong>.</div>}
           {emailError && <div className="form-alert" role="alert">{emailError}</div>}
           {emailSuccess && <div className="form-success" role="status">{emailSuccess}</div>}
           <form className="settings-form" onSubmit={submitEmail}>
@@ -187,7 +195,7 @@ export default function AccountSettings({ roleLabel }) {
               <input id="settings-email-password" type="password" value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} autoComplete="current-password" required maxLength={128} />
             </div>
             <button className="button button-primary" type="submit" disabled={emailSaving}>
-              <Mail size={16} /> {emailSaving ? 'Updating…' : 'Update email'}
+              <Mail size={16} /> {emailSaving ? 'Sending link…' : 'Send verification link'}
             </button>
           </form>
         </section>
