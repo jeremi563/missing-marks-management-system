@@ -31,6 +31,11 @@ export const getCurrentUser = async () => {
   return response.data
 }
 
+export const extendSession = async () => {
+  const response = await apiClient.post('/auth/session/extend')
+  return response.data
+}
+
 export const verifyEmail = async (token) => {
   const response = await apiClient.post('/auth/verify-email', { token })
   return response.data
@@ -53,5 +58,15 @@ export const resetPassword = async (token, password) => {
 
 export const changePassword = async (currentPassword, newPassword) => {
   const response = await apiClient.post('/auth/change-password', { currentPassword, newPassword })
+  return response.data
+}
+
+export const requestEmailChange = async (email, currentPassword) => {
+  const response = await apiClient.post('/auth/change-email', { email, currentPassword })
+  return response.data
+}
+
+export const updateAvatar = async (avatarData) => {
+  const response = await apiClient.put('/auth/avatar', { avatarData })
   return response.data
 }

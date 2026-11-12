@@ -51,7 +51,7 @@ export default function AdminApprovals() {
         <div>
           <p className="eyebrow">ADMINISTRATION</p>
           <h2>Lecturer approvals</h2>
-          <p>Review lecturer applications after the applicant has selected a department. COD assignments are managed in Academic setup.</p>
+          <p>Review lecturer applications after the applicant has selected a department. COD assignments are managed from the Lecturers page.</p>
         </div>
         <button className="button button-secondary" type="button" onClick={() => setRefresh((value) => value + 1)}>
           <RefreshCw size={16} /> Refresh

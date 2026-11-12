@@ -7,7 +7,7 @@ process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test?schema=public";
 process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
-const { changePassword, completeLecturerDepartmentRegistration, loginWithCredentials, registerAccount } = await import("../../src/modules/auth/auth.service.js");
+const { changePassword, completeLecturerDepartmentRegistration, extendSession, loginWithCredentials, registerAccount, requestEmailChange, updateAvatar, verifyEmailAddress } = await import("../../src/modules/auth/auth.service.js");
 
 const makeUser = async (overrides = {}) => ({
 	id: "00000000-0000-4000-8000-000000000001",
@@ -30,6 +30,17 @@ test("logs in by normalized student registration number", async () => {
 	assert.equal(queriedValue, `AB/01243/${new Date().getFullYear()}`);
 	assert.deepEqual(jwt.decode(result.token).roles, ["student"]);
 	assert.equal(result.user.email, user.email);
+	assert.ok(Math.abs(Date.parse(result.sessionExpiresAt) - jwt.decode(result.token).exp * 1000) < 1000);
+});
+
+test("extends an authenticated session for 15 minutes", () => {
+	const result = extendSession({ id: "user-1", roles: ["student"] });
+	const claims = jwt.verify(result.token, process.env.JWT_SECRET);
+	assert.equal(claims.sub, "user-1");
+	assert.deepEqual(claims.roles, ["student"]);
+	assert.ok(claims.exp - claims.iat >= 14 * 60);
+	assert.ok(claims.exp - claims.iat <= 15 * 60);
+	assert.equal(Date.parse(result.sessionExpiresAt), claims.exp * 1000);
 });
 
 test("uses the same registration-number login for every account role", async () => {
@@ -111,6 +122,73 @@ test("does not change password when the current password is incorrect", async ()
 		},
 	}), { statusCode: 401 });
 	assert.equal(updateCalled, false);
+});
+
+test("updates an email immediately after verifying the current password", async () => {
+	const user = await makeUser();
+	const tokenUpdates = [];
+	const db = {
+		user: {
+			findUnique: async ({ where }) => where.id ? user : null,
+		},
+		$transaction: async (callback) => callback({
+			user: { update: async ({ data }) => { Object.assign(user, data); return { email: user.email }; } },
+			accountSecurityToken: { updateMany: async (args) => { tokenUpdates.push(args); return { count: 0 }; } },
+		}),
+	};
+	const result = await requestEmailChange(user.id, " New@Example.Test ", "student-password", db);
+	assert.deepEqual(result, { email: "new@example.test" });
+	assert.equal(user.email, "new@example.test");
+	assert.equal(user.pendingEmail, null);
+	assert.ok(user.emailVerifiedAt instanceof Date);
+	assert.deepEqual(tokenUpdates[0].where, { userId: user.id, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null });
+});
+
+test("does not request an email change when the current password is incorrect", async () => {
+	const user = await makeUser();
+	let transactionStarted = false;
+	await assert.rejects(requestEmailChange(user.id, "new@example.test", "incorrect-password", {
+		user: { findUnique: async () => user },
+		$transaction: async () => { transactionStarted = true; },
+	}), { statusCode: 401 });
+	assert.equal(transactionStarted, false);
+});
+
+test("confirms a pending email change with its verification token", async () => {
+	const pendingEmail = "new@example.test";
+	let userUpdate;
+	const result = await verifyEmailAddress("verification-token", {
+		$transaction: async (callback) => callback({
+			accountSecurityToken: {
+				findUnique: async () => ({
+					id: "token-id",
+					userId: "user-id",
+					type: "EMAIL_CHANGE",
+					usedAt: null,
+					expiresAt: new Date(Date.now() + 60_000),
+					user: { pendingEmail, approvalStatus: "APPROVED" },
+				}),
+				updateMany: async () => ({ count: 1 }),
+			},
+			user: { update: async ({ data }) => { userUpdate = data; return { email: pendingEmail }; } },
+		}),
+	});
+	assert.equal(userUpdate.email, pendingEmail);
+	assert.equal(userUpdate.pendingEmail, null);
+	assert.ok(userUpdate.emailVerifiedAt instanceof Date);
+	assert.deepEqual(result, { status: "APPROVED", email: pendingEmail });
+});
+
+test("validates uploaded avatar image signatures and supports removal", async () => {
+	const userId = "00000000-0000-4000-8000-000000000001";
+	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+	let updatedData;
+	const db = { user: { update: async ({ data }) => { updatedData = data; return { avatarData: data.avatarData }; } } };
+	const avatarData = `data:image/png;base64,${png.toString("base64")}`;
+	assert.deepEqual(await updateAvatar(userId, avatarData, db), { avatarData });
+	assert.deepEqual(updatedData, { avatarData });
+	await assert.rejects(updateAvatar(userId, "data:image/png;base64,not-a-png", db), { statusCode: 422 });
+	assert.deepEqual(await updateAvatar(userId, null, db), { avatarData: null });
 });
 
 function registrationHarness(eligibility, existingUser = null) {

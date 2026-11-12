@@ -14,6 +14,13 @@ import {
 
 const normalizeEmail = (value) => value.trim().toLowerCase();
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
+const SESSION_DURATION = "15m";
+
+function createSessionToken(userId, roles) {
+	const token = jwt.sign({ roles }, env.JWT_SECRET, { subject: userId, expiresIn: SESSION_DURATION });
+	const { exp } = jwt.decode(token);
+	return { token, sessionExpiresAt: new Date(exp * 1000).toISOString() };
+}
 
 async function attemptEmailDelivery(send, email, token, purpose) {
 	try { await send(email, token); }
@@ -48,8 +55,14 @@ export async function loginWithCredentials(identifier, password, db = prisma) {
 		throw new AppError(401, "Invalid identifier or password");
 	}
 
-	const token = jwt.sign({ roles }, env.JWT_SECRET, { subject: user.id, expiresIn: "15m" });
-	return { token, user: { id: user.id, email: user.email, displayName: user.displayName, roles } };
+	return {
+		...createSessionToken(user.id, roles),
+		user: { id: user.id, email: user.email, displayName: user.displayName, roles },
+	};
+}
+
+export function extendSession(user) {
+	return createSessionToken(user.id, user.roles);
 }
 
 export async function registerAccount({ email, password, displayName, registrationNumber }, db = prisma) {
@@ -100,6 +113,9 @@ export async function registerAccount({ email, password, displayName, registrati
 			}
 		}
 		if (await tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })) {
+			throw new AppError(409, "An account with these details already exists");
+		}
+		if (await tx.user.findUnique({ where: { pendingEmail: normalizedEmail }, select: { id: true } })) {
 			throw new AppError(409, "An account with these details already exists");
 		}
 		if (await tx.accountLoginIdentifier.findUnique({ where: { value: identifier }, select: { id: true } })) {
@@ -213,17 +229,73 @@ export async function verifyEmailAddress(token, db = prisma) {
 	const now = new Date();
 	return db.$transaction(async (tx) => {
 		const record = await tx.accountSecurityToken.findUnique({ where: { tokenHash: hashToken(token) }, include: { user: true } });
-		if (!record || record.type !== "EMAIL_VERIFICATION" || record.usedAt || record.expiresAt <= now) {
+		if (!record || !["EMAIL_VERIFICATION", "EMAIL_CHANGE"].includes(record.type) || record.usedAt || record.expiresAt <= now) {
 			throw new AppError(400, "Verification link is invalid or expired");
 		}
 		const claimed = await tx.accountSecurityToken.updateMany({ where: { id: record.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
 		if (claimed.count !== 1) throw new AppError(400, "Verification link is invalid or expired");
-		await tx.user.update({
-			where: { id: record.userId },
-			data: { emailVerifiedAt: now, isActive: record.user.approvalStatus === "APPROVED" },
-		});
-		return { status: record.user.approvalStatus === "APPROVED" ? "APPROVED" : record.user.approvalStatus };
+		const emailChange = record.type === "EMAIL_CHANGE";
+		if (emailChange && !record.user.pendingEmail) throw new AppError(400, "Verification link is invalid or expired");
+		let updatedUser;
+		try {
+			updatedUser = await tx.user.update({
+				where: { id: record.userId },
+				data: {
+					...(emailChange ? { email: record.user.pendingEmail, pendingEmail: null } : {}),
+					emailVerifiedAt: now,
+					isActive: record.user.approvalStatus === "APPROVED",
+				},
+				select: { email: true },
+			});
+		} catch (error) {
+			if (emailChange && error.code === "P2002") throw new AppError(409, "This email address is no longer available");
+			throw error;
+		}
+		if (emailChange) {
+			await tx.accountSecurityToken.updateMany({ where: { userId: record.userId, type: "EMAIL_CHANGE", usedAt: null }, data: { usedAt: now } });
+		}
+		return {
+			status: record.user.approvalStatus === "APPROVED" ? "APPROVED" : record.user.approvalStatus,
+			...(emailChange ? { email: updatedUser.email } : {}),
+		};
 	});
+}
+
+export async function requestEmailChange(userId, email, currentPassword, db = prisma) {
+	const normalizedEmail = normalizeEmail(email);
+	const user = await db.user.findUnique({ where: { id: userId }, select: { email: true, passwordHash: true } });
+	if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+		throw new AppError(401, "Current password is incorrect");
+	}
+	if (normalizedEmail === user.email) throw new AppError(422, "Enter a different email address");
+	const [existingEmail, existingPendingEmail] = await Promise.all([
+		db.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } }),
+		db.user.findUnique({ where: { pendingEmail: normalizedEmail }, select: { id: true } }),
+	]);
+	if ((existingEmail && existingEmail.id !== userId) || (existingPendingEmail && existingPendingEmail.id !== userId)) {
+		throw new AppError(409, "This email address is already associated with an account");
+	}
+
+	let updatedUser;
+	try {
+		const now = new Date();
+		updatedUser = await db.$transaction(async (tx) => {
+			const updated = await tx.user.update({
+				where: { id: userId },
+				data: { email: normalizedEmail, emailVerifiedAt: now, pendingEmail: null },
+				select: { email: true },
+			});
+			await tx.accountSecurityToken.updateMany({
+				where: { userId, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null },
+				data: { usedAt: now },
+			});
+			return updated;
+		});
+	} catch (error) {
+		if (error.code === "P2002") throw new AppError(409, "This email address is already associated with an account");
+		throw error;
+	}
+	return { email: updatedUser.email };
 }
 
 export async function requestPasswordReset(email, db = prisma) {
@@ -255,4 +327,23 @@ export async function changePassword(userId, currentPassword, newPassword, db = 
 	}
 	const passwordHash = await bcrypt.hash(newPassword, 12);
 	await db.user.update({ where: { id: userId }, data: { passwordHash } });
+}
+
+export async function updateAvatar(userId, avatarData, db = prisma) {
+	if (avatarData !== null) {
+		const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(avatarData);
+		if (!match) throw new AppError(422, "Choose a JPEG, PNG, or WebP image no larger than 512 KB");
+		const [, imageType, encodedImage] = match;
+		const image = Buffer.from(encodedImage, "base64");
+		const validSignature = imageType === "png"
+			? image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+			: imageType === "jpeg"
+				? image[0] === 0xff && image[1] === 0xd8 && image[2] === 0xff
+				: image.toString("ascii", 0, 4) === "RIFF" && image.toString("ascii", 8, 12) === "WEBP";
+		if (!image.length || image.length > 512 * 1024 || image.toString("base64") !== encodedImage || !validSignature) {
+			throw new AppError(422, "Choose a valid JPEG, PNG, or WebP image no larger than 512 KB");
+		}
+	}
+	const user = await db.user.update({ where: { id: userId }, data: { avatarData }, select: { avatarData: true } });
+	return { avatarData: user.avatarData };
 }

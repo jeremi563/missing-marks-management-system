@@ -96,19 +96,40 @@ export async function listAdminUsers({ db = prisma, page = 1, limit = 10, search
 		...(isActive === undefined ? {} : { isActive }),
 		...(search ? { OR: [{ email: { contains: search, mode: "insensitive" } }, { displayName: { contains: search, mode: "insensitive" } }] } : {}),
 	};
-	const [users, total] = await Promise.all([
-		db.user.findMany({
-			where,
-			select: {
-				...userSelect,
-				departmentMemberships: { select: { departmentId: true, department: { select: { id: true, name: true, code: true } } } },
-			},
-			orderBy: [{ displayName: "asc" }, { email: "asc" }],
-			skip: (page - 1) * limit,
-			take: limit,
-		}),
-		db.user.count({ where }),
-	]);
+	const select = {
+		...userSelect,
+		departmentMemberships: { select: { departmentId: true, department: { select: { id: true, name: true, code: true } } } },
+	};
+	const orderBy = [{ displayName: "asc" }, { email: "asc" }];
+	const offset = (page - 1) * limit;
+	let users;
+	let total;
+	if (!role) {
+		const administratorWhere = { ...where, roles: { some: { role: { name: "administrator" } } } };
+		const otherUsersWhere = { ...where, NOT: { roles: { some: { role: { name: "administrator" } } } } };
+		const [administratorCount, userCount] = await Promise.all([
+			db.user.count({ where: administratorWhere }),
+			db.user.count({ where }),
+		]);
+		const administratorTake = Math.max(0, Math.min(limit, administratorCount - offset));
+		const otherUsersSkip = Math.max(0, offset - administratorCount);
+		const otherUsersTake = limit - administratorTake;
+		const [administrators, otherUsers] = await Promise.all([
+			administratorTake
+				? db.user.findMany({ where: administratorWhere, select, orderBy, skip: offset, take: administratorTake })
+				: [],
+			otherUsersTake
+				? db.user.findMany({ where: otherUsersWhere, select, orderBy, skip: otherUsersSkip, take: otherUsersTake })
+				: [],
+		]);
+		users = [...administrators, ...otherUsers];
+		total = userCount;
+	} else {
+		[users, total] = await Promise.all([
+			db.user.findMany({ where, select, orderBy, skip: offset, take: limit }),
+			db.user.count({ where }),
+		]);
+	}
 	return { users: users.map(serializeUser), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
 
@@ -132,21 +153,23 @@ export async function getAdminUser({ db = prisma, userId }) {
 
 export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber, adminNumber }) {
 	return db.$transaction(async (tx) => {
-		if (roles.includes("cod")) throw new AppError(422, "Create a lecturer account first, then assign COD responsibility to that lecturer");
-		const roleRecords = await validateRoles(tx, roles);
+		const accountRoles = includeLecturerRole(roles);
+		if (!accountRoles.includes("administrator") && !accountRoles.includes("cod")) {
+			throw new AppError(422, "Only administrator and COD accounts can be created here");
+		}
+		const roleRecords = await validateRoles(tx, accountRoles);
 		const normalizedNumbers = { studentNumber: studentNumber?.toUpperCase(), staffNumber: staffNumber?.toUpperCase(), adminNumber: adminNumber?.toUpperCase() };
-		validateProfileInputs({ roles, ...normalizedNumbers });
+		validateProfileInputs({ roles: accountRoles, ...normalizedNumbers });
 		const user = await tx.user.create({ data: { email: email.toLowerCase(), passwordHash: await bcrypt.hash(password, 12), displayName, emailVerifiedAt: new Date(), approvalStatus: "APPROVED", isActive: true } });
 		await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId: user.id, roleId })) });
-		if (roles.includes("student")) await tx.studentProfile.create({ data: { userId: user.id, studentNumber: normalizedNumbers.studentNumber } });
-		if (roles.includes("lecturer")) await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber: normalizedNumbers.staffNumber } });
-		await setLoginIdentifier(tx, user.id, roles, normalizedNumbers);
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_CREATED", entityType: "User", entityId: user.id, metadata: { roles } });
+		if (accountRoles.includes("lecturer")) await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber: normalizedNumbers.staffNumber } });
+		await setLoginIdentifier(tx, user.id, accountRoles, normalizedNumbers);
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_CREATED", entityType: "User", entityId: user.id, metadata: { roles: accountRoles } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
 	});
 }
 
-export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber, departmentId }) {
+export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, departmentId }) {
 	return db.$transaction(async (tx) => {
 		const current = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, passwordHash: true } });
 		if (!current) throw new AppError(404, "User not found");
@@ -192,14 +215,14 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 		}
 		const currentIdentifier = current.loginIdentifiers?.[0]?.value;
 		const normalizedNumbers = {
-			studentNumber: (studentNumber ?? current.studentProfile?.studentNumber)?.toUpperCase(),
-			staffNumber: (staffNumber ?? current.lecturerProfile?.staffNumber ?? (currentRoles.includes("cod") ? currentIdentifier : undefined))?.toUpperCase(),
-			adminNumber: (adminNumber ?? (currentRoles.includes("administrator") ? currentIdentifier : undefined))?.toUpperCase(),
+			studentNumber: current.studentProfile?.studentNumber?.toUpperCase(),
+			staffNumber: (current.lecturerProfile?.staffNumber ?? (currentRoles.includes("cod") ? currentIdentifier : undefined))?.toUpperCase(),
+			adminNumber: (currentRoles.includes("administrator") ? currentIdentifier : undefined)?.toUpperCase(),
 		};
 		validateProfileInputs({
 			roles: nextRoles,
 			...normalizedNumbers,
-			allowMissingStaffNumber: !normalizedNumbers.staffNumber && !roles && !staffNumber && currentRoles.some((role) => role === "lecturer" || role === "cod"),
+			allowMissingStaffNumber: !normalizedNumbers.staffNumber && !roles && currentRoles.some((role) => role === "lecturer" || role === "cod"),
 		});
 		const roleRecords = roles || nextRoles.length !== currentRoles.length
 			? await validateRoles(tx, nextRoles)
@@ -209,29 +232,44 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 		}
 		const normalizedEmail = email?.toLowerCase();
 		if (normalizedEmail && normalizedEmail !== current.email) {
-			const duplicate = await tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
-			if (duplicate && duplicate.id !== userId) throw new AppError(409, "A user with this email already exists");
+			const [duplicate, pendingDuplicate] = await Promise.all([
+				tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } }),
+				tx.user.findUnique({ where: { pendingEmail: normalizedEmail }, select: { id: true } }),
+			]);
+			if ((duplicate && duplicate.id !== userId) || (pendingDuplicate && pendingDuplicate.id !== userId)) {
+				throw new AppError(409, "A user with this email already exists");
+			}
 		}
+		const emailChanged = Boolean(normalizedEmail && normalizedEmail !== current.email);
+		const now = new Date();
 		const user = await tx.user.update({ where: { id: userId }, data: {
-			...(normalizedEmail ? { email: normalizedEmail } : {}),
+			...(normalizedEmail ? {
+				email: normalizedEmail,
+				...(emailChanged ? { emailVerifiedAt: now, pendingEmail: null } : {}),
+			} : {}),
 			...(password ? { passwordHash: await bcrypt.hash(password, 12) } : {}),
 			...(displayName !== undefined ? { displayName } : {}),
 			...(isActive !== undefined ? { isActive } : {}),
 		}, select: { id: true } });
+		if (emailChanged) {
+			await tx.accountSecurityToken.updateMany({
+				where: { userId, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null },
+				data: { usedAt: now },
+			});
+		}
 		if (roleRecords) {
 			await tx.userRole.deleteMany({ where: { userId } });
 			await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId, roleId })) });
 		}
-		if (studentNumber !== undefined && nextRoles.includes("student")) await tx.studentProfile.upsert({ where: { userId }, update: { studentNumber: normalizedNumbers.studentNumber }, create: { userId, studentNumber: normalizedNumbers.studentNumber } });
-		if (nextRoles.includes("lecturer") && normalizedNumbers.staffNumber && (staffNumber !== undefined || !current.lecturerProfile)) {
+		if (nextRoles.includes("lecturer") && normalizedNumbers.staffNumber && !current.lecturerProfile) {
 			await tx.lecturerProfile.upsert({
 				where: { userId },
-				update: { staffNumber: normalizedNumbers.staffNumber },
+				update: {},
 				create: { userId, staffNumber: normalizedNumbers.staffNumber },
 			});
 		}
-		if (roles || studentNumber !== undefined || staffNumber !== undefined || adminNumber !== undefined) await setLoginIdentifier(tx, userId, nextRoles, normalizedNumbers);
-		const changedFields = Object.entries({ email, password, displayName, isActive, roles, studentNumber, staffNumber, adminNumber, departmentId }).filter(([, value]) => value !== undefined).map(([key]) => key);
+		if (roles) await setLoginIdentifier(tx, userId, nextRoles, normalizedNumbers);
+		const changedFields = Object.entries({ email, password, displayName, isActive, roles, departmentId }).filter(([, value]) => value !== undefined).map(([key]) => key);
 		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_UPDATED", entityType: "User", entityId: userId, metadata: { changedFields, roles: nextRoles, isActive: isActive ?? current.isActive, departmentId } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
 	});

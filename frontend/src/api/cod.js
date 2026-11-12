@@ -14,6 +14,11 @@ export const assignCodReport = (reportId, data) => request('post', `/cod/reports
 export const decideCodReport = (reportId, data) => request('post', `/cod/reports/${reportId}/decision`, data)
 export const getPendingLecturerApprovals = () => request('get', '/cod/pending-lecturer-approvals')
 export const decideLecturerApproval = (id, status) => request('patch', `/cod/lecturer-approvals/${id}`, { status })
+export const getCodDepartmentCourseUnits = (params = {}) => request('get', '/cod/course-units', undefined, { params })
+export const getCodDepartmentStudents = (params = {}) => request('get', '/cod/students', undefined, { params })
+export const getCodDepartmentLecturers = (params = {}) => request('get', '/cod/lecturers', undefined, { params })
+export const getCodDepartments = () => request('get', '/cod/departments')
+export const assignCodLecturerToCourseUnit = (courseUnitId, data) => request('post', `/cod/course-units/${courseUnitId}/lecturers`, data)
 
 export const getCodAppeals = (params = {}) => request('get', '/cod/appeals', undefined, { params })
 export const getCodAppeal = (appealId) => request('get', `/cod/appeals/${appealId}`)

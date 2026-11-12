@@ -124,7 +124,11 @@ function replacementCaseDb() {
 	const outbox = [];
 	const evidence = [{ id: "evidence-1", originalName: "supporting-document.pdf", mediaType: "application/pdf", sizeBytes: 2048, createdAt: new Date("2026-11-01T11:00:00.000Z"), uploadedBy: { id: "lecturer-user-1", displayName: "Lecturer One" } }];
 	let evidenceReads = 0;
-	const user = { findFirst: async ({ where }) => where.id === "cod-old" || where.id === "cod-new" ? { id: where.id } : null };
+	const user = {
+		findFirst: async ({ where }) => where.id === "cod-old" || where.id === "cod-new"
+			? { id: where.id, roles: [{ role: { name: "lecturer" } }, { role: { name: "cod" } }] }
+			: null,
+	};
 	const matchesCaseWhere = (item, where) => {
 		const allowedDepartments = where.report?.courseUnit?.departmentId;
 		const inDepartment = !allowedDepartments || (Array.isArray(allowedDepartments.in) ? allowedDepartments.in.includes(item.report.courseUnit.departmentId) : allowedDepartments === item.report.courseUnit.departmentId);
@@ -141,8 +145,12 @@ function replacementCaseDb() {
 		user,
 		department: {
 			findUnique: async () => ({ id: "dept-1", designatedCodUserId }),
+			count: async () => 0,
 			update: async ({ data }) => { designatedCodUserId = data.designatedCodUserId; return { id: "dept-1", ...data }; },
 		},
+		departmentMembership: { findUnique: async () => ({ id: "membership" }), create: async () => ({ id: "membership" }) },
+		role: { upsert: async () => ({ id: "cod-role" }) },
+		userRole: { create: async () => {}, deleteMany: async () => {} },
 		appeal: { findMany: async () => [] },
 		missingMarkReport: { findMany: async () => [] },
 		specialCase: {

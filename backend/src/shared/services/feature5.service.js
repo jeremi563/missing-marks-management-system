@@ -39,6 +39,13 @@ async function validDesignatedCod(db, departmentId, userId) {
 	return isActiveCodDepartmentMember(db, userId, departmentId);
 }
 
+async function lockCodUsersForRoleTransfer(tx, currentCodUserId, nextCodUserId) {
+	const userIds = [...new Set([currentCodUserId, nextCodUserId].filter(Boolean))].sort();
+	for (const userId of userIds) {
+		await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+	}
+}
+
 async function requireValidDepartmentCod(db, department) {
 	if (!await validDesignatedCod(db, department.id, department.designatedCodUserId)) {
 		throw new AppError(409, "This department currently has no valid designated COD, so the submission cannot proceed");
@@ -163,10 +170,51 @@ export async function designateDepartmentCod({ db = prisma, actorUserId, departm
 		await lockDepartmentForReview(tx, departmentId);
 		const department = await tx.department.findUnique({ where: { id: departmentId }, select: { id: true, designatedCodUserId: true } });
 		if (!department) throw new AppError(404, "Department not found");
-		const codUser = await tx.user.findFirst({ where: { id: codUserId, isActive: true, roles: { some: { role: { name: "cod" } } }, departmentMemberships: { some: { departmentId } } }, select: { id: true } });
-		if (!codUser) throw new AppError(422, "Designated COD must be active, have the cod role and belong to the department");
+		await lockCodUsersForRoleTransfer(tx, department.designatedCodUserId, codUserId);
+		const codUser = await tx.user.findFirst({
+			where: {
+				id: codUserId,
+				isActive: true,
+				approvalStatus: "APPROVED",
+				roles: { some: { role: { name: "lecturer" } } },
+			},
+			select: { id: true, roles: { select: { role: { select: { name: true } } } } },
+		});
+		if (!codUser) throw new AppError(422, "Designated COD must be an active, approved lecturer");
+		const hasCodRole = codUser.roles.some(({ role }) => role.name === "cod");
+		if (!hasCodRole) {
+			const codRole = await tx.role.upsert({
+				where: { name: "cod" },
+				update: {},
+				create: { name: "cod", description: "System cod role" },
+				select: { id: true },
+			});
+			await tx.userRole.create({ data: { userId: codUserId, roleId: codRole.id } });
+		}
+		const membership = await tx.departmentMembership.findUnique({
+			where: { userId_departmentId: { userId: codUserId, departmentId } },
+			select: { id: true },
+		});
+		if (!membership) await tx.departmentMembership.create({ data: { userId: codUserId, departmentId } });
 		const result = await tx.department.update({ where: { id: departmentId }, data: { designatedCodUserId: codUserId }, select: { id: true, name: true, code: true, designatedCodUserId: true } });
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "DEPARTMENT_COD_DESIGNATED", entityType: "Department", entityId: departmentId, metadata: { designatedCodUserId: codUserId } });
+		if (department.designatedCodUserId && department.designatedCodUserId !== codUserId) {
+			const otherDesignations = await tx.department.count({
+				where: { id: { not: departmentId }, designatedCodUserId: department.designatedCodUserId },
+			});
+			if (otherDesignations === 0) {
+				await tx.userRole.deleteMany({
+					where: { userId: department.designatedCodUserId, role: { name: "cod" } },
+				});
+			}
+		}
+		await recordAuditEvent({
+			prismaClient: tx,
+			actorId: actorUserId,
+			action: "DEPARTMENT_COD_DESIGNATED",
+			entityType: "Department",
+			entityId: departmentId,
+			metadata: { previousCodUserId: department.designatedCodUserId, designatedCodUserId: codUserId },
+		});
 		if (department.designatedCodUserId !== codUserId) await enqueueOutstandingCodReviews(tx, departmentId, codUserId);
 		return result;
 	});

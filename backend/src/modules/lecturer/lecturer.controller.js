@@ -54,6 +54,179 @@ export const getReports = async (req, res, next) => {
   }
 };
 
+export const getAssignedCourseUnits = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const prisma = req.app.locals.prisma;
+    if (!prisma) {
+      return res.status(500).json({ success: false, message: 'Database service is not configured.' });
+    }
+
+    const lecturer = await prisma.lecturerProfile.findUnique({
+      where: { userId: lecturerUserId },
+      select: {
+        unitAssignments: {
+          orderBy: { courseUnit: { code: 'asc' } },
+          select: {
+            id: true,
+            createdAt: true,
+            courseUnit: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                department: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!lecturer) {
+      return res.status(404).json({ success: false, message: 'Lecturer profile not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Assigned course units retrieved successfully.',
+      count: lecturer.unitAssignments.length,
+      data: lecturer.unitAssignments,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getAssignedCourseUnitAssessments = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const prisma = req.app.locals.prisma;
+    if (!prisma) {
+      return res.status(500).json({ success: false, message: 'Database service is not configured.' });
+    }
+
+    const lecturer = await prisma.lecturerProfile.findUnique({
+      where: { userId: lecturerUserId },
+      select: { id: true },
+    });
+    if (!lecturer) {
+      return res.status(404).json({ success: false, message: 'Lecturer profile not found.' });
+    }
+
+    const courseUnit = await prisma.courseUnit.findFirst({
+      where: {
+        id: req.params.courseUnitId,
+        lecturerMappings: { some: { lecturerProfileId: lecturer.id } },
+      },
+      select: { id: true },
+    });
+    if (!courseUnit) {
+      return res.status(404).json({ success: false, message: 'Assigned course unit not found.' });
+    }
+
+    const assessments = await prisma.assessment.findMany({
+      where: { courseUnitId: courseUnit.id, type: req.query.type },
+      orderBy: [{ assessmentDate: 'asc' }, { name: 'asc' }],
+      select: { id: true, code: true, name: true, type: true, assessmentDate: true },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Course unit assessments retrieved successfully.',
+      count: assessments.length,
+      data: assessments,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getAssignedStudents = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+
+    if (!lecturerUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const prisma = req.app.locals.prisma;
+    if (!prisma) {
+      return res.status(500).json({ success: false, message: 'Database service is not configured.' });
+    }
+
+    const lecturer = await prisma.lecturerProfile.findUnique({
+      where: { userId: lecturerUserId },
+      select: { id: true },
+    });
+    if (!lecturer) {
+      return res.status(404).json({ success: false, message: 'Lecturer profile not found.' });
+    }
+
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const where = {
+      courseUnit: {
+        lecturerMappings: { some: { lecturerProfileId: lecturer.id } },
+      },
+    };
+    const [total, enrollments] = await Promise.all([
+      prisma.unitEnrollment.count({ where }),
+      prisma.unitEnrollment.findMany({
+        where,
+        orderBy: [
+          { student: { user: { displayName: 'asc' } } },
+          { courseUnit: { code: 'asc' } },
+          { academicPeriod: { name: 'desc' } },
+        ],
+        skip: (page - 1) * limit,
+        take: limit,
+        select: {
+          id: true,
+          createdAt: true,
+          student: {
+            select: {
+              id: true,
+              studentNumber: true,
+              officialEmail: true,
+              user: { select: { displayName: true, email: true, isActive: true } },
+            },
+          },
+          courseUnit: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              department: { select: { name: true, code: true } },
+            },
+          },
+          academicPeriod: { select: { id: true, code: true, name: true } },
+        },
+      }),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Students enrolled in your assigned course units retrieved successfully.',
+      count: enrollments.length,
+      data: enrollments,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 // Feature 2: Retrieve individual missing-mark report details
 export const getReportById = async (req, res, next) => {
   try {
@@ -540,4 +713,3 @@ export const getAttendanceSessionRecordsController = async (
     next(error);
   }
 };
-

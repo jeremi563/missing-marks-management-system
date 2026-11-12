@@ -11,6 +11,9 @@ import {
 	requestPasswordReset,
 	resetPassword,
 	changePassword,
+	requestEmailChange,
+	updateAvatar,
+	extendSession,
 } from "./auth.service.js";
 
 const cookieOptions = {
@@ -19,12 +22,27 @@ const cookieOptions = {
 	sameSite: "strict",
 	path: "/",
 };
+const sessionCookieMaxAge = 15 * 60 * 1000;
+
+function setSessionCookie(res, token) {
+	res.cookie("access_token", token, { ...cookieOptions, maxAge: sessionCookieMaxAge });
+}
 
 export async function login(req, res, next) {
 	try {
-		const { user, token } = await loginWithCredentials(req.body.identifier ?? req.body.email, req.body.password);
-		res.cookie("access_token", token, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
-		return sendSuccess(res, "Signed in successfully", { user });
+		const { user, token, sessionExpiresAt } = await loginWithCredentials(req.body.identifier ?? req.body.email, req.body.password);
+		setSessionCookie(res, token);
+		return sendSuccess(res, "Signed in successfully", { user, sessionExpiresAt });
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export function extendSessionController(req, res, next) {
+	try {
+		const { token, sessionExpiresAt } = extendSession(req.user);
+		setSessionCookie(res, token);
+		return sendSuccess(res, "Session extended successfully", { sessionExpiresAt });
 	} catch (error) {
 		return next(error);
 	}
@@ -80,12 +98,50 @@ export async function changePasswordController(req, res, next) {
 	} catch (error) { return next(error); }
 }
 
+export async function changeEmailController(req, res, next) {
+	try {
+		const result = await requestEmailChange(req.user.id, req.body.email, req.body.currentPassword);
+		return sendSuccess(res, "Email address updated successfully", result);
+	} catch (error) { return next(error); }
+}
+
+export async function updateAvatarController(req, res, next) {
+	try {
+		const result = await updateAvatar(req.user.id, req.body.avatarData);
+		return sendSuccess(res, "Profile picture updated", result);
+	} catch (error) { return next(error); }
+}
+
 export function logout(req, res) {
 	res.clearCookie("access_token", cookieOptions);
 	return sendSuccess(res, "Signed out successfully", null);
 }
 
-export function getMe(req, res, next) {
+export async function getMe(req, res, next) {
 	if (!req.user) return next(new AppError(401, "Authentication required"));
-	return sendSuccess(res, "Authenticated user", { user: req.user });
+	try {
+		const profile = await req.app.locals.prisma.user.findUnique({
+			where: { id: req.user.id },
+			select: {
+				avatarData: true,
+				departmentMemberships: {
+					select: { department: { select: { id: true, name: true, code: true } } },
+					orderBy: { department: { name: "asc" } },
+				},
+				designatedDepartments: {
+					select: { id: true, name: true, code: true },
+					orderBy: { name: "asc" },
+				},
+			},
+		});
+		return sendSuccess(res, "Authenticated user", {
+			user: {
+				...req.user,
+				avatarData: profile?.avatarData ?? null,
+				departmentMemberships: profile?.departmentMemberships ?? [],
+				designatedDepartments: profile?.designatedDepartments ?? [],
+			},
+			sessionExpiresAt: req.sessionExpiresAt?.toISOString() ?? null,
+		});
+	} catch (error) { return next(error); }
 }

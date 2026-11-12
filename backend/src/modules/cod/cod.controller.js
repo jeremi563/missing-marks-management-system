@@ -1,6 +1,56 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
 import { decideDepartmentLecturerAccount, listPendingDepartmentLecturers } from "../admin/admin.service.js";
-import { addCodReportComment, assignReportToLecturer, decideEscalatedReport, getCodReportDetails, listCodReportComments, listEligibleLecturers, listDepartmentReports } from "./cod.service.js";
+import { addCodReportComment, assignReportToLecturer, decideEscalatedReport, getCodReportDetails, listCodReportComments, listEligibleLecturers, listDepartmentReports, listCodDepartmentCourseUnits, listCodDepartmentStudents, listCodDepartmentLecturers, listCodDepartments, assignCodCourseUnitLecturer } from "./cod.service.js";
+
+export async function getCodDepartments(req, res, next) {
+  try {
+    const result = await listCodDepartments({ userId: req.user.id, db: req.app.locals.prisma });
+    return sendSuccess(res, "Designated departments retrieved successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getCodDepartmentCourseUnits(req, res, next) {
+  try {
+    const result = await listCodDepartmentCourseUnits({ userId: req.user.id, ...req.query, db: req.app.locals.prisma });
+    return sendSuccess(res, "Department course units retrieved successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getCodDepartmentStudents(req, res, next) {
+  try {
+    const result = await listCodDepartmentStudents({ userId: req.user.id, ...req.query, db: req.app.locals.prisma });
+    return sendSuccess(res, "Department students retrieved successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getCodDepartmentLecturers(req, res, next) {
+  try {
+    const result = await listCodDepartmentLecturers({ userId: req.user.id, ...req.query, db: req.app.locals.prisma });
+    return sendSuccess(res, "Department lecturers retrieved successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function postCodCourseUnitLecturer(req, res, next) {
+  try {
+    const result = await assignCodCourseUnitLecturer({
+      userId: req.user.id,
+      courseUnitId: req.params.courseUnitId,
+      ...req.body,
+      db: req.app.locals.prisma,
+    });
+    return sendSuccess(res, "Lecturer assigned to course unit successfully", result, 201);
+  } catch (error) {
+    return next(error);
+  }
+}
 
 export async function getPendingLecturerApprovals(req, res, next) {
   try {

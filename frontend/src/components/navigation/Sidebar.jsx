@@ -1,7 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, X } from 'lucide-react'
+import { LayoutDashboard, LogOut, X } from 'lucide-react'
+import { useAuth } from '../../auth/useAuth'
 
 export default function Sidebar({ isOpen, onClose, navigationItems = [], roleLabel }) {
+  const { logout } = useAuth()
+
   return (
     <>
       {isOpen && <button className="sidebar-overlay" onClick={onClose} aria-label="Close navigation" />}
@@ -19,6 +22,9 @@ export default function Sidebar({ isOpen, onClose, navigationItems = [], roleLab
             </NavLink>
           ))}
         </nav>
+        <button className="sidebar-signout" onClick={logout}>
+          <LogOut size={18} /><span>Sign out</span>
+        </button>
       </aside>
     </>
   )

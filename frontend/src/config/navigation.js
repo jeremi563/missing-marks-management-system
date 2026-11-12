@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, FileText, ClipboardList, Users, Settings, Bell, UserRound, UserCheck, GraduationCap,
+  Building2, LayoutDashboard, FileText, ClipboardList, Users, Settings, Bell, UserRound, UserCheck, GraduationCap, UserPlus, BookOpen, UserRoundSearch,
 } from 'lucide-react'
 
 export const navigation = {
@@ -14,6 +14,8 @@ export const navigation = {
   ],
   lecturer: [
     { label: 'Dashboard', to: '/lecturer', icon: LayoutDashboard, end: true },
+    { label: 'My course units', to: '/lecturer/course-units', icon: BookOpen },
+    { label: 'My students', to: '/lecturer/students', icon: UserRoundSearch },
     { label: 'Assigned reports', to: '/lecturer/reports', icon: FileText },
     { label: 'Attendance', to: '/lecturer/attendance', icon: ClipboardList },
     { label: 'Special cases', to: '/lecturer/special-cases', icon: Users },
@@ -21,6 +23,8 @@ export const navigation = {
   ],
   cod: [
     { label: 'Dashboard', to: '/cod', icon: LayoutDashboard, end: true },
+    { label: 'Department workspace', to: '/cod/departments', icon: Building2 },
+    { label: 'Unit Delegation', to: '/cod/course-unit-assignments', icon: UserPlus },
     { label: 'Lecturer approvals', to: '/cod/lecturer-approvals', icon: UserCheck },
     { label: 'Reports', to: '/cod/reports', icon: FileText },
     { label: 'Appeals', to: '/cod/appeals', icon: ClipboardList },

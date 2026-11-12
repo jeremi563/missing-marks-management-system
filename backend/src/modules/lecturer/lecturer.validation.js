@@ -8,6 +8,12 @@ export const reportIdSchema = z.object({
 export const attendanceSessionIdSchema = z.object({
   sessionId: z.string().uuid('A valid attendance session UUID is required.'),
 });
+export const courseUnitIdParamsSchema = z.object({
+  courseUnitId: z.string().uuid('A valid course unit UUID is required.'),
+});
+export const courseUnitAssessmentsQuerySchema = z.object({
+  type: z.enum(['CAT', 'EXAM']),
+}).strict();
 
 export const attendanceDiscrepancyParamsSchema = z.object({ id: z.string().uuid() });
 export const createAttendanceDiscrepancySchema = z.object({

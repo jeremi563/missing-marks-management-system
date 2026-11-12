@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import LecturerDepartmentRegistration from './pages/LecturerDepartmentRegistration'
+import EmailVerificationPage from './pages/EmailVerificationPage'
 import NotFound from './pages/NotFound'
 import AccessDenied from './pages/AccessDenied'
 
@@ -23,12 +24,16 @@ import StudentNotifications from './features/student/StudentNotifications'
 import StudentProfile from './features/student/StudentProfile'
 import StudentReportCreate from './features/student/StudentReportCreate'
 import LecturerReports from './features/lecturer/LecturerReports'
+import LecturerCourseUnits from './features/lecturer/LecturerCourseUnits'
+import LecturerStudents from './features/lecturer/LecturerStudents'
 import LecturerAttendance from './features/lecturer/LecturerAttendance'
 import LecturerSpecialCases from './features/lecturer/LecturerSpecialCases'
 import CodReports from './features/cod/CodReports'
 import CodAppeals from './features/cod/CodAppeals'
 import CodAttendance from './features/cod/CodAttendance'
 import CodSpecialCases from './features/cod/CodSpecialCases'
+import CodDepartmentWorkspace from './features/cod/CodDepartmentWorkspace'
+import CodCourseUnitAssignments from './features/cod/CodCourseUnitAssignments'
 import CodApprovals from './features/cod/CodApprovals'
 import AdminUsers from './features/admin/AdminUsers'
 import AdminApprovals from './features/admin/AdminApprovals'
@@ -43,6 +48,7 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/lecturer-department-registration" element={<LecturerDepartmentRegistration />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/403" element={<AccessDenied />} />
         <Route element={<RequireRole allowedRoles={['student']} />}>
           <Route
@@ -89,6 +95,8 @@ function App() {
               index
               element={<DashboardHome roleLabel="Lecturer" />}
             />
+            <Route path="course-units" element={<LecturerCourseUnits />} />
+            <Route path="students" element={<LecturerStudents />} />
             <Route path="reports" element={<LecturerReports />} />
             <Route path="attendance" element={<LecturerAttendance />} />
             <Route path="special-cases" element={<LecturerSpecialCases />} />
@@ -112,6 +120,8 @@ function App() {
               index
               element={<DashboardHome roleLabel="COD" />}
             />
+            <Route path="departments" element={<CodDepartmentWorkspace />} />
+            <Route path="course-unit-assignments" element={<CodCourseUnitAssignments />} />
             <Route path="lecturer-approvals" element={<CodApprovals />} />
             <Route path="reports" element={<CodReports />} />
             <Route path="appeals" element={<CodAppeals />} />
