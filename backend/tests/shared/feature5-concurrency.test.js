@@ -25,14 +25,20 @@ function makeReviewFixture({ appealMode = false } = {}) {
 	};
 	const department = () => ({ id: "dept-1", designatedCodUserId: currentCod });
 	const user = {
-		findFirst: async ({ where }) => where.id === currentCod || where.id === "cod-old" || where.id === "cod-new" ? { id: where.id } : null,
+		findFirst: async ({ where }) => where.id === currentCod || where.id === "cod-old" || where.id === "cod-new"
+			? { id: where.id, roles: [{ role: { name: "lecturer" } }, { role: { name: "cod" } }] }
+			: null,
 	};
 	const txModels = {
 		user,
 		department: {
 			findUnique: async () => department(),
+			count: async () => 0,
 			update: async ({ data }) => { currentCod = data.designatedCodUserId; return { id: "dept-1", ...data }; },
 		},
+		departmentMembership: { findUnique: async () => ({ id: "membership" }), create: async () => ({ id: "membership" }) },
+		role: { upsert: async () => ({ id: "cod-role" }) },
+		userRole: { create: async () => {}, deleteMany: async () => {} },
 		missingMarkReport: {
 			findUnique: async () => ({ ...report, courseUnit: { department: department() }, student: { userId: "student-user" } }),
 			findFirst: async () => ({ id: report.id, status: report.status, courseUnit: { department: department() } }),
@@ -87,6 +93,7 @@ function makeReviewFixture({ appealMode = false } = {}) {
 					acquired.resolve();
 					return [{ id: "dept-1" }];
 				}
+				if (sql.includes("FROM users") && sql.includes("FOR UPDATE")) return [{ id: "cod-user" }];
 				if (sql.includes("FROM missing_mark_reports")) return [{ id: "report-1" }];
 				throw new Error(`Unexpected query: ${sql}`);
 			},

@@ -34,14 +34,26 @@ test("replacing a COD queues outstanding future and overdue reviews for the new 
 	const deadline = new Date("2026-12-01T10:00:00.000Z");
 	const events = [];
 	const audit = [];
+	const roleChanges = [];
 	let currentDesignatedCodUserId = "cod-old";
+	let targetHasCodRole = false;
 	const tx = {
 		$queryRaw: async () => [{ id: "dept-1" }],
 		department: {
 			findUnique: async () => ({ id: "dept-1", designatedCodUserId: currentDesignatedCodUserId }),
+			count: async () => 0,
 			update: async ({ data }) => { currentDesignatedCodUserId = data.designatedCodUserId; return { id: "dept-1", ...data }; },
 		},
-		user: { findFirst: async () => ({ id: "cod-new" }) },
+		user: { findFirst: async () => ({ id: "cod-new", roles: [{ role: { name: "lecturer" } }, ...(targetHasCodRole ? [{ role: { name: "cod" } }] : [])] }) },
+		role: { upsert: async () => ({ id: "cod-role" }) },
+		userRole: {
+			create: async ({ data }) => { targetHasCodRole = true; roleChanges.push(["create", data]); },
+			deleteMany: async ({ where }) => { roleChanges.push(["delete", where]); },
+		},
+		departmentMembership: {
+			findUnique: async () => ({ id: "membership" }),
+			create: async () => ({ id: "membership" }),
+		},
 		appeal: { findMany: async () => [{ id: "appeal-1", reportId: "report-1", reviewDeadlineAt: deadline }] },
 		specialCase: { findMany: async () => [{ id: "case-1", reportId: "report-2", reviewDeadlineAt: deadline }] },
 		missingMarkReport: { findMany: async () => [{ id: "report-3", assignedLecturerProfileId: "lecturer-profile", assignments: [{ id: "assignment-1", deadlineAt: deadline, workStartedAt: new Date("2026-11-20T10:00:00Z"), newLecturerProfileId: "lecturer-profile" }] }] },
@@ -59,30 +71,45 @@ test("replacing a COD queues outstanding future and overdue reviews for the new 
 	assert.ok(events.every(({ dedupeKey }) => dedupeKey.endsWith(":cod-new")));
 	await designateDepartmentCod({ db, actorUserId: "admin-1", departmentId: "dept-1", codUserId: "cod-new" });
 	assert.equal(events.length, 3);
+	assert.deepEqual(roleChanges, [
+		["create", { userId: "cod-new", roleId: "cod-role" }],
+		["delete", { userId: "cod-old", role: { name: "cod" } }],
+	]);
 });
 
-test("designation accepts a valid active departmental COD and rejects invalid candidates", async () => {
+test("designation promotes an active approved lecturer and rejects invalid candidates", async () => {
 	let savedId;
 	let candidateWhere;
+	let createdRole;
+	let targetHasCodRole = false;
+	let createdMembership;
+	const demotionAttempts = [];
 	const tx = {
 		$queryRaw: async () => [{ id: "dept-1" }],
 		department: {
 			findUnique: async () => ({ id: "dept-1", designatedCodUserId: "cod-1" }),
+			count: async () => 1,
 			update: async ({ data }) => { savedId = data.designatedCodUserId; return { id: "dept-1", ...data }; },
 		},
-		user: { findFirst: async ({ where }) => { candidateWhere = where; return where.id === "cod-valid" ? { id: where.id } : null; } },
+		user: { findFirst: async ({ where }) => { candidateWhere = where; return where.id === "lecturer-valid" ? { id: where.id, roles: [{ role: { name: "lecturer" } }, ...(targetHasCodRole ? [{ role: { name: "cod" } }] : [])] } : null; } },
+		role: { upsert: async () => ({ id: "cod-role" }) },
+		userRole: { create: async ({ data }) => { targetHasCodRole = true; createdRole = data; }, deleteMany: async (args) => { demotionAttempts.push(args); } },
+		departmentMembership: { findUnique: async () => null, create: async ({ data }) => { createdMembership = data; return { id: "membership" }; } },
 		appeal: { findMany: async () => [] },
 		specialCase: { findMany: async () => [] },
 		missingMarkReport: { findMany: async () => [] },
 		auditLog: { create: async () => ({ id: "audit-1" }) },
 	};
 	const db = { $transaction: (callback) => callback(tx) };
-	await designateDepartmentCod({ db, actorUserId: "admin-1", departmentId: "dept-1", codUserId: "cod-valid" });
-	assert.equal(savedId, "cod-valid");
+	await designateDepartmentCod({ db, actorUserId: "admin-1", departmentId: "dept-1", codUserId: "lecturer-valid" });
+	assert.equal(savedId, "lecturer-valid");
 	assert.equal(candidateWhere.isActive, true);
-	assert.deepEqual(candidateWhere.roles, { some: { role: { name: "cod" } } });
-	assert.deepEqual(candidateWhere.departmentMemberships, { some: { departmentId: "dept-1" } });
-	for (const codUserId of ["inactive", "no-role", "not-a-member"]) {
+	assert.equal(candidateWhere.approvalStatus, "APPROVED");
+	assert.deepEqual(candidateWhere.roles, { some: { role: { name: "lecturer" } } });
+	assert.deepEqual(createdRole, { userId: "lecturer-valid", roleId: "cod-role" });
+	assert.deepEqual(createdMembership, { userId: "lecturer-valid", departmentId: "dept-1" });
+	assert.deepEqual(demotionAttempts, []);
+	for (const codUserId of ["inactive", "unapproved", "not-a-lecturer"]) {
 		await assert.rejects(designateDepartmentCod({ db, actorUserId: "admin-1", departmentId: "dept-1", codUserId }), { statusCode: 422 });
 	}
 });

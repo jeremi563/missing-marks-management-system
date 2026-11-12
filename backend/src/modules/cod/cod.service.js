@@ -7,6 +7,179 @@ export async function getAuthorizedDepartmentIds(db, userId) {
   return getDesignatedCodDepartmentIds(db, userId);
 }
 
+function paginated(items, total, page, limit) {
+  return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+}
+
+export async function listCodDepartments({ userId, db = prisma }) {
+  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  if (!departmentIds.length) return [];
+  return db.department.findMany({
+    where: { id: { in: departmentIds } },
+    select: { id: true, name: true, code: true },
+    orderBy: { name: "asc" },
+  });
+}
+
+export async function listCodDepartmentCourseUnits({ userId, departmentId, page = 1, limit = 20, db = prisma }) {
+  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  if (!departmentIds.length) return paginated([], 0, page, limit);
+  if (departmentId && !departmentIds.includes(departmentId)) throw new AppError(404, "Department not found");
+
+  const where = { departmentId: { in: departmentId ? [departmentId] : departmentIds } };
+  const [total, items] = await Promise.all([
+    db.courseUnit.count({ where }),
+    db.courseUnit.findMany({
+      where,
+      orderBy: [{ department: { name: "asc" } }, { code: "asc" }],
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        department: { select: { id: true, name: true, code: true } },
+        lecturerMappings: {
+          select: {
+            id: true,
+            lecturer: {
+              select: {
+                id: true,
+                staffNumber: true,
+                user: { select: { id: true, displayName: true, email: true } },
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
+  return paginated(items, total, page, limit);
+}
+
+export async function assignCodCourseUnitLecturer({ userId, courseUnitId, departmentId, lecturerProfileId, db = prisma }) {
+  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  if (!departmentIds.includes(departmentId)) throw new AppError(404, "Department not found");
+
+  return db.$transaction(async (tx) => {
+    const courseUnit = await tx.courseUnit.findFirst({
+      where: { id: courseUnitId, departmentId },
+      select: { id: true },
+    });
+    if (!courseUnit) throw new AppError(404, "Course unit not found");
+
+    const lecturer = await tx.lecturerProfile.findFirst({
+      where: {
+        id: lecturerProfileId,
+        user: {
+          isActive: true,
+          approvalStatus: "APPROVED",
+          roles: { some: { role: { name: "lecturer" } } },
+          departmentMemberships: { some: { departmentId } },
+        },
+      },
+      select: { id: true },
+    });
+    if (!lecturer) throw new AppError(422, "Select an active, approved lecturer from this department");
+
+    let mapping;
+    try {
+      mapping = await tx.courseUnitLecturer.create({
+        data: { courseUnitId, lecturerProfileId },
+        select: {
+          id: true,
+          courseUnitId: true,
+          lecturerProfileId: true,
+          lecturer: {
+            select: {
+              staffNumber: true,
+              user: { select: { displayName: true, email: true } },
+            },
+          },
+        },
+      });
+    } catch (error) {
+      if (error.code === "P2002") throw new AppError(409, "This lecturer is already assigned to the course unit");
+      throw error;
+    }
+    await recordAuditEvent({
+      prismaClient: tx,
+      actorId: userId,
+      action: "COD_COURSE_UNIT_LECTURER_ASSIGNED",
+      entityType: "CourseUnitLecturer",
+      entityId: mapping.id,
+      metadata: { courseUnitId, lecturerProfileId, departmentId },
+    });
+    return mapping;
+  });
+}
+
+export async function listCodDepartmentStudents({ userId, departmentId, page = 1, limit = 20, db = prisma }) {
+  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  if (!departmentIds.length) return paginated([], 0, page, limit);
+  if (!departmentIds.includes(departmentId)) throw new AppError(404, "Department not found");
+
+  const department = await db.department.findFirst({
+    where: { id: departmentId, designatedCodUserId: userId },
+    select: { id: true, name: true, code: true, initials: true },
+  });
+  if (!department?.initials) return paginated([], 0, page, limit);
+
+  const where = { studentNumber: { startsWith: department.initials } };
+  const [total, students] = await Promise.all([
+    db.studentProfile.count({ where }),
+    db.studentProfile.findMany({
+      where,
+      orderBy: { studentNumber: "asc" },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        id: true,
+        studentNumber: true,
+        officialEmail: true,
+        user: { select: { displayName: true, email: true, isActive: true } },
+      },
+    }),
+  ]);
+  const items = students.map((student) => ({ ...student, department: { id: department.id, name: department.name, code: department.code } }));
+  return paginated(items, total, page, limit);
+}
+
+export async function listCodDepartmentLecturers({ userId, departmentId, page = 1, limit = 20, db = prisma }) {
+  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  if (!departmentIds.includes(departmentId)) throw new AppError(404, "Department not found");
+
+  const where = {
+    departmentId,
+    user: {
+      isActive: true,
+      approvalStatus: "APPROVED",
+      roles: { some: { role: { name: "lecturer" } } },
+    },
+  };
+  const [total, memberships] = await Promise.all([
+    db.departmentMembership.count({ where }),
+    db.departmentMembership.findMany({
+      where,
+      orderBy: { user: { displayName: "asc" } },
+      skip: (page - 1) * limit,
+      take: limit,
+      select: {
+        user: {
+          select: {
+            id: true,
+            displayName: true,
+            email: true,
+            lecturerProfile: { select: { id: true, staffNumber: true } },
+            roles: { select: { role: { select: { name: true } } } },
+          },
+        },
+      },
+    }),
+  ]);
+  return paginated(memberships.map(({ user }) => user), total, page, limit);
+}
+
 async function getAuthorizedReport(db, userId, reportId) {
   const report = await db.missingMarkReport.findUnique({
     where: { id: reportId },

@@ -19,6 +19,21 @@ test("admin user listing filters by staff approval status", async () => {
 	]);
 });
 
+test("default account listing places administrator accounts before other roles", async () => {
+	const accounts = [
+		{ id: "staff", displayName: "A Staff", email: "staff@example.test", roles: [{ role: { name: "lecturer" } }] },
+		{ id: "admin", displayName: "Z Admin", email: "admin@example.test", roles: [{ role: { name: "administrator" } }] },
+	];
+	const db = {
+		user: {
+			findMany: async ({ where }) => where.roles ? accounts.filter(({ id }) => id === "admin") : accounts.filter(({ id }) => id !== "admin"),
+			count: async ({ where }) => where.roles ? 1 : 2,
+		},
+	};
+	const result = await listAdminUsers({ db, page: 1, limit: 2 });
+	assert.deepEqual(result.users.map(({ id }) => id), ["admin", "staff"]);
+});
+
 function transactionDb({ roles = ["cod"], designatedDepartments = 0, lecturerCounts = { unitAssignments: 0, assignedReports: 0, attendanceSessions: 0 }, approvalStatus = "APPROVED", emailVerifiedAt = new Date() } = {}) {
 	const current = {
 		id: userId,
@@ -78,19 +93,91 @@ test("administrator cannot deactivate a lecturer with protected academic respons
 	);
 });
 
-test("administrator cannot create a COD account without promoting an existing lecturer", async () => {
-	await assert.rejects(
-		createAdminUser({
-			db: { $transaction: (callback) => callback({}) },
-			actorUserId: "actor",
-			email: "cod@example.test",
-			password: "password-12345",
-			displayName: "COD",
-			roles: ["cod"],
-			staffNumber: "AB/0123/COD1",
-		}),
-		(error) => error.statusCode === 422,
-	);
+test("administrator email updates are verified immediately and invalidate pending change links", async () => {
+	const current = {
+		id: userId,
+		email: "old-admin@example.test",
+		displayName: "Admin",
+		isActive: true,
+		approvalStatus: "APPROVED",
+		emailVerifiedAt: null,
+		roles: [{ role: { name: "administrator" } }],
+		loginIdentifiers: [{ type: "ADMIN_NUMBER", value: `admin/12/${new Date().getFullYear()}` }],
+		studentProfile: null,
+		lecturerProfile: null,
+	};
+	const calls = {};
+	let userLookup = 0;
+	const updated = { ...current, email: "new-admin@example.test", emailVerifiedAt: new Date() };
+	const tx = {
+		user: {
+			findUnique: async ({ where }) => {
+				if (where.id) return userLookup++ === 0 ? current : updated;
+				return null;
+			},
+			update: async ({ data }) => { calls.userUpdate = data; return { id: userId }; },
+		},
+		accountSecurityToken: { updateMany: async (args) => { calls.tokenUpdate = args; } },
+		auditLog: { create: async () => {} },
+	};
+	await updateAdminUser({
+		db: { $transaction: (callback) => callback(tx) },
+		actorUserId: "actor",
+		userId,
+		email: "New-Admin@Example.Test",
+	});
+
+	assert.equal(calls.userUpdate.email, "new-admin@example.test");
+	assert.equal(calls.userUpdate.pendingEmail, null);
+	assert.ok(calls.userUpdate.emailVerifiedAt instanceof Date);
+	assert.deepEqual(calls.tokenUpdate.where, { userId, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null });
+});
+
+test("administrator can create a COD account with both staff roles and a staff identifier", async () => {
+	const calls = {};
+	const createdUser = {
+		id: userId,
+		email: "cod@example.test",
+		displayName: "COD",
+		isActive: true,
+		approvalStatus: "APPROVED",
+		emailVerifiedAt: new Date(),
+		roles: [{ role: { name: "lecturer" } }, { role: { name: "cod" } }],
+		loginIdentifiers: [{ type: "STAFF_NUMBER", value: "AB/0123/COD1" }],
+		studentProfile: null,
+		lecturerProfile: { id: "lecturer-profile", staffNumber: "AB/0123/COD1" },
+	};
+	const tx = {
+		role: {
+			findMany: async () => [{ id: "lecturer-role", name: "lecturer" }],
+			upsert: async ({ where }) => ({ id: "cod-role", name: where.name }),
+		},
+		user: {
+			create: async ({ data }) => { calls.user = data; return { id: userId }; },
+			findUnique: async () => createdUser,
+		},
+		userRole: { createMany: async ({ data }) => { calls.roles = data; } },
+		lecturerProfile: { create: async ({ data }) => { calls.lecturerProfile = data; } },
+		accountLoginIdentifier: {
+			findFirst: async () => null,
+			create: async ({ data }) => { calls.loginIdentifier = data; },
+		},
+		auditLog: { create: async ({ data }) => { calls.audit = data; } },
+	};
+	const result = await createAdminUser({
+		db: { $transaction: (callback) => callback(tx) },
+		actorUserId: "actor",
+		email: "cod@example.test",
+		password: "password-12345",
+		displayName: "COD",
+		roles: ["cod"],
+		staffNumber: "AB/0123/COD1",
+	});
+
+	assert.deepEqual(result.roles, ["lecturer", "cod"]);
+	assert.deepEqual(calls.roles, [{ userId, roleId: "cod-role" }, { userId, roleId: "lecturer-role" }]);
+	assert.deepEqual(calls.lecturerProfile, { userId, staffNumber: "AB/0123/COD1" });
+	assert.deepEqual(calls.loginIdentifier, { userId, type: "STAFF_NUMBER", value: "AB/0123/COD1" });
 });
 
 test("administrator can promote only an active approved lecturer to COD and keeps lecturer role", async () => {

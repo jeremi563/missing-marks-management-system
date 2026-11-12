@@ -9,6 +9,9 @@ process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
 
 const {
   getReports,
+  getAssignedCourseUnits,
+  getAssignedCourseUnitAssessments,
+  getAssignedStudents,
   getReportById,
   getComments,
   addComment,
@@ -38,6 +41,124 @@ const createResponse = () => {
 
   return res;
 };
+
+test('returns 401 when assigned course units authentication is missing', async () => {
+  const res = createResponse();
+  await getAssignedCourseUnits({ user: null, app: { locals: {} } }, res, () => {});
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.success, false);
+});
+
+test('returns only course units assigned to the authenticated lecturer', async () => {
+  const unitAssignments = [{
+    id: 'assignment-1',
+    courseUnit: {
+      id: 'unit-1',
+      code: 'CS101',
+      name: 'Programming',
+      department: { id: 'department-1', name: 'Computing', code: 'SIST' },
+    },
+  }];
+  const prisma = {
+    lecturerProfile: {
+      findUnique: async (query) => {
+        assert.deepEqual(query.where, { userId: 'lecturer-user-1' });
+        return { unitAssignments };
+      },
+    },
+  };
+  const res = createResponse();
+
+  await getAssignedCourseUnits({
+    user: { id: 'lecturer-user-1' },
+    app: { locals: { prisma } },
+  }, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.count, 1);
+  assert.deepEqual(res.body.data, unitAssignments);
+});
+
+test('returns assessments only for the selected assigned course unit and session type', async () => {
+  const assessments = [{ id: 'assessment-1', code: 'CS101-CAT1', name: 'CAT 1', type: 'CAT' }];
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-profile-1' }) },
+    courseUnit: {
+      findFirst: async ({ where }) => {
+        assert.deepEqual(where, {
+          id: 'unit-1',
+          lecturerMappings: { some: { lecturerProfileId: 'lecturer-profile-1' } },
+        });
+        return { id: 'unit-1' };
+      },
+    },
+    assessment: {
+      findMany: async ({ where }) => {
+        assert.deepEqual(where, { courseUnitId: 'unit-1', type: 'CAT' });
+        return assessments;
+      },
+    },
+  };
+  const res = createResponse();
+
+  await getAssignedCourseUnitAssessments({
+    user: { id: 'lecturer-user-1' },
+    app: { locals: { prisma } },
+    params: { courseUnitId: 'unit-1' },
+    query: { type: 'CAT' },
+  }, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.data, assessments);
+});
+
+test("returns enrolled students only from the authenticated lecturer's assigned course units", async () => {
+  const enrollments = [{
+    id: 'enrollment-1',
+    student: {
+      id: 'student-1',
+      studentNumber: 'STU001',
+      officialEmail: 'student@example.test',
+      user: { displayName: 'Student One', email: 'student@example.test', isActive: true },
+    },
+    courseUnit: {
+      id: 'unit-1',
+      code: 'CS101',
+      name: 'Programming',
+      department: { name: 'Computing', code: 'SIST' },
+    },
+    academicPeriod: { id: 'period-1', code: '2026A', name: '2026 Semester A' },
+  }];
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-profile-1' }) },
+    unitEnrollment: {
+      count: async ({ where }) => {
+        assert.deepEqual(where.courseUnit.lecturerMappings, { some: { lecturerProfileId: 'lecturer-profile-1' } });
+        return 1;
+      },
+      findMany: async ({ where, skip, take }) => {
+        assert.deepEqual(where.courseUnit.lecturerMappings, { some: { lecturerProfileId: 'lecturer-profile-1' } });
+        assert.equal(skip, 0);
+        assert.equal(take, 20);
+        return enrollments;
+      },
+    },
+  };
+  const res = createResponse();
+
+  await getAssignedStudents({
+    user: { id: 'lecturer-user-1' },
+    app: { locals: { prisma } },
+    query: { page: 1, limit: 20 },
+  }, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.count, 1);
+  assert.deepEqual(res.body.data, enrollments);
+  assert.deepEqual(res.body.pagination, { page: 1, limit: 20, total: 1, totalPages: 1 });
+});
 
 test('returns 401 when authentication is missing', async () => {
   const req = {

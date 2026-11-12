@@ -6,6 +6,9 @@ import { validate } from '../../middleware/validate.js';
 
 import {
   getReports,
+  getAssignedCourseUnits,
+  getAssignedCourseUnitAssessments,
+  getAssignedStudents,
   getReportById,
   getComments,
   addComment,
@@ -29,12 +32,18 @@ import {
   escalateReportSchema,
   submitCorrectionSchema,
   createAttendanceSessionSchema,
-  attendanceSessionIdSchema
+  attendanceSessionIdSchema,
+  courseUnitAssessmentsQuerySchema,
+  courseUnitIdParamsSchema,
 } from './lecturer.validation.js';
 import { createLecturerDiscrepancy, getLecturerDiscrepancy, getLecturerDiscrepancies, reviewLecturerDiscrepancy, respondLecturerDiscrepancy } from './attendance-discrepancy.controller.js';
 import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema, createAttendanceDiscrepancySchema, reviewAttendanceDiscrepancySchema } from './lecturer.validation.js';
 
 const router = express.Router();
+
+router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCourseUnits);
+router.get('/course-units/:courseUnitId/assessments', authenticate, authorize('lecturer'), validate(courseUnitIdParamsSchema, 'params'), validate(courseUnitAssessmentsQuerySchema, 'query'), getAssignedCourseUnitAssessments);
+router.get('/students', authenticate, authorize('lecturer'), validate(pageQuery, 'query'), getAssignedStudents);
 
 router.post('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(createAttendanceDiscrepancySchema), createLecturerDiscrepancy);
 router.get('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyListQuerySchema, 'query'), getLecturerDiscrepancies);

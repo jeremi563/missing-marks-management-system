@@ -19,8 +19,9 @@ export const departmentOnlyParams = z.object({ departmentId: uuid }).strict();
 export const departmentMemberParams = z.object({ departmentId: uuid, userId: uuid }).strict();
 export const departmentMemberListQuery = pageQuery.extend({ role: z.enum(["lecturer", "cod", "administrator"]).optional() }).strict();
 export const departmentMemberBody = z.object({ userId: uuid }).strict();
-export const departmentCreateBody = z.object({ name: z.string().trim().min(1).max(200), code: z.string().trim().min(1).max(50).optional() }).strict();
-export const departmentUpdateBody = departmentCreateBody.refine((body) => Object.keys(body).length > 0, "At least one department field must be provided.");
+const departmentInitials = z.string().trim().regex(/^[A-Z]{2}$/, "Department initials must be exactly two uppercase letters");
+export const departmentCreateBody = z.object({ name: z.string().trim().min(1).max(200), initials: departmentInitials, code: z.string().trim().min(1).max(50).optional() }).strict();
+export const departmentUpdateBody = z.object({ name: z.string().trim().min(1).max(200).optional(), initials: departmentInitials.optional(), code: z.string().trim().min(1).max(50).nullable().optional() }).strict().refine((body) => Object.keys(body).length > 0, "At least one department field must be provided.");
 
 export const courseUnitListQuery = pageQuery.extend({ departmentId: uuid.optional() }).strict();
 export const courseUnitIdParams = idParams;

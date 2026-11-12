@@ -50,3 +50,12 @@ export const passwordChangeSchema = z.object({
 	currentPassword: z.string().min(1).max(128),
 	newPassword: z.string().min(8).max(128),
 }).strict();
+
+export const emailChangeSchema = z.object({
+	email: z.string().trim().email().max(254),
+	currentPassword: z.string().min(1).max(128),
+}).strict();
+
+export const avatarUpdateSchema = z.object({
+	avatarData: z.string().max(700_000).regex(/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/).nullable(),
+}).strict();

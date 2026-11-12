@@ -2,6 +2,7 @@ import {
   ArrowRight, Bell, BookOpenCheck, ClipboardCheck, FileCheck2, FileText, GraduationCap, Settings2, ShieldCheck, UserCheck, Users,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '../../auth/useAuth'
 
 const dashboards = {
   Student: {
@@ -49,6 +50,12 @@ const dashboards = {
 
 export default function DashboardHome({ roleLabel }) {
   const dashboard = dashboards[roleLabel] || dashboards.Student
+  const { user } = useAuth()
+  const memberDepartments = user?.departmentMemberships?.map(({ department }) => department).filter(Boolean) || []
+  const designatedDepartments = user?.designatedDepartments || []
+  const departments = roleLabel === 'COD'
+    ? designatedDepartments.length ? designatedDepartments : memberDepartments
+    : memberDepartments
 
   return (
     <section className="portal-home">
@@ -64,6 +71,24 @@ export default function DashboardHome({ roleLabel }) {
           <span className="welcome-emblem"><GraduationCap size={30} /></span>
         </div>
       </header>
+      {(roleLabel === 'Lecturer' || roleLabel === 'COD') && (
+        <section className="portal-departments" aria-labelledby="dashboard-departments-heading">
+          <div>
+            <p className="eyebrow">YOUR DEPARTMENTS</p>
+            <h3 id="dashboard-departments-heading">Department affiliations</h3>
+          </div>
+          {departments.length ? (
+            <ul>
+              {departments.map((department) => (
+                <li key={department.id}>
+                  <strong>{department.name}</strong>
+                  {department.code && <span>{department.code}</span>}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="portal-departments-empty">No departments are currently linked to your account.</p>}
+        </section>
+      )}
       <div className="portal-home-heading">
         <div><h3>Your workspace</h3><p>Choose an area to continue.</p></div>
         <Link to={roleLabel === 'Administrator' ? '/admin/account-settings' : `/${roleLabel === 'COD' ? 'cod' : roleLabel.toLowerCase()}/settings`}>

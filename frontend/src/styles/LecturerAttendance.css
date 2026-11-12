@@ -19,11 +19,34 @@
 .lecturer-attendance-section-heading h3, .lecturer-attendance-list-heading h3 { margin: 0 0 5px; color: #193b42; font-size: 18px; letter-spacing: -.02em; }
 .lecturer-attendance-section-heading p, .lecturer-attendance-list-heading p { margin: 0; color: #708589; font-size: 12px; line-height: 1.55; }
 .lecturer-attendance-total { flex: 0 0 auto; padding: 7px 10px; color: #477177; background: #eef5f3; border-radius: 99px; font-size: 10px; font-weight: 700; }
-.lecturer-attendance-form { padding: 18px; background: #f8fbfa; border-color: #e3edeb; box-shadow: none; }
-.lecturer-attendance-form-title { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; color: #087e83; }
+.lecturer-attendance-form { padding: 20px; background: #f8fbfa; border-color: #e3edeb; box-shadow: none; }
+.lecturer-attendance-form-title { display: flex; align-items: center; gap: 9px; margin-bottom: 19px; color: #087e83; }
 .lecturer-attendance-form-title h3 { margin: 0; color: #23474d; font-size: 14px; }
-.lecturer-attendance-form .form-grid { gap: 13px; margin-bottom: 17px; }
+.lecturer-attendance-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
 .lecturer-attendance-form .form-field label { font-size: 11px; }
+.lecturer-attendance-form .form-field input,
+.lecturer-attendance-form .form-field select { min-height: 44px; }
+.lecturer-attendance-field-hint,
+.lecturer-attendance-field-error { display: block; margin-top: 6px; font-size: 11px; line-height: 1.45; }
+.lecturer-attendance-field-hint { color: #71878a; }
+.lecturer-attendance-field-error { color: #a53d3d; }
+.lecturer-attendance-form .form-field input[readonly] { color: #41666b; background: #eaf3f1; cursor: default; }
+.lecturer-attendance-field-label { color: #48666a; font-size: 11px; font-weight: 650; }
+.lecturer-attendance-assessment-status { display: grid; align-content: start; gap: 7px; padding: 12px; background: #f0f7f5; border: 1px solid #dfeae8; border-radius: 10px; }
+.lecturer-attendance-assessment-status strong { color: #23474d; font-size: 13px; }
+.lecturer-attendance-schedule { grid-column: 1 / -1; padding: 16px; background: #fff; border: 1px solid #dfeae8; border-radius: 12px; }
+.lecturer-attendance-schedule-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; color: #087e83; }
+.lecturer-attendance-schedule-heading > div { display: grid; gap: 3px; }
+.lecturer-attendance-schedule-heading strong { color: #23474d; font-size: 12px; }
+.lecturer-attendance-schedule-heading small { color: #71878a; font-size: 10px; }
+.lecturer-attendance-schedule-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.lecturer-attendance-schedule input { accent-color: #087e83; }
+.lecturer-attendance-form input[type="date"],
+.lecturer-attendance-form input[type="time"] { color: #24464b; background: #fbfdfc; border-color: #d8e5e3; }
+.lecturer-attendance-form input[type="date"]:focus,
+.lecturer-attendance-form input[type="time"]:focus,
+.lecturer-attendance-form select:focus { border-color: #68bcb1; box-shadow: 0 0 0 3px #087e8318; outline: 0; }
+.lecturer-attendance-optional { color: #849799; font-size: 10px; font-weight: 500; }
 .lecturer-attendance-form .button { font-size: 12px; }
 .lecturer-attendance-session-list { display: grid; gap: 10px; margin-top: 24px; }
 .lecturer-attendance-list-heading { margin-bottom: 2px; }
@@ -39,8 +62,23 @@
 .lecturer-attendance-session .button { min-height: 36px; padding: 0 12px; font-size: 11px; }
 .lecturer-attendance-panel > .form-alert { margin-top: 0; }
 
+[data-theme="dark"] .lecturer-attendance-form { background: #172a2e; border-color: #30494c; }
+[data-theme="dark"] .lecturer-attendance-form-title h3,
+[data-theme="dark"] .lecturer-attendance-schedule-heading strong { color: #d6e5e3; }
+[data-theme="dark"] .lecturer-attendance-schedule { background: #1a3034; border-color: #30494c; }
+[data-theme="dark"] .lecturer-attendance-schedule-heading small,
+[data-theme="dark"] .lecturer-attendance-field-hint,
+[data-theme="dark"] .lecturer-attendance-optional { color: #9aafb1; }
+[data-theme="dark"] .lecturer-attendance-form .form-field input[readonly],
+[data-theme="dark"] .lecturer-attendance-assessment-status { color: #d3e2e1; background: #203a3d; border-color: #30494c; }
+[data-theme="dark"] .lecturer-attendance-assessment-status strong,
+[data-theme="dark"] .lecturer-attendance-field-label { color: #d3e2e1; }
+[data-theme="dark"] .lecturer-attendance-form input[type="date"],
+[data-theme="dark"] .lecturer-attendance-form input[type="time"] { color: #e0eceb; background: #142a2d; border-color: #40595c; }
+
 @media (max-width: 820px) {
   .lecturer-attendance-workspace { grid-template-columns: 1fr; }
+  .lecturer-attendance-schedule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lecturer-attendance-tabs { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 6px; }
   .lecturer-attendance-tab { grid-template-columns: 32px minmax(0, 1fr); gap: 8px; min-height: 58px; padding: 8px; }
   .lecturer-attendance-tab-icon { width: 32px; height: 32px; }
@@ -57,4 +95,6 @@
   .lecturer-attendance-tab-count { display: grid; }
   .lecturer-attendance-section-heading { align-items: flex-start; }
   .lecturer-attendance-session { align-items: flex-start; flex-direction: column; }
+  .lecturer-attendance-form-grid,
+  .lecturer-attendance-schedule-grid { grid-template-columns: 1fr; }
 }

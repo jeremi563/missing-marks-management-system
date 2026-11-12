@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
-import ThemeToggle from '../components/ui/ThemeToggle'
 
 function getRole(user) {
   const roles = Array.isArray(user?.roles) ? user.roles : [user?.role]
@@ -42,7 +41,6 @@ export default function LoginPage() {
     <main className="auth-page">
       <Link to="/" className="back-link"><ArrowLeft size={16} /> Back home</Link>
       <section className="auth-card">
-        <div className="auth-theme-toggle"><ThemeToggle /></div>
         <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
         <p className="eyebrow">WELCOME BACK</p><h1>Sign in to your account</h1>
         <p className="auth-intro">Use your registration number and password. Lecturers can sign in after their department's COD approves the application; email verification is not required.</p>

@@ -1,7 +1,17 @@
 import { z } from "zod";
 
 export const lecturerApprovalIdParamsSchema = z.object({ id: z.string().uuid() }).strict();
+export const codCourseUnitParamsSchema = z.object({ courseUnitId: z.string().uuid() }).strict();
 export const lecturerApprovalDecisionBodySchema = z.object({ status: z.enum(["APPROVED", "REJECTED"]) }).strict();
+export const createCodCourseUnitLecturerBodySchema = z.object({
+  departmentId: z.string().uuid(),
+  lecturerProfileId: z.string().uuid(),
+}).strict();
+export const codDirectoryQuerySchema = z.object({
+  departmentId: z.string().uuid(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+}).strict();
 
 export const getCodReportsQuerySchema = z.object({
   departmentId: z.string().uuid().optional(),

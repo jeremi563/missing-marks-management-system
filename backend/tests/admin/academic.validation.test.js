@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { academicPeriodCreateBody, assessmentCreateBody, classroomCreateBody, courseUnitCreateBody, departmentMemberParams, enrollmentCreateBody } from "../../src/modules/admin/academic.validation.js";
+import { academicPeriodCreateBody, assessmentCreateBody, classroomCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody, enrollmentCreateBody } from "../../src/modules/admin/academic.validation.js";
 import { reopenReportBody, reassignReportBody } from "../../src/modules/admin/operations.validation.js";
 
 const id = "00000000-0000-4000-8000-000000000001";
@@ -8,6 +8,14 @@ const id = "00000000-0000-4000-8000-000000000001";
 test("academic structure validators accept valid department relationships", () => {
 	assert.equal(courseUnitCreateBody.safeParse({ departmentId: id, code: "CS101", name: "Computer Science" }).success, true);
 	assert.equal(enrollmentCreateBody.safeParse({ studentProfileId: id, courseUnitId: id, academicPeriodId: id }).success, true);
+	assert.equal(departmentCreateBody.safeParse({ name: "Computing", initials: "IN" }).success, true);
+	assert.equal(departmentCreateBody.safeParse({ name: "Computing", initials: "in" }).success, false);
+	assert.equal(departmentCreateBody.safeParse({ name: "Computing", initials: "C" }).success, false);
+	assert.equal(departmentUpdateBody.safeParse({ initials: "IN" }).success, true);
+	assert.equal(departmentUpdateBody.safeParse({ code: "COMP" }).success, true);
+	assert.equal(departmentUpdateBody.safeParse({ code: "" }).success, false);
+	assert.equal(departmentUpdateBody.safeParse({ code: null }).success, true);
+	assert.equal(departmentUpdateBody.safeParse({ name: "Computing", initials: "IN", code: "COMP" }).success, true);
 });
 
 test("academic period validation rejects an end before its start", () => {

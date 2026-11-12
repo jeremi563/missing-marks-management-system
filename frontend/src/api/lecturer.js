@@ -6,6 +6,9 @@ const request = async (method, url, data, config) => {
 }
 
 export const getLecturerReports = (params = {}) => request('get', '/lecturer/reports', undefined, { params })
+export const getLecturerCourseUnits = () => request('get', '/lecturer/course-units')
+export const getLecturerCourseUnitAssessments = (courseUnitId, type) => request('get', `/lecturer/course-units/${courseUnitId}/assessments`, undefined, { params: { type } })
+export const getLecturerStudents = (params = {}) => request('get', '/lecturer/students', undefined, { params })
 export const getLecturerReport = (reportId) => request('get', `/lecturer/reports/${reportId}`)
 export const getLecturerReportComments = (reportId) => request('get', `/lecturer/reports/${reportId}/comments`)
 export const addLecturerReportComment = (reportId, body) => request('post', `/lecturer/reports/${reportId}/comments`, { body })

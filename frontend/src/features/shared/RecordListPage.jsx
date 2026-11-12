@@ -16,6 +16,8 @@ export default function RecordListPage({
   description,
   fetchRecords,
   collectionKeys = [],
+  tableColumns,
+  contentId,
   renderActions,
   emptyMessage = 'There are no records to show.',
 }) {
@@ -59,10 +61,22 @@ export default function RecordListPage({
         <input aria-label={`Search ${title.toLowerCase()}`} placeholder="Search records…" value={search} onChange={(event) => setSearch(event.target.value)} />
         <span className="student-reports-count">{filtered.length} record(s)</span>
       </div>
-      {loading ? <LoadingState message={`Loading ${title.toLowerCase()}…`} /> :
+      <div id={contentId}>
+        {loading ? <LoadingState message={`Loading ${title.toLowerCase()}…`} /> :
         error ? <ErrorState title={`Unable to load ${title.toLowerCase()}`} message={error} onRetry={() => setRefresh((value) => value + 1)} /> :
           filtered.length === 0 ? <EmptyState title="Nothing to display" message={search ? 'No records match your search.' : emptyMessage} /> :
-            <div className="records-grid">{filtered.map((record, index) => {
+            tableColumns ? (
+              <div className="table-wrap">
+                <table>
+                  <thead><tr>{tableColumns.map(({ label }) => <th key={label}>{label}</th>)}</tr></thead>
+                  <tbody>{filtered.map((record, index) => (
+                    <tr key={record.id || record.reference || index}>
+                      {tableColumns.map(({ label, render }) => <td key={label}>{render(record)}</td>)}
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            ) : <div className="records-grid">{filtered.map((record, index) => {
               const status = record.status || record.state
               const summary = record.courseUnit?.name || record.courseUnit?.code ||
                 record.student?.displayName || record.student?.name ||
@@ -83,6 +97,7 @@ export default function RecordListPage({
                 </article>
               )
             })}</div>}
+      </div>
     </section>
   )
 }

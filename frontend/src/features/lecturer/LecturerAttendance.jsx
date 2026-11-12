@@ -3,6 +3,8 @@ import { BookOpenCheck, CalendarClock, ClipboardList, GraduationCap, RefreshCw }
 import {
   createLecturerAttendanceSession,
   endLecturerAttendanceSession,
+  getLecturerCourseUnitAssessments,
+  getLecturerCourseUnits,
   getLecturerAttendanceSessions,
   startLecturerAttendanceSession,
 } from '../../api/lecturer'
@@ -19,14 +21,34 @@ const sessionTypes = [
   { value: 'CLASS', label: 'Class', description: 'Regular class attendance', icon: BookOpenCheck },
 ]
 
-const initialForm = { courseUnitId: '', classroomId: '', assessmentId: '', startsAt: '', endsAt: '' }
+const initialForm = {
+  courseUnitId: '',
+  classroomId: '',
+  assessmentId: '',
+  sessionDate: '',
+  startsAt: '',
+  endDate: '',
+  endsAt: '',
+}
+
+function getCatNumber(assessment) {
+  const label = `${assessment.code || ''} ${assessment.name || ''}`
+  const match = label.match(/\b(?:CAT|CATS|CONTINUOUS\s+ASSESSMENT)\s*[-_#:]?\s*(1|2)\b/i)
+  return match?.[1] || null
+}
 
 export default function LecturerAttendance() {
   const [sessions, setSessions] = useState([])
+  const [courseUnits, setCourseUnits] = useState([])
+  const [assessments, setAssessments] = useState([])
   const [form, setForm] = useState(initialForm)
   const [activeType, setActiveType] = useState('CAT')
   const [error, setError] = useState('')
+  const [courseUnitsError, setCourseUnitsError] = useState('')
+  const [assessmentsError, setAssessmentsError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [courseUnitsLoading, setCourseUnitsLoading] = useState(true)
+  const [assessmentsLoading, setAssessmentsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [refresh, setRefresh] = useState(0)
   const load = useCallback(async () => {
@@ -46,21 +68,79 @@ export default function LecturerAttendance() {
     return () => { active = false }
   }, [load, refresh])
 
+  useEffect(() => {
+    let active = true
+    getLecturerCourseUnits()
+      .then((response) => {
+        if (!active) return
+        const assignments = extractRecords(response)
+        const assignedUnits = assignments.map(({ courseUnit }) => courseUnit).filter(Boolean)
+        setCourseUnits(assignedUnits)
+        setCourseUnitsError('')
+      })
+      .catch((requestError) => {
+        if (active) setCourseUnitsError(requestError.userMessage || 'Unable to load your assigned course units.')
+      })
+      .finally(() => {
+        if (active) setCourseUnitsLoading(false)
+      })
+
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!form.courseUnitId || activeType === 'CLASS') return undefined
+
+    let active = true
+    getLecturerCourseUnitAssessments(form.courseUnitId, activeType)
+      .then((response) => {
+        if (!active) return
+        setAssessments(extractRecords(response))
+        setAssessmentsError('')
+      })
+      .catch((requestError) => {
+        if (active) setAssessmentsError(requestError.userMessage || 'Unable to load assessments for this course unit.')
+      })
+      .finally(() => {
+        if (active) setAssessmentsLoading(false)
+      })
+
+    return () => { active = false }
+  }, [activeType, form.courseUnitId])
+
   const submit = async (event) => {
     event.preventDefault()
     setError('')
+    if (Boolean(form.endDate) !== Boolean(form.endsAt)) {
+      setError('Choose both an end date and end time, or leave both blank.')
+      return
+    }
+    if (form.endDate && form.endsAt && new Date(`${form.endDate}T${form.endsAt}`) <= new Date(`${form.sessionDate}T${form.startsAt}`)) {
+      setError('End date and time must be after the start date and time.')
+      return
+    }
+    if (activeType === 'EXAM' && assessments.length !== 1) {
+      setError('An exam session requires exactly one exam assessment for the selected course unit.')
+      return
+    }
+    if (activeType === 'CAT' && !form.assessmentId) {
+      setError('Select CAT 1 or CAT 2 before creating the session.')
+      return
+    }
     setSaving(true)
     const payload = {
       sessionType: activeType,
       courseUnitId: form.courseUnitId.trim(),
       classroomId: form.classroomId.trim(),
-      startsAt: new Date(form.startsAt).toISOString(),
-      ...(form.endsAt ? { endsAt: new Date(form.endsAt).toISOString() } : {}),
-      ...(activeType !== 'CLASS' && form.assessmentId.trim() ? { assessmentId: form.assessmentId.trim() } : {}),
+      startsAt: new Date(`${form.sessionDate}T${form.startsAt}`).toISOString(),
+      ...(form.endsAt && form.endDate ? { endsAt: new Date(`${form.endDate}T${form.endsAt}`).toISOString() } : {}),
+      ...(activeType === 'CAT' ? { assessmentId: form.assessmentId } : {}),
+      ...(activeType === 'EXAM' ? { assessmentId: assessments[0].id } : {}),
     }
     try {
       await createLecturerAttendanceSession(payload)
       setForm(initialForm)
+      setAssessments([])
       setRefresh((value) => value + 1)
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to create the attendance session.')
@@ -83,6 +163,13 @@ export default function LecturerAttendance() {
   const filteredSessions = sessions.filter((session) => String(session.sessionType).toUpperCase() === activeType)
   const sessionCount = (type) => sessions.filter((session) => String(session.sessionType).toUpperCase() === type).length
   const activeSession = sessionTypes.find(({ value }) => value === activeType)
+  const selectedCourseUnit = courseUnits.find(({ id }) => id === form.courseUnitId)
+  const catAssessments = ['1', '2'].map((catNumber) => ({
+    catNumber,
+    assessment: assessments.find((assessment) => getCatNumber(assessment) === catNumber),
+  }))
+
+
 
   return (
     <section className="lecturer-attendance">
@@ -102,7 +189,13 @@ export default function LecturerAttendance() {
               role="tab"
               aria-selected={activeType === value}
               aria-controls="lecturer-attendance-panel"
-              onClick={() => setActiveType(value)}
+              onClick={() => {
+                setActiveType(value)
+                setForm(initialForm)
+                setAssessments([])
+                setAssessmentsError('')
+                setAssessmentsLoading(value !== 'CLASS' && Boolean(form.courseUnitId))
+              }}
             >
               <span className="lecturer-attendance-tab-icon"><Icon size={18} /></span>
               <span className="lecturer-attendance-tab-copy"><strong>{label}</strong><small>{description}</small></span>
@@ -121,14 +214,103 @@ export default function LecturerAttendance() {
 
           <form className="panel lecturer-attendance-form" onSubmit={submit}>
             <div className="lecturer-attendance-form-title"><CalendarClock size={18} /><h3>Create {activeSession?.label.toLowerCase()} session</h3></div>
-            <div className="form-grid">
-              <div className="form-field"><label htmlFor="session-course">Course unit UUID</label><input id="session-course" value={form.courseUnitId} onChange={(event) => setForm({ ...form, courseUnitId: event.target.value })} required /></div>
-              <div className="form-field"><label htmlFor="session-classroom">Classroom UUID</label><input id="session-classroom" value={form.classroomId} onChange={(event) => setForm({ ...form, classroomId: event.target.value })} required /></div>
-              {activeType !== 'CLASS' && <div className="form-field"><label htmlFor="session-assessment">Assessment UUID</label><input id="session-assessment" value={form.assessmentId} onChange={(event) => setForm({ ...form, assessmentId: event.target.value })} required /></div>}
-              <div className="form-field"><label htmlFor="session-start">Starts at</label><input id="session-start" type="datetime-local" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} required /></div>
-              <div className="form-field"><label htmlFor="session-end">Ends at (optional)</label><input id="session-end" type="datetime-local" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} /></div>
+            <div className="lecturer-attendance-form-grid">
+              <div className="form-field">
+                <label htmlFor="session-course">Course unit</label>
+                <select
+                  id="session-course"
+                  value={form.courseUnitId}
+                  onChange={(event) => {
+                    setForm((current) => ({ ...current, courseUnitId: event.target.value, assessmentId: '' }))
+                    setAssessments([])
+                    setAssessmentsError('')
+                    setAssessmentsLoading(activeType !== 'CLASS' && Boolean(event.target.value))
+                  }}
+                  required
+                  disabled={courseUnitsLoading || courseUnits.length === 0}
+                >
+                  <option value="">{courseUnitsLoading ? 'Loading your course units…' : 'Select a course unit'}</option>
+                  {courseUnits.map((courseUnit) => (
+                    <option key={courseUnit.id} value={courseUnit.id}>{courseUnit.code} — {courseUnit.name}</option>
+                  ))}
+                </select>
+                {courseUnitsError && <small className="lecturer-attendance-field-error">{courseUnitsError}</small>}
+              </div>
+              <div className="form-field">
+                <label htmlFor="session-course-code">Course unit code</label>
+                <input id="session-course-code" value={selectedCourseUnit?.code || ''} placeholder="Auto-filled when you select a course unit" readOnly />
+              </div>
+              <div className="form-field">
+                <label htmlFor="session-classroom">Classroom UUID</label>
+                <input id="session-classroom" value={form.classroomId} onChange={(event) => setForm({ ...form, classroomId: event.target.value })} required />
+              </div>
+              {activeType === 'CAT' && (
+                <div className="form-field">
+                  <label htmlFor="session-assessment">CAT number</label>
+                  <select
+                    id="session-assessment"
+                    value={form.assessmentId}
+                    onChange={(event) => setForm((current) => ({ ...current, assessmentId: event.target.value }))}
+                    required
+                    disabled={!form.courseUnitId || assessmentsLoading}
+                  >
+                    <option value="">
+                      {!form.courseUnitId ? 'Select a course unit first' : assessmentsLoading ? 'Loading CATs…' : 'Select CAT 1 or CAT 2'}
+                    </option>
+                    {catAssessments.map(({ catNumber, assessment }) => (
+                      <option key={catNumber} value={assessment?.id || ''} disabled={!assessment}>
+                        CAT {catNumber}{assessment ? (assessment.name ? ` — ${assessment.name}` : '') : ' — not configured'}
+                      </option>
+                    ))}
+                  </select>
+                  <small className="lecturer-attendance-field-hint">
+                    {assessmentsError || (!assessmentsLoading && form.courseUnitId && !catAssessments.some(({ assessment }) => assessment)
+                      ? 'No CAT 1 or CAT 2 assessment is configured for this course unit.'
+                      : 'Choose an available CAT; its assessment is selected automatically.')}
+                  </small>
+                </div>
+              )}
+              {activeType === 'EXAM' && (
+                <div className="form-field lecturer-attendance-assessment-status" role="status">
+                  <span className="lecturer-attendance-field-label">Exam assessment</span>
+                  <strong>{assessmentsLoading ? 'Finding exam…' : assessments.length === 1 ? `${selectedCourseUnit?.code} — ${assessments[0].name}` : 'Exam assessment unavailable'}</strong>
+                  <small className="lecturer-attendance-field-hint">
+                    {assessmentsError || (assessments.length > 1
+                      ? 'More than one exam assessment is configured; ask your administrator to review the course unit.'
+                      : !assessmentsLoading && form.courseUnitId && assessments.length === 0
+                        ? 'No exam assessment is configured for this course unit.'
+                        : 'The course unit’s exam assessment is selected automatically.')}
+                  </small>
+                </div>
+              )}
+              <div className="lecturer-attendance-schedule">
+                <div className="lecturer-attendance-schedule-heading">
+                  <CalendarClock size={17} />
+                  <div><strong>Schedule</strong><small>Choose the session date and attendance window.</small></div>
+                </div>
+                <div className="lecturer-attendance-schedule-grid">
+                  <div className="form-field">
+                    <label htmlFor="session-date">Session date</label>
+                    <input id="session-date" type="date" value={form.sessionDate} onChange={(event) => setForm({ ...form, sessionDate: event.target.value })} required />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="session-start">Start time</label>
+                    <input id="session-start" type="time" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} required />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="session-end-date">End date <span className="lecturer-attendance-optional">(optional)</span></label>
+                    <input id="session-end-date" type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="session-end">End time <span className="lecturer-attendance-optional">(optional)</span></label>
+                    <input id="session-end" type="time" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} />
+                  </div>
+                </div>
+              </div>
             </div>
-            <button className="button button-primary" disabled={saving}><CalendarClock size={16} />{saving ? 'Creating…' : `Create ${activeSession?.label.toLowerCase()} session`}</button>
+            <button className="button button-primary" disabled={saving || courseUnitsLoading || !courseUnits.length || (activeType === 'CAT' && (assessmentsLoading || !catAssessments.some(({ assessment }) => assessment))) || (activeType === 'EXAM' && (assessmentsLoading || assessments.length !== 1))}>
+              <CalendarClock size={16} />{saving ? 'Creating…' : `Create ${activeSession?.label.toLowerCase()} session`}
+            </button>
           </form>
 
           <div className="lecturer-attendance-session-list">

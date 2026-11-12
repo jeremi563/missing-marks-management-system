@@ -17,16 +17,26 @@ export async function authenticate(req, res, next) {
 	try {
 		const user = await prisma.user.findUnique({
 			where: { id: claims.sub },
-			include: { roles: { include: { role: true } } },
+			select: {
+				id: true,
+				email: true,
+				pendingEmail: true,
+				displayName: true,
+				isActive: true,
+				approvalStatus: true,
+				roles: { select: { role: { select: { name: true } } } },
+			},
 		});
 		if (!user?.isActive || user.approvalStatus !== "APPROVED") throw new AppError(401, "Invalid authentication credentials");
 
 		req.user = {
 			id: user.id,
 			email: user.email,
+			pendingEmail: user.pendingEmail,
 			displayName: user.displayName,
 			roles: user.roles.map(({ role }) => role.name),
 		};
+		req.sessionExpiresAt = claims.exp ? new Date(claims.exp * 1000) : null;
 		return next();
 	} catch (error) {
 		return next(error);

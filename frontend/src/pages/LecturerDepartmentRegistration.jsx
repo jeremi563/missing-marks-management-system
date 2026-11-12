@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { getRegistrationDepartments, registerLecturerDepartment } from '../api/auth'
-import ThemeToggle from '../components/ui/ThemeToggle'
 import { extractRecords } from '../features/shared/recordUtils'
 
 const initialForm = {
@@ -63,7 +62,6 @@ export default function LecturerDepartmentRegistration() {
     <main className="auth-page">
       <Link to="/register" className="back-link"><ArrowLeft size={16} /> Back to registration</Link>
       <section className="auth-card auth-card-wide">
-        <div className="auth-theme-toggle"><ThemeToggle /></div>
         <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
         {complete ? (
           <>

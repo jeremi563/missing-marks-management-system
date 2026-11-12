@@ -21,11 +21,14 @@ enum LoginIdentifierType {
 enum AccountSecurityTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+  EMAIL_CHANGE
 }
 
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
+  pendingEmail String?  @unique @map("pending_email")
+  avatarData   String?  @map("avatar_data") @db.Text
   displayName  String?  @map("display_name")
   passwordHash String   @map("password_hash")
   isActive     Boolean  @default(true) @map("is_active")
@@ -182,6 +185,7 @@ model Department {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
   code      String?  @unique
+  initials  String?  @unique
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

@@ -2,7 +2,6 @@ import {
   ArrowRight, BellRing, Check, ClipboardCheck, FileSearch, GraduationCap, ShieldCheck,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import ThemeToggle from '../components/ui/ThemeToggle'
 
 const benefits = [
   {
@@ -31,9 +30,7 @@ export default function LandingPage() {
           <span>Missing Marks<small>Academic support portal</small></span>
         </Link>
         <nav aria-label="Main navigation">
-          <a href="#how-it-works">How it works</a>
           <Link className="public-login-link" to="/login">Sign in</Link>
-          <ThemeToggle />
           <Link className="button button-primary" to="/register">Get started <ArrowRight size={16} /></Link>
         </nav>
       </header>
@@ -71,7 +68,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-benefits" id="how-it-works">
+      <section className="landing-benefits">
         <div className="landing-section-heading">
           <p className="eyebrow">A BETTER WAY TO FOLLOW UP</p>
           <h2>Clarity for every step.</h2>

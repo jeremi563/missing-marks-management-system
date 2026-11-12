@@ -40,16 +40,18 @@ export const createUserBody = z.object({
 }).strict().refine((body) => new Set(body.roles).size === body.roles.length, {
 	message: "Roles must not contain duplicates.",
 	path: ["roles"],
-}).refine((body) => body.roles.includes("student")
-	? body.roles.length === 1 && Boolean(body.studentNumber) && !body.staffNumber && !body.adminNumber
-	: body.roles.includes("administrator")
-		? body.roles.length === 1 && Boolean(body.adminNumber) && !body.studentNumber && !body.staffNumber
-		: body.roles.every((role) => role === "lecturer" || role === "cod") && Boolean(body.staffNumber) && !body.studentNumber && !body.adminNumber, {
-	message: "Provide one identity number matching the selected account role(s).",
+}).refine((body) => {
+	if (body.roles.includes("administrator")) {
+		return body.roles.length === 1 && Boolean(body.adminNumber) && !body.studentNumber && !body.staffNumber;
+	}
+	return body.roles.includes("cod")
+		&& body.roles.every((role) => role === "lecturer" || role === "cod")
+		&& Boolean(body.staffNumber)
+		&& !body.studentNumber
+		&& !body.adminNumber;
+}, {
+	message: "Only administrator and COD accounts can be created here; provide the matching account identifier.",
 	path: ["roles"],
-}).refine((body) => !body.roles.includes("cod"), {
-		message: "Create a lecturer account first, then assign COD responsibility to that lecturer.",
-		path: ["roles"],
 });
 
 export const updateUserBody = z.object({
@@ -58,9 +60,6 @@ export const updateUserBody = z.object({
 	displayName: z.string().trim().min(1).max(200).optional(),
 	isActive: z.boolean().optional(),
 	roles: z.array(roleNames).min(1).max(2).optional(),
-	studentNumber: studentNumber.optional(),
-	staffNumber: staffNumber.optional(),
-	adminNumber: adminNumber.optional(),
 	departmentId: z.string().uuid("A valid department UUID is required.").optional(),
 }).strict().refine((body) => Object.keys(body).length > 0, {
 	message: "At least one user field must be provided.",

@@ -10,6 +10,8 @@ import {
   submitCorrectionSchema,
   createAttendanceSessionSchema,
   attendanceSessionIdSchema,
+  courseUnitIdParamsSchema,
+  courseUnitAssessmentsQuerySchema,
 } from '../../src/modules/lecturer/lecturer.validation.js';
 
 test('accepts a valid report UUID', () => {
@@ -32,6 +34,13 @@ test('rejects a missing report ID', () => {
   const result = reportIdSchema.safeParse({});
 
   assert.equal(result.success, false);
+});
+
+test('validates course-unit assessment lookup parameters', () => {
+  assert.equal(courseUnitIdParamsSchema.safeParse({ courseUnitId: '550e8400-e29b-41d4-a716-446655440000' }).success, true);
+  assert.equal(courseUnitIdParamsSchema.safeParse({ courseUnitId: 'not-a-uuid' }).success, false);
+  assert.equal(courseUnitAssessmentsQuerySchema.safeParse({ type: 'CAT' }).success, true);
+  assert.equal(courseUnitAssessmentsQuerySchema.safeParse({ type: 'CLASS' }).success, false);
 });
 
 // Feature 3: Comment validation

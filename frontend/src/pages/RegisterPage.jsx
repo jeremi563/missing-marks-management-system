@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { registerUser } from '../api/auth'
-import ThemeToggle from '../components/ui/ThemeToggle'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ displayName: '', email: '', registrationNumber: '', password: '', confirmPassword: '' })
@@ -75,7 +74,6 @@ export default function RegisterPage() {
     <main className="auth-page">
       <Link to="/" className="back-link"><ArrowLeft size={16} /> Back home</Link>
       <section className="auth-card auth-card-wide">
-        <div className="auth-theme-toggle"><ThemeToggle /></div>
         <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
         <p className="eyebrow">JOIN THE PORTAL</p><h1>Create your account</h1>
         {error && <div className="form-alert" role="alert">{error}</div>}

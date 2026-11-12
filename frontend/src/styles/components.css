@@ -174,7 +174,7 @@ tr:last-child td { border-bottom: 0; }
   .hero-art { min-height: 300px; }
   .hero-copy h1 { font-size: 43px; }
   .topbar { gap: 9px; padding: 0 12px; }
-  .topbar-user span { display: none; }
+  .topbar-user > span { display: none; }
   .student-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .student-welcome, .student-reports-header, .notifications-header, .student-reports-toolbar, .notifications-toolbar { align-items: flex-start; flex-direction: column; }
   .record-card { flex-direction: column; }

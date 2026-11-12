@@ -1,48 +1,136 @@
 import { useState } from 'react'
-import { Eye, EyeOff, KeyRound, ShieldCheck } from 'lucide-react'
-import { changePassword } from '../../api/auth'
+import { Camera, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react'
+import { changePassword, requestEmailChange, updateAvatar } from '../../api/auth'
+import { useAuth } from '../../auth/useAuth'
 
 const initialForm = { currentPassword: '', newPassword: '', confirmPassword: '' }
+const MAX_AVATAR_BYTES = 512 * 1024
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 export default function AccountSettings({ roleLabel }) {
+  const { user, refreshUser } = useAuth()
   const [form, setForm] = useState(initialForm)
   const [showPasswords, setShowPasswords] = useState(false)
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [saving, setSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [email, setEmail] = useState('')
+  const [emailPassword, setEmailPassword] = useState('')
+  const [pendingEmail, setPendingEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [emailSuccess, setEmailSuccess] = useState('')
+  const [emailSaving, setEmailSaving] = useState(false)
+  const [avatarDraft, setAvatarDraft] = useState(null)
+  const [savedAvatar, setSavedAvatar] = useState(undefined)
+  const [avatarError, setAvatarError] = useState('')
+  const [avatarSuccess, setAvatarSuccess] = useState('')
+  const [avatarSaving, setAvatarSaving] = useState(false)
 
   const update = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
   }
 
-  const submit = async (event) => {
+  const submitPassword = async (event) => {
     event.preventDefault()
-    setError('')
-    setSuccess('')
+    setPasswordError('')
+    setPasswordSuccess('')
     if (form.newPassword.length < 8) {
-      setError('Your new password must be at least 8 characters.')
+      setPasswordError('Your new password must be at least 8 characters.')
       return
     }
     if (form.newPassword !== form.confirmPassword) {
-      setError('The new passwords do not match.')
+      setPasswordError('The new passwords do not match.')
       return
     }
     if (form.currentPassword === form.newPassword) {
-      setError('Choose a new password different from your current password.')
+      setPasswordError('Choose a new password different from your current password.')
       return
     }
 
-    setSaving(true)
+    setPasswordSaving(true)
     try {
       await changePassword(form.currentPassword, form.newPassword)
       setForm(initialForm)
-      setSuccess('Your password has been updated.')
+      setPasswordSuccess('Your password has been updated.')
     } catch (requestError) {
-      setError(requestError.userMessage || 'Unable to change your password. Please try again.')
+      setPasswordError(requestError.userMessage || 'Unable to change your password. Please try again.')
     } finally {
-      setSaving(false)
+      setPasswordSaving(false)
     }
   }
+
+  const submitEmail = async (event) => {
+    event.preventDefault()
+    setEmailError('')
+    setEmailSuccess('')
+    setEmailSaving(true)
+    try {
+      const response = await requestEmailChange(email.trim(), emailPassword)
+      const requestedEmail = response.data?.pendingEmail || email.trim()
+      setPendingEmail(requestedEmail)
+      setEmail('')
+      setEmailPassword('')
+      if (response.data?.verificationEmailSent) {
+        setEmailSuccess(`A verification link was sent to ${requestedEmail}. Your current email stays active until you confirm it.`)
+      } else {
+        setEmailError(`The change is saved for ${requestedEmail}, but the verification email could not be sent. Submit the same address again after email delivery is restored.`)
+      }
+      try {
+        await refreshUser()
+      } catch {
+        setEmailError('Your email change is pending, but your profile could not be refreshed. Reload the page to see the pending address.')
+      }
+    } catch (requestError) {
+      setEmailError(requestError.userMessage || 'Unable to change your email. Please try again.')
+    } finally {
+      setEmailSaving(false)
+    }
+  }
+
+  const selectAvatar = (event) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    setAvatarError('')
+    setAvatarSuccess('')
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setAvatarDraft(null)
+      setAvatarError('Choose a JPEG, PNG, or WebP image.')
+      return
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarDraft(null)
+      setAvatarError('The image must be 512 KB or smaller.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') setAvatarDraft(reader.result)
+      else setAvatarError('Unable to read this image. Choose another file.')
+    }
+    reader.onerror = () => setAvatarError('Unable to read this image. Choose another file.')
+    reader.readAsDataURL(file)
+  }
+
+  const saveAvatar = async (nextAvatar) => {
+    setAvatarError('')
+    setAvatarSuccess('')
+    setAvatarSaving(true)
+    try {
+      await updateAvatar(nextAvatar)
+      setSavedAvatar(nextAvatar)
+      setAvatarDraft(null)
+      setAvatarSuccess(nextAvatar ? 'Profile picture updated.' : 'Profile picture removed.')
+    } catch (requestError) {
+      setAvatarError(requestError.userMessage || 'Unable to update your profile picture. Please try again.')
+    } finally {
+      setAvatarSaving(false)
+    }
+  }
+
+  const displayName = user?.displayName || user?.fullName || user?.name || 'Account holder'
+  const displayedAvatar = avatarDraft || (savedAvatar === undefined ? user?.avatarData : savedAvatar)
+  const confirmationEmail = pendingEmail || user?.pendingEmail
 
   return (
     <section className="account-settings">
@@ -50,43 +138,103 @@ export default function AccountSettings({ roleLabel }) {
         <div>
           <p className="eyebrow">ACCOUNT</p>
           <h2>Account settings</h2>
-          <p>Manage your {roleLabel.toLowerCase()} account security.</p>
+          <p>Update how your {roleLabel.toLowerCase()} account is reached and secured.</p>
         </div>
       </header>
-      <section className="panel settings-security-card">
-        <div className="settings-card-heading">
-          <span className="settings-icon"><KeyRound size={20} /></span>
-          <div>
-            <h3>Change password</h3>
-            <p>Confirm your current password before choosing a new one.</p>
+      <div className="account-settings-grid">
+        <section className="panel settings-profile-card" aria-labelledby="settings-profile-title">
+          <div className="settings-profile-identity">
+            <div className="settings-avatar">
+              {displayedAvatar ? <img src={displayedAvatar} alt={`${displayName} profile`} /> : <UserRound size={30} />}
+            </div>
+            <div className="settings-profile-copy">
+              <p className="eyebrow">PROFILE</p>
+              <h3 id="settings-profile-title">{displayName}</h3>
+              <p>{user?.email || 'No email address available'}</p>
+            </div>
           </div>
-        </div>
-        {error && <div className="form-alert" role="alert">{error}</div>}
-        {success && <div className="form-success" role="status">{success}</div>}
-        <form className="settings-password-form" onSubmit={submit}>
-          <div className="form-field">
-            <label htmlFor="current-password">Current password</label>
-            <input id="current-password" name="currentPassword" type={showPasswords ? 'text' : 'password'} value={form.currentPassword} onChange={update} autoComplete="current-password" required />
+          <div className="settings-photo-tools">
+            <div className="settings-photo-actions">
+              <label className="button button-secondary settings-upload-button">
+              <Camera size={17} /> Choose photo
+                <input id="profile-picture" className="settings-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectAvatar} />
+              </label>
+              {avatarDraft && <button className="button button-primary" type="button" onClick={() => saveAvatar(avatarDraft)} disabled={avatarSaving}>
+                <Upload size={16} /> {avatarSaving ? 'Uploading…' : 'Save photo'}
+              </button>}
+              {displayedAvatar && !avatarDraft && <button className="button button-secondary" type="button" onClick={() => saveAvatar(null)} disabled={avatarSaving}>
+                <Trash2 size={16} /> {avatarSaving ? 'Removing…' : 'Remove photo'}
+              </button>}
+            </div>
+            {(avatarError || avatarSuccess) && <div className="settings-profile-feedback">
+              {avatarError && <p className="form-alert" role="alert">{avatarError}</p>}
+              {avatarSuccess && <p className="form-success" role="status"><Check size={15} />{avatarSuccess}</p>}
+            </div>}
+            <p className="settings-photo-hint">JPEG, PNG, or WebP · 512 KB max</p>
           </div>
-          <div className="form-field">
-            <label htmlFor="new-password">New password</label>
-            <input id="new-password" name="newPassword" type={showPasswords ? 'text' : 'password'} value={form.newPassword} onChange={update} autoComplete="new-password" minLength={8} maxLength={128} required />
+        </section>
+
+        <section className="panel settings-card" aria-labelledby="settings-email-title">
+          <div className="settings-card-heading">
+            <span className="settings-icon"><Mail size={20} /></span>
+            <div>
+              <h3 id="settings-email-title">Email address</h3>
+              <p>Verify a new address before it replaces your current one.</p>
+            </div>
           </div>
-          <div className="form-field">
-            <label htmlFor="confirm-new-password">Confirm new password</label>
-            <input id="confirm-new-password" name="confirmPassword" type={showPasswords ? 'text' : 'password'} value={form.confirmPassword} onChange={update} autoComplete="new-password" minLength={8} maxLength={128} required />
+          {confirmationEmail && <div className="settings-pending-note" role="status">Verification pending for <strong>{confirmationEmail}</strong>.</div>}
+          {emailError && <div className="form-alert" role="alert">{emailError}</div>}
+          {emailSuccess && <div className="form-success" role="status">{emailSuccess}</div>}
+          <form className="settings-form" onSubmit={submitEmail}>
+            <div className="form-field">
+              <label htmlFor="settings-new-email">New email address</label>
+              <input id="settings-new-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required maxLength={254} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="settings-email-password">Current password</label>
+              <input id="settings-email-password" type="password" value={emailPassword} onChange={(event) => setEmailPassword(event.target.value)} autoComplete="current-password" required maxLength={128} />
+            </div>
+            <button className="button button-primary" type="submit" disabled={emailSaving}>
+              <Mail size={16} /> {emailSaving ? 'Sending link…' : 'Send verification link'}
+            </button>
+          </form>
+        </section>
+
+        <section className="panel settings-card" aria-labelledby="settings-password-title">
+          <div className="settings-card-heading">
+            <span className="settings-icon"><KeyRound size={20} /></span>
+            <div>
+              <h3 id="settings-password-title">Password</h3>
+              <p>Confirm your current password before choosing a new one.</p>
+            </div>
           </div>
-          <label className="settings-show-password">
-            <input type="checkbox" checked={showPasswords} onChange={(event) => setShowPasswords(event.target.checked)} />
-            {showPasswords ? <EyeOff size={16} /> : <Eye size={16} />}
-            Show passwords
-          </label>
-          <button className="button button-primary" type="submit" disabled={saving}>
-            <ShieldCheck size={17} /> {saving ? 'Updating password…' : 'Update password'}
-          </button>
-        </form>
-        <p className="field-hint">Use at least 8 characters. Your password is never shown or stored in plain text.</p>
-      </section>
+          {passwordError && <div className="form-alert" role="alert">{passwordError}</div>}
+          {passwordSuccess && <div className="form-success" role="status">{passwordSuccess}</div>}
+          <form className="settings-form" onSubmit={submitPassword}>
+            <div className="form-field">
+              <label htmlFor="current-password">Current password</label>
+              <input id="current-password" name="currentPassword" type={showPasswords ? 'text' : 'password'} value={form.currentPassword} onChange={update} autoComplete="current-password" required />
+            </div>
+            <div className="form-field">
+              <label htmlFor="new-password">New password</label>
+              <input id="new-password" name="newPassword" type={showPasswords ? 'text' : 'password'} value={form.newPassword} onChange={update} autoComplete="new-password" minLength={8} maxLength={128} required />
+            </div>
+            <div className="form-field">
+              <label htmlFor="confirm-new-password">Confirm new password</label>
+              <input id="confirm-new-password" name="confirmPassword" type={showPasswords ? 'text' : 'password'} value={form.confirmPassword} onChange={update} autoComplete="new-password" minLength={8} maxLength={128} required />
+            </div>
+            <label className="settings-show-password">
+              <input type="checkbox" checked={showPasswords} onChange={(event) => setShowPasswords(event.target.checked)} />
+              {showPasswords ? <EyeOff size={16} /> : <Eye size={16} />}
+              Show passwords
+            </label>
+            <button className="button button-primary" type="submit" disabled={passwordSaving}>
+              <ShieldCheck size={17} /> {passwordSaving ? 'Updating password…' : 'Update password'}
+            </button>
+          </form>
+          <p className="field-hint">Use at least 8 characters. Your password is never shown or stored in plain text.</p>
+        </section>
+      </div>
     </section>
   )
 }
