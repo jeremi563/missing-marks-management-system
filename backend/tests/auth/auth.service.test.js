@@ -21,6 +21,15 @@ const makeUser = async (overrides = {}) => ({
 	...overrides,
 });
 
+test("rejects missing login identifiers without throwing a server error", async () => {
+	await assert.rejects(loginWithCredentials(undefined, "student-password", {
+		accountLoginIdentifier: { findUnique: async () => null },
+	}), { statusCode: 401 });
+	await assert.rejects(loginWithCredentials(null, "student-password", {
+		accountLoginIdentifier: { findUnique: async () => null },
+	}), { statusCode: 401 });
+});
+
 test("logs in by normalized student registration number", async () => {
 	const user = await makeUser();
 	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
