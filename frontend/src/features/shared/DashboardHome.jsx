@@ -48,9 +48,22 @@ const dashboards = {
   },
 }
 
+const roleLabels = {
+  administrator: 'System Admin',
+  cod: 'COD',
+  lecturer: 'Lecturer',
+  student: 'Student',
+}
+const roleOrder = ['administrator', 'cod', 'lecturer', 'student']
+
 export default function DashboardHome({ roleLabel }) {
   const dashboard = dashboards[roleLabel] || dashboards.Student
   const { user } = useAuth()
+  const assignedRoles = Array.isArray(user?.roles) ? user.roles : [user?.role].filter(Boolean)
+  const visibleRoles = roleOrder
+    .filter((role) => assignedRoles.includes(role))
+    .map((role) => roleLabels[role])
+  if (!visibleRoles.length) visibleRoles.push(roleLabels[roleLabel.toLowerCase()] || roleLabel)
   const memberDepartments = user?.departmentMemberships?.map(({ department }) => department).filter(Boolean) || []
   const designatedDepartments = user?.designatedDepartments || []
   const departments = roleLabel === 'COD'
@@ -61,6 +74,9 @@ export default function DashboardHome({ roleLabel }) {
     <section className="portal-home">
       <header className="portal-welcome">
         <div className="portal-welcome-copy">
+          <div className="portal-role-badges" role="group" aria-label="Account roles">
+            {visibleRoles.map((role) => <span className="portal-role-badge" key={role}>{role}</span>)}
+          </div>
           <p className="eyebrow">{dashboard.eyebrow}</p>
           <h2>{dashboard.heading}</h2>
           <p>{dashboard.description}</p>

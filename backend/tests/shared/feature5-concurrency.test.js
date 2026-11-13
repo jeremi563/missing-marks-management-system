@@ -143,13 +143,14 @@ async function runRace(submission, replaceFirst = false) {
 		assert.ok(fixture.events.some((event) => event.eventType === "COD_APPEAL_OVERDUE" && event.recipientUserId === "cod-new"));
 	} else {
 		assert.equal(fixture.assignment.workStartedAt instanceof Date, true);
-		assert.ok(fixture.events.some((event) => event.eventType === "COD_REPORT_OVERDUE" && event.recipientUserId === "cod-new"));
+		assert.ok(!fixture.events.some((event) => event.eventType === "COD_REPORT_OVERDUE"));
 	}
 	assert.equal(fixture.getCurrentCod(), "cod-new");
-	assert.equal(fixture.events.filter((event) => event.eventType.startsWith("COD_") && event.recipientUserId === "cod-new").length, 1);
+	const expectedCodEvents = submission === "start-work" ? 0 : 1;
+	assert.equal(fixture.events.filter((event) => event.eventType.startsWith("COD_") && event.recipientUserId === "cod-new").length, expectedCodEvents);
 	// Repeating designation/requeue is idempotent.
 	await designateDepartmentCod({ db: fixture.db, actorUserId: "admin-user", departmentId: "dept-1", codUserId: "cod-new" });
-	assert.equal(fixture.events.filter((event) => event.eventType.startsWith("COD_") && event.recipientUserId === "cod-new").length, 1);
+	assert.equal(fixture.events.filter((event) => event.eventType.startsWith("COD_") && event.recipientUserId === "cod-new").length, expectedCodEvents);
 }
 
 for (const operation of ["special-case", "student-appeal", "start-work"]) {

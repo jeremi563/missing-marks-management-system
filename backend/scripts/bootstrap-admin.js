@@ -15,6 +15,9 @@ async function main() {
 		throw new Error("BOOTSTRAP_ADMIN_NUMBER must use the format admin/12/year, with a year no later than the current year.");
 	}
 	await prisma.$transaction(async (tx) => {
+		await tx.$queryRaw`SELECT pg_advisory_xact_lock(37037002) IS NULL AS locked`;
+		const administratorCount = await tx.user.count({ where: { roles: { some: { role: { name: "administrator" } } } } });
+		if (administratorCount >= 2) throw new Error("The system can have at most two administrator accounts.");
 		const existingAdmin = await tx.user.findFirst({ where: { isActive: true, roles: { some: { role: { name: "administrator" } } } }, select: { id: true } });
 		if (existingAdmin) throw new Error("An active administrator already exists; bootstrap is only for initial setup.");
 		const role = await tx.role.upsert({ where: { name: "administrator" }, update: {}, create: { name: "administrator", description: "System administrator" } });

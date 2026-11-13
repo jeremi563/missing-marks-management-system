@@ -23,13 +23,14 @@ test("every administrator endpoint requires authentication before database acces
 	const id = "00000000-0000-4000-8000-000000000001";
 	const endpoints = [
 		["GET", "/api/v1/admin/pending-staff-accounts"], ["PATCH", `/api/v1/admin/users/${id}/approval`], ["POST", "/api/v1/admin/student-roster/import"],
-		["GET", "/api/v1/admin/users"], ["POST", "/api/v1/admin/users"], ["PATCH", `/api/v1/admin/users/${id}`],
+		["GET", "/api/v1/admin/users"], ["POST", "/api/v1/admin/users"], ["PATCH", `/api/v1/admin/users/${id}`], ["DELETE", `/api/v1/admin/users/${id}`],
 		["GET", "/api/v1/admin/departments"], ["POST", "/api/v1/admin/departments"], ["PATCH", `/api/v1/admin/departments/${id}`],
+		["GET", "/api/v1/admin/courses"], ["POST", "/api/v1/admin/courses"],
 		["GET", `/api/v1/admin/departments/${id}/members`], ["POST", `/api/v1/admin/departments/${id}/members`], ["DELETE", `/api/v1/admin/departments/${id}/members/${id}`],
 		["GET", "/api/v1/admin/course-units"], ["POST", "/api/v1/admin/course-units"], ["PATCH", `/api/v1/admin/course-units/${id}`],
 		["GET", "/api/v1/admin/academic-periods"], ["POST", "/api/v1/admin/academic-periods"], ["PATCH", `/api/v1/admin/academic-periods/${id}`],
-		["GET", "/api/v1/admin/enrolments"], ["POST", "/api/v1/admin/enrolments"], ["DELETE", `/api/v1/admin/enrolments/${id}`],
-		["GET", "/api/v1/admin/lecturer-mappings"], ["POST", "/api/v1/admin/lecturer-mappings"], ["DELETE", `/api/v1/admin/lecturer-mappings/${id}`],
+		["GET", "/api/v1/admin/enrolments"], ["DELETE", `/api/v1/admin/enrolments/${id}`],
+		["GET", "/api/v1/admin/lecturer-mappings"], ["DELETE", `/api/v1/admin/lecturer-mappings/${id}`],
 		["GET", "/api/v1/admin/classrooms"], ["POST", "/api/v1/admin/classrooms"], ["PATCH", `/api/v1/admin/classrooms/${id}`],
 		["GET", "/api/v1/admin/assessments"], ["POST", "/api/v1/admin/assessments"], ["PATCH", `/api/v1/admin/assessments/${id}`],
 		["GET", "/api/v1/admin/assessment-types"], ["POST", "/api/v1/admin/assessment-types"], ["PATCH", `/api/v1/admin/assessment-types/${id}`],

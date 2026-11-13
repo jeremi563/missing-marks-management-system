@@ -2,13 +2,12 @@ import { Router } from "express";
 import { validate } from "../../middleware/validate.js";
 import {
 	createCodCategory, decideCodAppeal, decideCodCase, getCodAppealById, getCodAppeals, getCodCategories,
-	getCodCaseById, getCodCases, getOverdueAppeals, getOverdueCases, getOverdueReports, updateCodCategory,
+	getCodCaseById, getCodCases, getOverdueAppeals, getOverdueCases, updateCodCategory,
 } from "./feature5.controller.js";
 import { appealIdParams, categoryCreateBody, categoryUpdateBody, decisionBody, itemIdParams, pageQuery, specialCaseIdParams, statusPageQuery } from "./feature5.validation.js";
 
 export const feature5CodRoutes = Router();
 
-feature5CodRoutes.get("/reports/overdue", validate(pageQuery, "query"), getOverdueReports);
 feature5CodRoutes.get("/appeals/overdue", validate(pageQuery, "query"), getOverdueAppeals);
 feature5CodRoutes.get("/special-cases/overdue", validate(pageQuery, "query"), getOverdueCases);
 feature5CodRoutes.get("/appeals", validate(statusPageQuery, "query"), getCodAppeals);

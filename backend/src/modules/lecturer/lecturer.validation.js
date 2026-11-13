@@ -34,6 +34,13 @@ export const attendanceDiscrepancyListQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 }).strict();
+export const lecturerStudentsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  departmentIds: z.string().optional().transform((value) => value === undefined ? undefined : value ? value.split(',') : []).pipe(
+    z.array(z.string().uuid()).max(50).optional(),
+  ),
+}).strict();
 
 // Feature 3: Report investigation and comments
 export const createCommentSchema = z.object({
@@ -120,8 +127,7 @@ export const createAttendanceSessionSchema = z
       .iso.datetime({
         offset: true,
         message: 'A valid session end datetime is required.',
-      })
-      .optional(),
+      }),
   })
   .superRefine((data, context) => {
     if (data.sessionType === 'CLASS' && data.assessmentId) {
@@ -143,8 +149,6 @@ export const createAttendanceSessionSchema = z
       });
     }
 
-    if (!data.endsAt) return;
-
     if (Date.parse(data.endsAt) <= Date.parse(data.startsAt)) {
       context.addIssue({
         code: 'custom',
@@ -153,3 +157,10 @@ export const createAttendanceSessionSchema = z
       });
     }
   });
+
+export const extendAttendanceSessionSchema = z.object({
+  endsAt: z.iso.datetime({
+    offset: true,
+    message: 'A valid session end datetime is required.',
+  }),
+}).strict();

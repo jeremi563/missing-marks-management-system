@@ -9,3 +9,18 @@ export function extractRecords(response, collectionKeys = []) {
   if (Array.isArray(data?.rows)) return data.rows
   return []
 }
+
+export function groupCourseUnitsByCourse(courseUnits) {
+  const groups = new Map()
+  for (const courseUnit of courseUnits) {
+    const course = courseUnit.course ?? null
+    const key = course?.id ?? course?.code ?? 'unassigned'
+    if (!groups.has(key)) groups.set(key, { course, courseUnits: [] })
+    groups.get(key).courseUnits.push(courseUnit)
+  }
+  return [...groups.values()].sort((left, right) => {
+    if (!left.course) return right.course ? 1 : 0
+    if (!right.course) return -1
+    return left.course.code.localeCompare(right.course.code)
+  })
+}

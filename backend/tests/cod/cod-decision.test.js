@@ -137,11 +137,11 @@ test("COD report detail conceals an out-of-scope report with 404", async () => {
   await assert.rejects(getCodReportDetails({ userId: "cod-user-1", reportId: "restricted-report", db }), { statusCode: 404 });
 });
 
-test("rejects a COD decision when the report is not escalated", async () => {
+test("conceals a COD decision when the report is not escalated", async () => {
   const { db, calls } = makeDecisionDb({ status: "PENDING" });
   await assert.rejects(
     () => decideEscalatedReport({ actorUserId: "cod-user-1", reportId: "report-1", decision: "REJECT", reason: "Review.", db }),
-    { statusCode: 409 },
+    { statusCode: 404 },
   );
   assert.equal(calls.updateArgs, undefined);
 });
@@ -204,7 +204,7 @@ test("escalated COD detail exposes report-scoped decision history and safe evide
     departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
     user: { findFirst: async () => ({ id: "cod-user-1" }) },
     department: { findMany: async ({ where }) => where.designatedCodUserId === "cod-user-1" ? [{ id: "dept-1" }] : [] },
-    missingMarkReport: { findFirst: async (args) => { calls.reportWhere = args.where; return args.where.courseUnit.departmentId.in.includes("dept-1") ? report : null; } },
+    missingMarkReport: { findFirst: async (args) => { calls.reportWhere = args.where; return args.where.status === "ESCALATED" && args.where.courseUnit.departmentId.in.includes("dept-1") ? report : null; } },
     unitEnrollment: { findUnique: async () => null },
     auditLog: { findMany: async (args) => { calls.auditWhere = args.where; return [{ id: "audit-1", action: "REPORT_ESCALATED", actorId: "lecturer-user-1", metadata: {}, createdAt: new Date(), actor: { id: "lecturer-user-1", displayName: "Lecturer" } }]; } },
   };
@@ -229,10 +229,10 @@ test("COD report detail remains department-scoped", async () => {
     missingMarkReport: { findFirst: async (args) => { reportWhere = args.where; return null; } },
   };
   await assert.rejects(() => getCodReportDetails({ userId: "cod-user-1", reportId: "report-1", db }), { statusCode: 404 });
-  assert.deepEqual(reportWhere, { id: "report-1", courseUnit: { departmentId: { in: ["dept-2"] } } });
+  assert.deepEqual(reportWhere, { id: "report-1", status: "ESCALATED", courseUnit: { departmentId: { in: ["dept-2"] } } });
 });
 
-test("existing COD list endpoint can filter to authorized escalated reports", async () => {
+test("COD report list is restricted to escalated reports in authorized departments", async () => {
   const calls = {};
   const db = {
     departmentMembership: { findMany: async () => [{ departmentId: "dept-1" }] },
@@ -246,7 +246,7 @@ test("existing COD list endpoint can filter to authorized escalated reports", as
   const result = await listDepartmentReports({ userId: "cod-user-1", status: "ESCALATED", page: 1, limit: 10, sort: "newest", db });
   assert.equal(result.total, 1);
   assert.deepEqual(calls.listWhere, {
-    courseUnit: { departmentId: { in: ["dept-1"] } },
     status: "ESCALATED",
+    courseUnit: { departmentId: { in: ["dept-1"] } },
   });
 });

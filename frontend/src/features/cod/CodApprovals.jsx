@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Check, RefreshCw, X } from 'lucide-react'
-import { decideLecturerApproval, getPendingLecturerApprovals } from '../../api/cod'
+import { Building2, Check, RefreshCw, X } from 'lucide-react'
+import {
+  decideLecturerApproval,
+  decideLecturerDepartmentRequest,
+  getLecturerDepartmentRequests,
+  getPendingLecturerApprovals,
+} from '../../api/cod'
 import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
@@ -8,21 +13,29 @@ import { extractRecords } from '../shared/recordUtils'
 
 export default function CodApprovals() {
   const [pending, setPending] = useState([])
+  const [departmentRequests, setDepartmentRequests] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState('')
   const [refresh, setRefresh] = useState(0)
 
   const load = useCallback(async () => {
-    const response = await getPendingLecturerApprovals()
-    return extractRecords(response, ['users', 'accounts', 'items'])
+    const [lecturerResponse, departmentResponse] = await Promise.all([
+      getPendingLecturerApprovals(),
+      getLecturerDepartmentRequests(),
+    ])
+    return {
+      lecturers: extractRecords(lecturerResponse, ['users', 'accounts', 'items']),
+      departmentRequests: extractRecords(departmentResponse, ['requests', 'items']),
+    }
   }, [])
 
   useEffect(() => {
     let active = true
-    load().then((users) => {
+    load().then(({ lecturers, departmentRequests: requests }) => {
       if (!active) return
-      setPending(users)
+      setPending(lecturers)
+      setDepartmentRequests(requests)
       setError('')
     }).catch((requestError) => {
       if (active) setError(requestError.userMessage || 'Unable to load lecturer approval requests.')
@@ -45,6 +58,19 @@ export default function CodApprovals() {
     }
   }
 
+  const decideDepartmentRequest = async (request, status) => {
+    setBusyId(`department-${request.id}`)
+    setError('')
+    try {
+      await decideLecturerDepartmentRequest(request.id, status)
+      setRefresh((value) => value + 1)
+    } catch (requestError) {
+      setError(requestError.userMessage || 'Unable to save the department membership decision.')
+    } finally {
+      setBusyId('')
+    }
+  }
+
   return (
     <section>
       <header className="page-heading">
@@ -54,9 +80,12 @@ export default function CodApprovals() {
       {error && <div className="form-alert" role="alert">{error}</div>}
       {loading ? <LoadingState message="Loading lecturer approval requests…" /> :
         error && pending.length === 0 ? <ErrorState title="Unable to load approval requests" message={error} onRetry={() => setRefresh((value) => value + 1)} /> :
-          pending.length === 0 ? <EmptyState title="No pending lecturer applications" message="New applications for your department will appear here after department registration." /> : (
-            <div className="records-grid">
-              {pending.map((user) => {
+          <>
+            <section aria-labelledby="lecturer-applications-title">
+              <h3 id="lecturer-applications-title">New lecturer applications</h3>
+              {pending.length === 0 ? <EmptyState title="No pending lecturer applications" message="New applications for your department will appear here after department registration." /> : (
+                <div className="records-grid">
+                  {pending.map((user) => {
                 const department = user.departmentMemberships?.[0]?.department
                 const staffNumber = user.lecturerProfile?.staffNumber ||
                   user.loginIdentifiers?.find(({ type }) => type === 'STAFF_NUMBER')?.value ||
@@ -75,9 +104,31 @@ export default function CodApprovals() {
                     </div>
                   </article>
                 )
-              })}
-            </div>
-          )}
+                  })}
+                </div>
+              )}
+            </section>
+            <section aria-labelledby="department-membership-requests-title">
+              <h3 id="department-membership-requests-title">Additional departments selected during registration</h3>
+              {departmentRequests.length === 0 ? <EmptyState title="No pending department requests" message="Requests from lecturers whose primary department has approved their account will appear here." /> : (
+                <div className="records-grid">
+                  {departmentRequests.map((request) => (
+                    <article className="record-card" key={request.id}>
+                      <div>
+                        <h3>{request.lecturer.displayName || request.lecturer.email}</h3>
+                        <p>{request.lecturer.email} · {request.lecturer.lecturerProfile?.staffNumber || 'Staff number unavailable'}</p>
+                        <small><Building2 size={14} aria-hidden="true" /> {request.department.name}{request.department.code ? ` · ${request.department.code}` : ''}</small>
+                      </div>
+                      <div className="record-actions">
+                        <button className="button button-primary" type="button" disabled={busyId === `department-${request.id}`} onClick={() => decideDepartmentRequest(request, 'APPROVED')}><Check size={15} /> Approve</button>
+                        <button className="button button-secondary" type="button" disabled={busyId === `department-${request.id}`} onClick={() => decideDepartmentRequest(request, 'REJECTED')}><X size={15} /> Reject</button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>}
     </section>
   )
 }

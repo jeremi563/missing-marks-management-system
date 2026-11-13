@@ -11,10 +11,6 @@ export default function DashboardLayout({ roleLabel, title, navigationItems }) {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const userName = user?.displayName || user?.fullName || user?.name || user?.email
-  const assignedRoles = Array.isArray(user?.roles) ? user.roles : [user?.role].filter(Boolean)
-  const roleLabels = ['administrator', 'cod', 'lecturer', 'student']
-    .filter((role) => assignedRoles.includes(role))
-    .map((role) => role === 'cod' ? 'COD' : role.charAt(0).toUpperCase() + role.slice(1))
   const currentPage = navigationItems
     .filter(({ to, end }) => pathname === to || (!end && pathname.startsWith(`${to}/`)))
     .sort((first, second) => second.to.length - first.to.length)[0]
@@ -24,7 +20,7 @@ export default function DashboardLayout({ roleLabel, title, navigationItems }) {
     <div className={`dashboard-layout portal-${roleLabel.toLowerCase()} ${roleLabel === 'Student' ? 'student-portal' : ''}`}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} navigationItems={navigationItems} roleLabel={roleLabel} />
       <div className="dashboard-main">
-        <Topbar title={pageTitle} userName={userName} roleLabels={roleLabels.length ? roleLabels : [roleLabel]} onMenuClick={() => setSidebarOpen(true)} />
+        <Topbar title={pageTitle} userName={userName} avatarData={user?.avatarData} onMenuClick={() => setSidebarOpen(true)} />
         <main className="dashboard-content"><Outlet /></main>
       </div>
     </div>

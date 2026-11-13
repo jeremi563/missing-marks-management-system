@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import {
   getCodDepartmentCourseUnits,
@@ -10,7 +10,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import Pager from '../../components/ui/Pager'
-import { extractRecords } from '../shared/recordUtils'
+import { extractRecords, groupCourseUnitsByCourse } from '../shared/recordUtils'
 
 const PAGE_SIZE = 20
 const contentTabs = [
@@ -160,12 +160,18 @@ export default function CodDepartmentWorkspace() {
                         activeTab === 'course-units' ? (
                           <div className="table-wrap">
                             <table>
-                              <thead><tr><th>Course-unit code</th><th>Course unit</th></tr></thead>
-                              <tbody>{records.map((courseUnit) => (
-                                <tr key={courseUnit.id}>
-                                  <td>{courseUnit.code}</td>
-                                  <td>{courseUnit.name}</td>
-                                </tr>
+                              <thead><tr><th>Course unit code</th></tr></thead>
+                              <tbody>{groupCourseUnitsByCourse(records).map(({ course, courseUnits }) => (
+                                <Fragment key={course?.id ?? 'unassigned'}>
+                                  <tr className="course-group-row">
+                                    <th scope="rowgroup">
+                                      {course ? `${course.code} — ${course.name}` : 'Course not assigned'}
+                                    </th>
+                                  </tr>
+                                  {courseUnits.map((courseUnit) => (
+                                    <tr key={courseUnit.id}><td>{courseUnit.code}</td></tr>
+                                  ))}
+                                </Fragment>
                               ))}</tbody>
                             </table>
                           </div>

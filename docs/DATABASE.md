@@ -26,8 +26,10 @@ The following core models are implemented in the shared Prisma schema. Exact fie
 | `StudentProfile` | Student-specific profile and institutional identifier. |
 | `LecturerProfile` | Lecturer-specific profile and staff identifier. |
 | `Department` | Academic department or organisational unit. |
-| `CourseUnit` | A course/unit offered by the institution. |
+| `Course` | A degree/programme within a department, identified by a two-digit code unique in that department. |
+| `CourseUnit` | A unit within a department course; legacy units may remain unclassified until an administrator assigns them. |
 | `UnitEnrollment` | Relationship between a student and a unit for an academic period. |
+| `StudentEnrollmentRequest` | A student's request to enroll in a course unit for an academic period, pending lecturer/COD review. |
 | `MissingMarkReport` | A student's missing-mark case and its current status. |
 | `AttendanceSession` | A class or attendance event created by an authorised lecturer. |
 | `AttendanceRecord` | A student's attendance record for a session. |
@@ -76,6 +78,8 @@ The team lead coordinates schema and migration integration unless the team assig
 8. Merge only after review and confirmation that the migration is compatible with the current `develop` branch.
 
 Do not have several contributors independently generate migrations from different versions of the shared schema and then merge them without coordination.
+
+The current academic structure models a department as owning multiple courses, with each course containing course units. Student numbers use `LLCC/DDDDD/YY`: two department-initial letters, a two-digit course code, a five-digit unique number, and an admission year between `13` and the current year. Student roster imports and new student registrations require the encoded department and course to exist. The course-unit `course_id` is nullable for existing records so administrators can classify legacy units without deleting academic history; CODs cannot assign unclassified units.
 
 ## 7. Seed data
 
@@ -128,9 +132,11 @@ This inventory documents the current schema, not a claim that every business rul
 | `departments` | `id: UUID`, `name: String`, `code: String?`, timestamps | Academic department; non-null code is unique. |
 | `department_memberships` | `id: UUID`, `userId/departmentId: UUID`, `createdAt: DateTime` | Links staff/accounts to departments; `(userId, departmentId)` unique. Role-specific access is still enforced in services. |
 | `course_units` | `id: UUID`, `departmentId: UUID`, `code/name: String`, timestamps | A unit belongs to one department. `(departmentId, code)` is unique. |
-| `academic_periods` | `id: UUID`, `code: String?`, `name: String`, `startsAt/endsAt: DateTime?`, `createdAt: DateTime` | Academic period referenced by enrollments and reports. A provided code is unique; the period naming convention is not yet fixed. |
+| `academic_periods` | `id: UUID`, `code: String?`, `name: String`, `startsAt/endsAt: DateTime?`, `enrollmentOpensAt/enrollmentClosesAt: DateTime?`, `createdAt: DateTime` | Academic period referenced by enrollments and reports. Administrators control student enrollment availability with an explicit open/close window; periods without both dates are closed. |
 | `unit_enrollments` | `id: UUID`, `studentProfileId/courseUnitId/academicPeriodId: UUID`, `createdAt: DateTime` | Student enrollment in a unit for a period; that three-column combination is unique. |
-| `course_unit_lecturers` | `id: UUID`, `courseUnitId/lecturerProfileId: UUID`, `createdAt: DateTime` | Lecturer-to-unit assignment; pair is unique. |
+| `course_unit_lecturers` | `id: UUID`, `courseUnitId/lecturerProfileId: UUID`, `academicYear: String?`, `createdAt: DateTime` | Lecturer-to-unit assignment; a course unit has at most one assignment per academic year. New assignments always have an academic year. Legacy duplicate mappings retain their rows but are unscoped (`academicYear = NULL`) so they cannot grant current access. |
+| `student_enrollment_requests` | `id: UUID`, `studentProfileId/courseUnitId/academicPeriodId: UUID`, `status`, optional `reviewedById/reviewedAt/decisionNote`, timestamps | Student course-enrollment request; one request per student, unit, and period. Approved requests are materialized as `unit_enrollments`. |
+| `department_membership_requests` | `id: UUID`, `lecturerUserId/departmentId: UUID`, `status`, optional `reviewedByUserId/reviewedAt`, timestamps | Additional department selected during lecturer registration. The designated COD can approve or reject it after the primary department approves the lecturer account; each lecturer/department pair is unique. |
 
 ### Reports and decisions
 
@@ -202,7 +208,7 @@ Important cross-field consistency checks cannot be expressed as ordinary Prisma 
 
 ## 12. Unique constraints and indexes
 
-The schema enforces unique user email, role name, student number, one profile per user, non-null lecturer staff number, non-null department code, provided academic-period code, unit code within department, role and department membership pairs, one student/unit/period enrollment, one lecturer/unit assignment, report reference, one appeal per report, one student/session attendance record, one student/assessment attendance row, one CAT submission per student/assessment, public-holiday date, assessment/category codes and names, notification/outbox dedupe keys, attendance session token hash, evidence storage key, one history row per source attendance record, one Admin correction per COD authorization, and one comment author per clarification decision. A custom SQL migration adds partial unique indexes that permit only one active discrepancy per student and source; these predicates are not expressible in the current Prisma schema language. Special cases are not unique by report. Query indexes support report lists by student/lecturer/status, deadline queues, notifications by user/time, and audit/history lookups.
+The schema enforces unique user email, role name, student number, one profile per user, non-null lecturer staff number, non-null department code, provided academic-period code, unit code within department, role and department membership pairs, one student/unit/period enrollment, one course-unit assignment per academic year, report reference, one appeal per report, one student/session attendance record, one student/assessment attendance row, one CAT submission per student/assessment, public-holiday date, assessment/category codes and names, notification/outbox dedupe keys, attendance session token hash, evidence storage key, one history row per source attendance record, one Admin correction per COD authorization, and one comment author per clarification decision. A custom SQL migration adds partial unique indexes that permit only one active discrepancy per student and source; these predicates are not expressible in the current Prisma schema language. Special cases are not unique by report. Query indexes support report lists by student/lecturer/status, deadline queues, notifications by user/time, and audit/history lookups.
 
 There is deliberately no partial unique index for “one active report”; that concurrency rule remains open. Appeals have a unique `report_id`, enforcing at most one appeal per report.
 

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   addCodReportComment,
-  assignCodReport,
   decideCodReport,
-  getCodEligibleLecturers,
   getCodReport,
   getCodReportComments,
 } from '../../api/cod'
@@ -19,10 +17,7 @@ function unwrap(response) {
 
 export default function CodReportPanel({ reportId, onClose }) {
   const [report, setReport] = useState(null)
-  const [lecturers, setLecturers] = useState([])
   const [comments, setComments] = useState([])
-  const [lecturerProfileId, setLecturerProfileId] = useState('')
-  const [reason, setReason] = useState('')
   const [comment, setComment] = useState('')
   const [decisionReason, setDecisionReason] = useState('')
   const [loading, setLoading] = useState(true)
@@ -30,14 +25,12 @@ export default function CodReportPanel({ reportId, onClose }) {
   const [error, setError] = useState('')
 
   const load = useCallback(async () => {
-    const [reportResponse, lecturersResponse, commentsResponse] = await Promise.all([
+    const [reportResponse, commentsResponse] = await Promise.all([
       getCodReport(reportId),
-      getCodEligibleLecturers(reportId),
       getCodReportComments(reportId),
     ])
     return {
       report: unwrap(reportResponse),
-      lecturers: extractRecords(lecturersResponse, ['lecturers', 'eligibleLecturers']),
       comments: extractRecords(commentsResponse, ['comments']),
     }
   }, [reportId])
@@ -46,7 +39,6 @@ export default function CodReportPanel({ reportId, onClose }) {
     load().then((data) => {
       if (!active) return
       setReport(data.report)
-      setLecturers(data.lecturers)
       setComments(data.comments)
       setError('')
     }).catch((requestError) => { if (active) setError(requestError.userMessage || 'Unable to load report details.') })
@@ -61,7 +53,6 @@ export default function CodReportPanel({ reportId, onClose }) {
       await operation()
       const data = await load()
       setReport(data.report)
-      setLecturers(data.lecturers)
       setComments(data.comments)
       setError('')
     } catch (requestError) {
@@ -79,12 +70,6 @@ export default function CodReportPanel({ reportId, onClose }) {
       {error && <div className="form-alert" role="alert">{error}</div>}
       <p>{report.description || report.reason || 'No description provided.'}</p>
       <div className="form-grid">
-        <form className="details-card" onSubmit={(event) => { event.preventDefault(); act(() => assignCodReport(reportId, { lecturerProfileId, ...(reason.trim() ? { reason: reason.trim() } : {}) })) }}>
-          <h3>Assign to lecturer</h3>
-          {lecturers.length ? <><label htmlFor="eligible-lecturer">Eligible lecturer</label><select id="eligible-lecturer" value={lecturerProfileId} onChange={(event) => setLecturerProfileId(event.target.value)} required><option value="">Select lecturer</option>{lecturers.map((lecturer) => <option key={lecturer.id || lecturer.lecturerProfileId} value={lecturer.lecturerProfileId || lecturer.id}>{lecturer.displayName || lecturer.name || lecturer.staffNumber || lecturer.email}</option>)}</select></> : <><label htmlFor="lecturer-profile-id">Lecturer profile UUID</label><input id="lecturer-profile-id" value={lecturerProfileId} onChange={(event) => setLecturerProfileId(event.target.value)} required /></>}
-          <label htmlFor="assignment-reason">Assignment note (optional)</label><textarea id="assignment-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={2000} />
-          <button className="button button-primary" disabled={busy || !lecturerProfileId}>Assign</button>
-        </form>
         <form className="details-card" onSubmit={(event) => { event.preventDefault(); act(() => decideCodReport(reportId, { decision: 'APPROVE', reason: decisionReason.trim() })) }}>
           <h3>Department decision</h3><label htmlFor="cod-decision-reason">Reason</label><textarea id="cod-decision-reason" value={decisionReason} onChange={(event) => setDecisionReason(event.target.value)} maxLength={2000} required />
           <div className="record-actions"><button className="button button-primary" disabled={busy}>Approve</button><button type="button" className="button button-secondary" disabled={busy || !decisionReason.trim()} onClick={() => act(() => decideCodReport(reportId, { decision: 'REJECT', reason: decisionReason.trim() }))}>Reject</button></div>

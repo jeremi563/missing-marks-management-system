@@ -6,8 +6,20 @@ const isValidYear = (value) => {
 };
 
 export function isStudentRegistrationNumber(value) {
-	const match = /^([a-z]{2})\/(\d{5})\/(\d{4})$/i.exec(value?.trim() ?? "");
-	return Boolean(match && isValidYear(match[3]));
+	return Boolean(parseStudentRegistrationNumber(value));
+}
+
+export function parseStudentRegistrationNumber(value, currentYear = new Date().getFullYear()) {
+	const match = /^([a-z]{2})(\d{2})\/(\d{5})\/(\d{2})$/i.exec(value?.trim() ?? "");
+	if (!match) return null;
+	const admissionYear = Number(match[4]);
+	if (admissionYear < 13 || admissionYear > currentYear % 100) return null;
+	return {
+		departmentInitials: match[1].toUpperCase(),
+		courseCode: match[2],
+		uniqueNumber: match[3],
+		admissionYear,
+	};
 }
 
 export function isStaffRegistrationNumber(value) {

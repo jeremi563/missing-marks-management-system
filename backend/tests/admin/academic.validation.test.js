@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { academicPeriodCreateBody, assessmentCreateBody, classroomCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody, enrollmentCreateBody } from "../../src/modules/admin/academic.validation.js";
+import { academicPeriodCreateBody, assessmentCreateBody, classroomCreateBody, courseCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody } from "../../src/modules/admin/academic.validation.js";
 import { reopenReportBody, reassignReportBody } from "../../src/modules/admin/operations.validation.js";
 
 const id = "00000000-0000-4000-8000-000000000001";
 
 test("academic structure validators accept valid department relationships", () => {
-	assert.equal(courseUnitCreateBody.safeParse({ departmentId: id, code: "CS101", name: "Computer Science" }).success, true);
-	assert.equal(enrollmentCreateBody.safeParse({ studentProfileId: id, courseUnitId: id, academicPeriodId: id }).success, true);
+	assert.equal(courseCreateBody.safeParse({ departmentId: id, code: "16", name: "BSc Computing" }).success, true);
+	assert.equal(courseCreateBody.safeParse({ departmentId: id, code: "160", name: "BSc Computing" }).success, false);
+	assert.equal(courseUnitCreateBody.safeParse({ courseId: id, code: "CS101", name: "Computer Science" }).success, true);
 	assert.equal(departmentCreateBody.safeParse({ name: "Computing", initials: "IN" }).success, true);
 	assert.equal(departmentCreateBody.safeParse({ name: "Computing", initials: "in" }).success, false);
 	assert.equal(departmentCreateBody.safeParse({ name: "Computing", initials: "C" }).success, false);
@@ -18,9 +19,23 @@ test("academic structure validators accept valid department relationships", () =
 	assert.equal(departmentUpdateBody.safeParse({ name: "Computing", initials: "IN", code: "COMP" }).success, true);
 });
 
-test("academic period validation rejects an end before its start", () => {
+test("academic period validation enforces academic and enrollment-window date pairs", () => {
 	const result = academicPeriodCreateBody.safeParse({ name: "2026 Semester 1", startsAt: "2026-01-01T00:00:00Z", endsAt: "2025-12-31T00:00:00Z" });
 	assert.equal(result.success, false);
+	assert.equal(academicPeriodCreateBody.safeParse({
+		name: "2026/27",
+		enrollmentOpensAt: "2026-09-01T00:00:00Z",
+		enrollmentClosesAt: "2026-10-01T23:59:59Z",
+	}).success, true);
+	assert.equal(academicPeriodCreateBody.safeParse({
+		name: "2026/27",
+		enrollmentOpensAt: "2026-10-01T00:00:00Z",
+		enrollmentClosesAt: "2026-09-01T23:59:59Z",
+	}).success, false);
+	assert.equal(academicPeriodCreateBody.safeParse({
+		name: "2026/27",
+		enrollmentOpensAt: "2026-09-01T00:00:00Z",
+	}).success, false);
 });
 
 test("classroom validation enforces coordinate and boundary ranges", () => {

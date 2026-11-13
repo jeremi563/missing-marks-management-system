@@ -1,13 +1,30 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody } from "../../src/modules/student/student.validation.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn } from "../../src/modules/student/student.validation.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
 	assert.ok(profileRoute);
 	assert.equal(profileRoute.route.methods.get, true);
 	assert.equal(profileRoute.route.stack.length, 3);
+});
+
+test("registers the student course-enrollment options and request endpoints", () => {
+	const optionsRoute = router.stack.find((layer) => layer.route?.path === "/enrollment-options");
+	const requestRoute = router.stack.find((layer) => layer.route?.path === "/enrollment-requests" && layer.route.methods.post);
+	assert.ok(optionsRoute);
+	assert.equal(optionsRoute.route.methods.get, true);
+	assert.equal(optionsRoute.route.stack.length, 3);
+	assert.ok(requestRoute);
+	assert.equal(requestRoute.route.stack.length, 4);
+});
+
+test("registers GET /report-options with authentication and student-role checks", () => {
+	const optionsRoute = router.stack.find((layer) => layer.route?.path === "/report-options");
+	assert.ok(optionsRoute);
+	assert.equal(optionsRoute.route.methods.get, true);
+	assert.equal(optionsRoute.route.stack.length, 3);
 });
 
 test("registers GET /reports with auth, student-role, and query validation", () => {
@@ -71,6 +88,38 @@ test("registers GET /attendance with auth, student-role, and pagination validati
 	assert.equal(attendanceRoute.route.stack.length, 4);
 });
 
+test("registers POST /attendance/check-in with student auth, role checks and location validation", () => {
+	const route = router.stack.find((layer) => layer.route?.path === "/attendance/check-in");
+	assert.ok(route);
+	assert.equal(route.route.methods.post, true);
+	assert.equal(route.route.stack.length, 4);
+});
+
+test("validates attendance check-in token and GPS coordinates", () => {
+	const req = {
+		body: {
+			token: "a".repeat(64),
+			latitude: -1.286389,
+			longitude: 36.817223,
+			accuracyMeters: 12,
+		},
+	};
+	let capturedError;
+	validateStudentAttendanceCheckIn(req, {}, (error) => { capturedError = error; });
+	assert.equal(capturedError, undefined);
+	assert.deepEqual(req.validatedBody, req.body);
+
+	let coarseLocationError;
+	const coarseLocationRequest = { body: { ...req.body, accuracyMeters: 6000 } };
+	validateStudentAttendanceCheckIn(coarseLocationRequest, {}, (error) => { coarseLocationError = error; });
+	assert.equal(coarseLocationError, undefined);
+	assert.equal(coarseLocationRequest.validatedBody.accuracyMeters, 6000);
+
+	let invalidError;
+	validateStudentAttendanceCheckIn({ body: { ...req.body, latitude: 91 } }, {}, (error) => { invalidError = error; });
+	assert.equal(invalidError.statusCode, 400);
+});
+
 test("registers GET /notifications with auth, student-role, and pagination validation", () => {
 	const notificationsRoute = router.stack.find((layer) => layer.route?.path === "/notifications");
 	assert.ok(notificationsRoute);
@@ -82,7 +131,7 @@ test("validates report submission fields and rejects client identity fields", ()
 	const req = {
 		body: {
 			courseUnitId: "550e8400-e29b-41d4-a716-446655440000",
-			academicPeriodId: "550e8400-e29b-41d4-a716-446655440001",
+			academicYear: "2026/27",
 			assessmentComponent: "CAT 1",
 			description: "My CAT mark is missing.",
 		},
@@ -91,6 +140,18 @@ test("validates report submission fields and rejects client identity fields", ()
 	validateCreateReportBody(req, {}, (error) => { validationError = error; });
 	assert.equal(validationError, undefined);
 	assert.equal(req.validatedBody.assessmentId, undefined);
+
+	const noAssessmentMetadataRequest = { body: { ...req.body, assessmentComponent: undefined } };
+	delete noAssessmentMetadataRequest.body.assessmentComponent;
+	let noAssessmentMetadataError;
+	validateCreateReportBody(noAssessmentMetadataRequest, {}, (error) => { noAssessmentMetadataError = error; });
+	assert.equal(noAssessmentMetadataError, undefined);
+
+	let invalidAcademicYearError;
+	validateCreateReportBody({ body: { ...req.body, academicYear: "2027/28" } }, {}, (error) => { invalidAcademicYearError = error; });
+	assert.equal(invalidAcademicYearError, undefined);
+	validateCreateReportBody({ body: { ...req.body, academicYear: "2026/2027" } }, {}, (error) => { invalidAcademicYearError = error; });
+	assert.equal(invalidAcademicYearError.statusCode, 400);
 
 	let identityError;
 	validateCreateReportBody({ body: { ...req.body, studentProfileId: "forged" } }, {}, (error) => { identityError = error; });

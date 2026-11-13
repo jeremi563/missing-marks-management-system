@@ -48,7 +48,7 @@ async function makeScenario() {
       academicPeriodId: period.id,
       assessmentComponent: "CAT 1",
       description: "Comment test report",
-      status: "submitted",
+      status: "ESCALATED",
     },
   });
   const jwt = await import("jsonwebtoken");

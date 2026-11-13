@@ -20,9 +20,11 @@ import StudentReports from './features/student/StudentReports'
 import StudentReportDetails from './features/student/StudentReportDetails'
 import StudentAppeals from './features/student/StudentAppeals'
 import StudentAttendance from './features/student/StudentAttendance'
+import StudentAttendanceCheckIn from './features/student/StudentAttendanceCheckIn'
 import StudentNotifications from './features/student/StudentNotifications'
 import StudentProfile from './features/student/StudentProfile'
 import StudentReportCreate from './features/student/StudentReportCreate'
+import StudentEnrollmentRequests from './features/student/StudentEnrollmentRequests'
 import LecturerReports from './features/lecturer/LecturerReports'
 import LecturerCourseUnits from './features/lecturer/LecturerCourseUnits'
 import LecturerStudents from './features/lecturer/LecturerStudents'
@@ -39,6 +41,8 @@ import AdminUsers from './features/admin/AdminUsers'
 import AdminApprovals from './features/admin/AdminApprovals'
 import AdminAcademic from './features/admin/AdminAcademic'
 import AdminSettings from './features/admin/AdminSettings'
+import EnrollmentRequestInbox from './features/shared/EnrollmentRequestInbox'
+import StaffNotifications from './features/shared/StaffNotifications'
 
 function App() {
   return (
@@ -69,12 +73,14 @@ function App() {
             />
             <Route path="reports" element={<StudentReports />} />
             <Route path="reports/new" element={<StudentReportCreate />} />
+            <Route path="enrollments" element={<StudentEnrollmentRequests />} />
             <Route
               path="reports/:reportId"
               element={<StudentReportDetails />}
             />
             <Route path="appeals" element={<StudentAppeals />} />
             <Route path="attendance" element={<StudentAttendance />} />
+            <Route path="attendance/check-in" element={<StudentAttendanceCheckIn />} />
             <Route path="notifications" element={<StudentNotifications />} />
             <Route path="profile" element={<StudentProfile />} />
             <Route path="settings" element={<AccountSettings roleLabel="Student" />} />
@@ -99,7 +105,9 @@ function App() {
             />
             <Route path="course-units" element={<LecturerCourseUnits />} />
             <Route path="students" element={<LecturerStudents />} />
+            <Route path="enrollment-requests" element={<EnrollmentRequestInbox />} />
             <Route path="reports" element={<LecturerReports />} />
+            <Route path="notifications" element={<StaffNotifications audience="lecturer" />} />
             <Route path="attendance" element={<LecturerAttendance />} />
             <Route path="special-cases" element={<LecturerSpecialCases />} />
             <Route path="settings" element={<AccountSettings roleLabel="Lecturer" />} />
@@ -124,8 +132,10 @@ function App() {
             />
             <Route path="departments" element={<CodDepartmentWorkspace />} />
             <Route path="course-unit-assignments" element={<CodCourseUnitAssignments />} />
+            <Route path="enrollment-requests" element={<EnrollmentRequestInbox audience="cod" />} />
             <Route path="lecturer-approvals" element={<CodApprovals />} />
             <Route path="reports" element={<CodReports />} />
+            <Route path="notifications" element={<StaffNotifications audience="cod" />} />
             <Route path="appeals" element={<CodAppeals />} />
             <Route path="attendance" element={<CodAttendance />} />
             <Route path="special-cases" element={<CodSpecialCases />} />

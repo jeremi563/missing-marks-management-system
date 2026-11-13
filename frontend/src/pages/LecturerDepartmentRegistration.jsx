@@ -10,7 +10,8 @@ const initialForm = {
   email: '',
   registrationNumber: '',
   password: '',
-  departmentId: '',
+  departmentIds: [],
+  primaryDepartmentId: '',
 }
 
 export default function LecturerDepartmentRegistration() {
@@ -41,6 +42,22 @@ export default function LecturerDepartmentRegistration() {
   }, [])
 
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
+
+  const toggleDepartment = (departmentId) => {
+    setForm((current) => {
+      const selected = current.departmentIds.includes(departmentId)
+      const departmentIds = selected
+        ? current.departmentIds.filter((id) => id !== departmentId)
+        : [...current.departmentIds, departmentId]
+      return {
+        ...current,
+        departmentIds,
+        primaryDepartmentId: selected && current.primaryDepartmentId === departmentId
+          ? departmentIds[0] || ''
+          : current.primaryDepartmentId || departmentId,
+      }
+    })
+  }
 
   const submit = async (event) => {
     event.preventDefault()
@@ -74,14 +91,14 @@ export default function LecturerDepartmentRegistration() {
           <>
             <p className="eyebrow">APPLICATION SUBMITTED</p>
             <h1>Awaiting department COD approval</h1>
-            <p className="auth-intro">Your lecturer details have been matched to the account you created. Your selected department's COD will review the application before you can sign in.</p>
+            <p className="auth-intro">Your primary department's COD will review your lecturer application. Any additional department memberships you selected will be reviewed separately after your account is approved.</p>
             <Link className="button button-primary button-full" to="/login">Go to sign in</Link>
           </>
         ) : (
           <>
             <p className="eyebrow">LECTURER REGISTRATION · STEP 2</p>
-            <h1>Choose your department</h1>
-            <p className="auth-intro">Re-enter the details from your first registration and select your department. The department's designated COD will review your application.</p>
+            <h1>Select your teaching departments</h1>
+            <p className="auth-intro">Re-enter the details from your first registration, select every department you teach in, then choose which department’s COD should review your lecturer account.</p>
             {error && <div className="form-alert" role="alert">{error}</div>}
             <form onSubmit={submit}>
               <label htmlFor="lecturer-register-name">Full name</label>
@@ -97,13 +114,41 @@ export default function LecturerDepartmentRegistration() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              <label htmlFor="lecturer-register-department">Department</label>
-              <select id="lecturer-register-department" name="departmentId" value={form.departmentId} onChange={update} required disabled={loadingDepartments || departments.length === 0}>
-                <option value="">{loadingDepartments ? 'Loading departments…' : 'Select your department'}</option>
-                {departments.map((department) => <option value={department.id} key={department.id}>{department.name}{department.code ? ` (${department.code})` : ''}</option>)}
-              </select>
+              <fieldset className="lecturer-registration-departments" disabled={loadingDepartments || departments.length === 0}>
+                <legend>{loadingDepartments ? 'Loading departments…' : 'Departments you teach in'}</legend>
+                {departments.map((department) => {
+                  const selected = form.departmentIds.includes(department.id)
+                  return (
+                    <div className="lecturer-registration-department" key={department.id}>
+                      <label>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleDepartment(department.id)}
+                        />
+                        {department.name}{department.code ? ` (${department.code})` : ''}
+                      </label>
+                      {selected && (
+                        <label>
+                          <input
+                            type="radio"
+                            name="primaryDepartmentId"
+                            value={department.id}
+                            checked={form.primaryDepartmentId === department.id}
+                            onChange={() => setForm((current) => ({ ...current, primaryDepartmentId: department.id }))}
+                          />
+                          Primary department
+                        </label>
+                      )}
+                    </div>
+                  )
+                })}
+              </fieldset>
+              {!loadingDepartments && departments.length > 0 && (
+                <small className="field-hint">The primary department’s COD approves your account. CODs for other selected departments review those memberships separately.</small>
+              )}
               {!loadingDepartments && departments.length === 0 && <small className="field-hint">No departments are configured yet. Contact an administrator before completing registration.</small>}
-              <button className="button button-primary button-full" type="submit" disabled={submitting || loadingDepartments || departments.length === 0}>{submitting ? 'Submitting…' : 'Submit for COD approval'}</button>
+              <button className="button button-primary button-full" type="submit" disabled={submitting || loadingDepartments || departments.length === 0 || !form.primaryDepartmentId}>{submitting ? 'Submitting…' : 'Submit for COD approval'}</button>
             </form>
             <p className="auth-switch">Already completed this form? <Link to="/login">Sign in</Link></p>
           </>

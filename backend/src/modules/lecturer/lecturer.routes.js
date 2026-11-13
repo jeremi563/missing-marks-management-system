@@ -8,6 +8,7 @@ import {
   getReports,
   getAssignedCourseUnits,
   getAssignedCourseUnitAssessments,
+  getActiveClassrooms,
   getAssignedStudents,
   getReportById,
   getComments,
@@ -19,6 +20,8 @@ import {
   getAttendanceSessionsController,
   getAttendanceSessionByIdController,
   startAttendanceSessionController,
+  generateAttendanceLinkController,
+  extendAttendanceSessionController,
   endAttendanceSessionController,
   getAttendanceSessionRecordsController,
 } from './lecturer.controller.js';
@@ -32,18 +35,32 @@ import {
   escalateReportSchema,
   submitCorrectionSchema,
   createAttendanceSessionSchema,
+  extendAttendanceSessionSchema,
   attendanceSessionIdSchema,
   courseUnitAssessmentsQuerySchema,
   courseUnitIdParamsSchema,
+  lecturerStudentsQuerySchema,
 } from './lecturer.validation.js';
 import { createLecturerDiscrepancy, getLecturerDiscrepancy, getLecturerDiscrepancies, reviewLecturerDiscrepancy, respondLecturerDiscrepancy } from './attendance-discrepancy.controller.js';
 import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema, createAttendanceDiscrepancySchema, reviewAttendanceDiscrepancySchema } from './lecturer.validation.js';
+import { getEnrollmentRequestsForReviewer, postEnrollmentRequestDecision } from '../enrollment/enrollment-request.controller.js';
+import { enrollmentRequestDecisionBody, enrollmentRequestListQuery } from '../enrollment/enrollment-request.validation.js';
+import { getLecturerDepartments } from '../department-membership/department-membership.controller.js';
+import { getUserNotifications, patchAllUserNotificationsRead, patchUserNotificationRead } from '../../shared/controllers/user-notifications.controller.js';
+import { userNotificationIdParams, userNotificationsQuery } from '../../shared/validation/user-notifications.validation.js';
 
 const router = express.Router();
 
+router.get('/notifications', authenticate, authorize('lecturer'), validate(userNotificationsQuery, 'query'), getUserNotifications);
+router.patch('/notifications/read-all', authenticate, authorize('lecturer'), patchAllUserNotificationsRead);
+router.patch('/notifications/:notificationId/read', authenticate, authorize('lecturer'), validate(userNotificationIdParams, 'params'), patchUserNotificationRead);
 router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCourseUnits);
 router.get('/course-units/:courseUnitId/assessments', authenticate, authorize('lecturer'), validate(courseUnitIdParamsSchema, 'params'), validate(courseUnitAssessmentsQuerySchema, 'query'), getAssignedCourseUnitAssessments);
-router.get('/students', authenticate, authorize('lecturer'), validate(pageQuery, 'query'), getAssignedStudents);
+router.get('/classrooms', authenticate, authorize('lecturer'), getActiveClassrooms);
+router.get('/students', authenticate, authorize('lecturer'), validate(lecturerStudentsQuerySchema, 'query'), getAssignedStudents);
+router.get('/enrollment-requests', authenticate, authorize('lecturer', 'cod'), validate(enrollmentRequestListQuery, 'query'), getEnrollmentRequestsForReviewer);
+router.post('/enrollment-requests/decision', authenticate, authorize('lecturer', 'cod'), validate(enrollmentRequestDecisionBody), postEnrollmentRequestDecision);
+router.get('/departments', authenticate, authorize('lecturer'), getLecturerDepartments);
 
 router.post('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(createAttendanceDiscrepancySchema), createLecturerDiscrepancy);
 router.get('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyListQuerySchema, 'query'), getLecturerDiscrepancies);
@@ -159,6 +176,23 @@ router.post(
   authorize('lecturer'),
   validate(attendanceSessionIdSchema, 'params'),
   startAttendanceSessionController
+);
+
+router.post(
+  '/attendance/sessions/:sessionId/attendance-link',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  generateAttendanceLinkController
+);
+
+router.patch(
+  '/attendance/sessions/:sessionId/end-time',
+  authenticate,
+  authorize('lecturer'),
+  validate(attendanceSessionIdSchema, 'params'),
+  validate(extendAttendanceSessionSchema),
+  extendAttendanceSessionController
 );
 
 // End attendance session

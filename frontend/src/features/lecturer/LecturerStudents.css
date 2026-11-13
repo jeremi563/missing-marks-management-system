@@ -1,0 +1,291 @@
+.lecturer-students-page {
+  display: grid;
+  gap: 1.35rem;
+}
+
+.lecturer-students-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+
+.lecturer-students-heading > div > p:last-child {
+  max-width: 650px;
+  margin-bottom: 0;
+}
+
+.lecturer-student-list-heading,
+.lecturer-course-student-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lecturer-student-list-heading h3,
+.lecturer-course-student-group h4 {
+  margin: 0;
+}
+
+.lecturer-student-list-heading .eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--teal, #087e83);
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.13em;
+}
+
+.lecturer-student-list-heading p {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted, #667085);
+}
+
+.lecturer-department-filter-panel {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(17px, 2.4vw, 24px);
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #dce8e7);
+  border-radius: 15px;
+  box-shadow: 0 5px 20px #163c4008;
+}
+
+.lecturer-department-filter-header,
+.lecturer-department-filter-title,
+.lecturer-department-filter-controls {
+  display: flex;
+  align-items: center;
+}
+
+.lecturer-department-filter-header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lecturer-department-filter-title {
+  min-width: 0;
+  gap: 0.85rem;
+}
+
+.lecturer-department-filter-icon {
+  display: grid;
+  flex: 0 0 40px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  color: #087e83;
+  background: #e4f3f1;
+  border-radius: 12px;
+}
+
+.lecturer-department-filter-title h3 {
+  margin: 0;
+  color: var(--ink, #132d35);
+  font-size: 0.97rem;
+}
+
+.lecturer-department-filter-title p,
+.lecturer-department-filter-message {
+  margin: 0.25rem 0 0;
+  color: var(--muted, #647a80);
+  font-size: 0.8rem;
+}
+
+.lecturer-department-filter-controls {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.7rem;
+}
+
+.lecturer-department-selection-count {
+  padding: 0.38rem 0.65rem;
+  color: #17675f;
+  background: #e9f6f2;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.lecturer-department-action {
+  padding: 0.35rem 0;
+  color: var(--teal-dark, #06676c);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.lecturer-department-action:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.lecturer-department-action:disabled {
+  color: #9aabad;
+  cursor: not-allowed;
+}
+
+.lecturer-course-student-group small {
+  color: var(--text-muted, #667085);
+}
+
+.lecturer-department-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 0.65rem;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.lecturer-department-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: 19px 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 60px;
+  padding: 0.65rem 0.8rem;
+  color: var(--ink, #132d35);
+  background: #fbfdfd;
+  border: 1px solid var(--line, #dce8e7);
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.lecturer-department-option:hover {
+  border-color: #9dcac4;
+  box-shadow: 0 3px 12px #163c400d;
+}
+
+.lecturer-department-option.selected {
+  background: #f1faf8;
+  border-color: #78bdb2;
+  box-shadow: inset 0 0 0 1px #78bdb233;
+}
+
+.lecturer-department-option > input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.lecturer-department-option > input:focus-visible + .lecturer-department-check {
+  outline: 3px solid #087e8340;
+  outline-offset: 3px;
+}
+
+.lecturer-department-check {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  color: #fff;
+  background: #fff;
+  border: 1.5px solid #b8c9c7;
+  border-radius: 6px;
+}
+
+.lecturer-department-option.selected .lecturer-department-check {
+  background: #087e83;
+  border-color: #087e83;
+}
+
+.lecturer-department-code {
+  display: grid;
+  place-items: center;
+  min-width: 40px;
+  min-height: 30px;
+  padding: 0 0.45rem;
+  color: #17675f;
+  background: #e4f3f1;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+
+.lecturer-department-name {
+  overflow: hidden;
+  color: #38545a;
+  font-size: 0.8rem;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lecturer-course-student-group {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border, #d0d5dd);
+}
+
+.lecturer-course-student-group > header > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.lecturer-course-student-group > header > span {
+  color: var(--text-muted, #667085);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 640px) {
+  .lecturer-students-heading,
+  .lecturer-department-filter-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lecturer-department-filter-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .lecturer-department-selection-count {
+    margin-right: auto;
+  }
+
+  .lecturer-course-student-group > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+[data-theme="dark"] .lecturer-department-filter-panel {
+  background: #1a3034;
+  border-color: #30494c;
+}
+
+[data-theme="dark"] .lecturer-department-filter-title h3,
+[data-theme="dark"] .lecturer-department-name {
+  color: #dce9e8;
+}
+
+[data-theme="dark"] .lecturer-department-option {
+  color: #dce9e8;
+  background: #172e32;
+  border-color: #385254;
+}
+
+[data-theme="dark"] .lecturer-department-option.selected {
+  background: #1c3b3b;
+  border-color: #579e94;
+}
+
+[data-theme="dark"] .lecturer-department-option > input + .lecturer-department-check {
+  background: #14282c;
+  border-color: #597071;
+}
+
+[data-theme="dark"] .lecturer-department-option.selected .lecturer-department-check {
+  background: #087e83;
+  border-color: #087e83;
+}

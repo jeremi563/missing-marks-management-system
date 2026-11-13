@@ -34,7 +34,10 @@ function fakeDb({ active = true, codRole = true, memberships = [ids.department],
     departmentMembership: { findMany: capture("departmentMembership", "findMany", memberships.map((departmentId) => ({ departmentId }))) },
     user: { findFirst: capture("user", "findFirst", active && codRole ? { id: ids.user } : null) },
     lecturerProfile: { findUnique: capture("lecturerProfile", "findUnique", { id: "88888888-8888-4888-8888-888888888888" }) },
-    courseUnitLecturer: { findUnique: capture("courseUnitLecturer", "findUnique", { id: "assignment-1" }) },
+    courseUnitLecturer: {
+      findUnique: capture("courseUnitLecturer", "findUnique", { id: "assignment-1" }),
+      findFirst: capture("courseUnitLecturer", "findFirst", { id: "assignment-1" }),
+    },
     department: { findMany: capture("department", "findMany", designated.map((id) => ({ id }))) },
     attendanceRecord: {
       findMany: capture("attendanceRecord", "findMany", []), count: capture("attendanceRecord", "count", counts.attendanceRecord),

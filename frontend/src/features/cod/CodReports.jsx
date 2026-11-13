@@ -7,11 +7,11 @@ export default function CodReports() {
   const [selectedId, setSelectedId] = useState('')
   return <>
     <RecordListPage
-      title="Department reports"
-      description="Open a report to inspect its details, assign an eligible lecturer, add a comment, or decide the case."
+      title="Escalated reports"
+      description="Review reports escalated by lecturers, add a department comment, and record a final decision."
       fetchRecords={getCodReports}
       collectionKeys={['reports']}
-      emptyMessage="There are no department reports to review."
+      emptyMessage="There are no reports escalated to your department."
       renderActions={(report) => <button className="button button-secondary" onClick={() => setSelectedId(report.id)}>Review</button>}
     />
     {selectedId && <CodReportPanel reportId={selectedId} onClose={() => setSelectedId('')} />}

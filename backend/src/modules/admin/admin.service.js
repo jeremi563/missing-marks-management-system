@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../../config/database.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { AppError } from "../../shared/utils/app-error.js";
+import { parseStudentRegistrationNumber } from "../../shared/utils/registration-number.js";
 
 const userSelect = {
 	id: true,
@@ -73,6 +74,14 @@ async function setLoginIdentifier(tx, userId, roles, { studentNumber, staffNumbe
 
 async function countActiveAdministrators(tx) {
 	return tx.user.count({ where: { isActive: true, roles: { some: { role: { name: "administrator" } } } } });
+}
+
+async function countSystemAdministrators(tx) {
+	return tx.user.count({ where: { roles: { some: { role: { name: "administrator" } } } } });
+}
+
+async function lockAdministratorCapacity(tx) {
+	await tx.$queryRaw`SELECT pg_advisory_xact_lock(37037002) IS NULL AS locked`;
 }
 
 async function validateRoleLifecycle(tx, { userId, currentRoles, nextRoles, nextIsActive }) {
@@ -151,11 +160,29 @@ export async function getAdminUser({ db = prisma, userId }) {
 	};
 }
 
-export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber, adminNumber }) {
+export async function createAdminUser({ db = prisma, actorUserId, email, password, displayName, roles, studentNumber, staffNumber, adminNumber, departmentId }) {
 	return db.$transaction(async (tx) => {
 		const accountRoles = includeLecturerRole(roles);
 		if (!accountRoles.includes("administrator") && !accountRoles.includes("cod")) {
 			throw new AppError(422, "Only administrator and COD accounts can be created here");
+		}
+		if (accountRoles.includes("administrator")) {
+			await lockAdministratorCapacity(tx);
+			if (await countSystemAdministrators(tx) >= 2) {
+				throw new AppError(409, "The system can have at most two administrator accounts");
+			}
+		}
+		let department;
+		if (accountRoles.includes("cod")) {
+			if (!departmentId) throw new AppError(422, "Select a department for the new COD account");
+			department = await tx.department.findUnique({
+				where: { id: departmentId },
+				select: { id: true, designatedCodUserId: true },
+			});
+			if (!department) throw new AppError(404, "Department not found");
+			if (department.designatedCodUserId) throw new AppError(409, "This department already has a designated COD");
+		} else if (departmentId) {
+			throw new AppError(422, "A department can only be selected when creating a COD account");
 		}
 		const roleRecords = await validateRoles(tx, accountRoles);
 		const normalizedNumbers = { studentNumber: studentNumber?.toUpperCase(), staffNumber: staffNumber?.toUpperCase(), adminNumber: adminNumber?.toUpperCase() };
@@ -164,20 +191,34 @@ export async function createAdminUser({ db = prisma, actorUserId, email, passwor
 		await tx.userRole.createMany({ data: roleRecords.map(({ id: roleId }) => ({ userId: user.id, roleId })) });
 		if (accountRoles.includes("lecturer")) await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber: normalizedNumbers.staffNumber } });
 		await setLoginIdentifier(tx, user.id, accountRoles, normalizedNumbers);
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_CREATED", entityType: "User", entityId: user.id, metadata: { roles: accountRoles } });
+		if (department) {
+			await tx.departmentMembership.create({ data: { userId: user.id, departmentId: department.id } });
+			const designated = await tx.department.updateMany({
+				where: { id: department.id, designatedCodUserId: null },
+				data: { designatedCodUserId: user.id },
+			});
+			if (designated.count !== 1) throw new AppError(409, "This department already has a designated COD");
+		}
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_CREATED", entityType: "User", entityId: user.id, metadata: { roles: accountRoles, ...(department ? { departmentId: department.id } : {}) } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
 	});
 }
 
-export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, isActive, roles, departmentId }) {
+export async function updateAdminUser({ db = prisma, actorUserId, userId, email, password, displayName, studentNumber, isActive, roles, departmentId }) {
 	return db.$transaction(async (tx) => {
 		const current = await tx.user.findUnique({ where: { id: userId }, select: { ...userSelect, passwordHash: true } });
 		if (!current) throw new AppError(404, "User not found");
 		const currentRoles = current.roles.map(({ role }) => role.name);
+		const nextRoles = includeLecturerRole(roles ?? currentRoles);
+		if (!currentRoles.includes("administrator") && nextRoles.includes("administrator")) {
+			await lockAdministratorCapacity(tx);
+			if (await countSystemAdministrators(tx) >= 2) {
+				throw new AppError(409, "The system can have at most two administrator accounts");
+			}
+		}
 		if (userId === actorUserId && currentRoles.includes("administrator") && isActive === false) {
 			throw new AppError(409, "Administrators cannot deactivate their own account");
 		}
-		const nextRoles = includeLecturerRole(roles ?? currentRoles);
 		const isStaff = currentRoles.some((role) => role === "lecturer" || role === "cod");
 		if (isActive === true && isStaff && current.approvalStatus !== "APPROVED") {
 			throw new AppError(409, "Approve this lecturer from the Lecturer approvals page before activating the account");
@@ -210,15 +251,42 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 			const membership = await tx.departmentMembership.findUnique({ where: { userId_departmentId: { userId, departmentId } }, select: { id: true } });
 			if (!membership) await tx.departmentMembership.create({ data: { userId, departmentId } });
 			if (department.designatedCodUserId !== userId) {
-				await tx.department.update({ where: { id: departmentId }, data: { designatedCodUserId: userId } });
+				const designation = await tx.department.updateMany({
+					where: { id: departmentId, designatedCodUserId: null },
+					data: { designatedCodUserId: userId },
+				});
+				if (designation.count !== 1) throw new AppError(409, "Each department can have only one designated COD");
 			}
 		}
 		const currentIdentifier = current.loginIdentifiers?.[0]?.value;
+		const normalizedStudentNumber = studentNumber?.trim().toUpperCase();
 		const normalizedNumbers = {
-			studentNumber: current.studentProfile?.studentNumber?.toUpperCase(),
+			studentNumber: normalizedStudentNumber ?? current.studentProfile?.studentNumber?.toUpperCase(),
 			staffNumber: (current.lecturerProfile?.staffNumber ?? (currentRoles.includes("cod") ? currentIdentifier : undefined))?.toUpperCase(),
 			adminNumber: (currentRoles.includes("administrator") ? currentIdentifier : undefined)?.toUpperCase(),
 		};
+		if (studentNumber !== undefined) {
+			if (!current.studentProfile || !currentRoles.includes("student")) throw new AppError(422, "Only student accounts can have a student registration number");
+			const registration = parseStudentRegistrationNumber(normalizedStudentNumber);
+			if (!registration) throw new AppError(422, "The student number must use the new department/course format and a valid admission year");
+			const course = await tx.course.findFirst({
+				where: {
+					code: registration.courseCode,
+					department: { initials: registration.departmentInitials },
+				},
+				select: { id: true },
+			});
+			if (!course) throw new AppError(422, "The student number must identify a course that exists in the matching department");
+			if (normalizedStudentNumber !== current.studentProfile.studentNumber.toUpperCase()) {
+				const [numberOwner, eligibility] = await Promise.all([
+					tx.studentProfile.findUnique({ where: { studentNumber: normalizedStudentNumber }, select: { id: true } }),
+					tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: normalizedStudentNumber }, select: { id: true, linkedUserId: true } }),
+				]);
+				if ((numberOwner && numberOwner.id !== current.studentProfile.id) || (eligibility?.linkedUserId && eligibility.linkedUserId !== userId)) {
+					throw new AppError(409, "This student number is already assigned to another student");
+				}
+			}
+		}
 		validateProfileInputs({
 			roles: nextRoles,
 			...normalizedNumbers,
@@ -251,6 +319,32 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 			...(displayName !== undefined ? { displayName } : {}),
 			...(isActive !== undefined ? { isActive } : {}),
 		}, select: { id: true } });
+		if (studentNumber !== undefined) {
+			const nextNumber = normalizedStudentNumber;
+			const [currentEligibility, nextEligibility] = await Promise.all([
+				tx.studentRegistrationEligibility.findUnique({ where: { linkedUserId: userId }, select: { id: true, studentNumber: true } }),
+				tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: nextNumber }, select: { id: true, linkedUserId: true } }),
+			]);
+			await tx.studentProfile.update({ where: { id: current.studentProfile.id }, data: { studentNumber: nextNumber } });
+			if (currentEligibility && nextEligibility && currentEligibility.id !== nextEligibility.id) {
+				await tx.studentRegistrationEligibility.delete({ where: { id: currentEligibility.id } });
+			}
+			if (nextEligibility) {
+				await tx.studentRegistrationEligibility.update({
+					where: { id: nextEligibility.id },
+					data: { linkedUserId: userId, email: normalizedEmail || current.email },
+				});
+			} else if (currentEligibility) {
+				await tx.studentRegistrationEligibility.update({
+					where: { id: currentEligibility.id },
+					data: { studentNumber: nextNumber, email: normalizedEmail || current.email },
+				});
+			} else {
+				await tx.studentRegistrationEligibility.create({
+					data: { studentNumber: nextNumber, email: normalizedEmail || current.email, linkedUserId: userId },
+				});
+			}
+		}
 		if (emailChanged) {
 			await tx.accountSecurityToken.updateMany({
 				where: { userId, type: { in: ["EMAIL_CHANGE", "EMAIL_VERIFICATION"] }, usedAt: null },
@@ -268,11 +362,49 @@ export async function updateAdminUser({ db = prisma, actorUserId, userId, email,
 				create: { userId, staffNumber: normalizedNumbers.staffNumber },
 			});
 		}
-		if (roles) await setLoginIdentifier(tx, userId, nextRoles, normalizedNumbers);
-		const changedFields = Object.entries({ email, password, displayName, isActive, roles, departmentId }).filter(([, value]) => value !== undefined).map(([key]) => key);
+		if (roles || studentNumber !== undefined) await setLoginIdentifier(tx, userId, nextRoles, normalizedNumbers);
+		const changedFields = Object.entries({ email, password, displayName, studentNumber, isActive, roles, departmentId }).filter(([, value]) => value !== undefined).map(([key]) => key);
 		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_USER_UPDATED", entityType: "User", entityId: userId, metadata: { changedFields, roles: nextRoles, isActive: isActive ?? current.isActive, departmentId } });
 		return serializeUser(await tx.user.findUnique({ where: { id: user.id }, select: userSelect }));
 	});
+}
+
+export async function deleteStudentUser({ db = prisma, actorUserId, userId }) {
+	try {
+		return await db.$transaction(async (tx) => {
+			const user = await tx.user.findUnique({
+				where: { id: userId },
+				select: {
+					id: true,
+					email: true,
+					roles: { select: { role: { select: { name: true } } } },
+					studentProfile: { select: { id: true, studentNumber: true } },
+				},
+			});
+			if (!user) throw new AppError(404, "Student account not found");
+			const roles = user.roles.map(({ role }) => role.name);
+			if (roles.length !== 1 || roles[0] !== "student" || !user.studentProfile) {
+				throw new AppError(409, "Only student-only accounts can be deleted here");
+			}
+
+			await tx.studentProfile.delete({ where: { id: user.studentProfile.id } });
+			await tx.user.delete({ where: { id: user.id } });
+			await recordAuditEvent({
+				prismaClient: tx,
+				actorId: actorUserId,
+				action: "ADMIN_STUDENT_DELETED",
+				entityType: "User",
+				entityId: user.id,
+				metadata: { email: user.email, studentNumber: user.studentProfile.studentNumber },
+			});
+			return { id: user.id, studentNumber: user.studentProfile.studentNumber };
+		});
+	} catch (error) {
+		if (error.code === "P2003" || error.code === "P2014") {
+			throw new AppError(409, "This student has linked academic records and cannot be deleted");
+		}
+		throw error;
+	}
 }
 
 export async function listPendingStaffAccounts({ db = prisma }) {
@@ -375,6 +507,15 @@ export async function importStudentRoster({ db = prisma, actorUserId, students }
 	const normalizedStudents = students.map(({ studentNumber, email }) => ({ studentNumber: studentNumber.trim().toUpperCase(), email: email.trim().toLowerCase() }));
 	return db.$transaction(async (tx) => {
 		for (const student of normalizedStudents) {
+			const registration = parseStudentRegistrationNumber(student.studentNumber);
+			const course = registration && await tx.course.findFirst({
+				where: {
+					code: registration.courseCode,
+					department: { initials: registration.departmentInitials },
+				},
+				select: { id: true },
+			});
+			if (!course) throw new AppError(422, `Student number ${student.studentNumber} must identify a course that exists in its department`);
 			const existing = await tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: student.studentNumber } });
 			if (existing?.linkedUserId) throw new AppError(409, `Student number ${student.studentNumber} is already linked to an account`);
 			const rosterEmailOwner = await tx.studentRegistrationEligibility.findFirst({ where: { email: student.email, studentNumber: { not: student.studentNumber } }, select: { id: true } });

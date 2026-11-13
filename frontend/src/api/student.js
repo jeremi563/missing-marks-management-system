@@ -8,6 +8,21 @@ export const getStudentProfile = async () => {
   return response.data
 }
 
+export const getStudentReportOptions = async () => {
+  const response = await apiClient.get('/student/report-options')
+  return response.data
+}
+
+export const getStudentEnrollmentOptions = async () => {
+  const response = await apiClient.get('/student/enrollment-options')
+  return response.data
+}
+
+export const submitStudentEnrollmentRequests = async (data) => {
+  const response = await apiClient.post('/student/enrollment-requests', data)
+  return response.data
+}
+
 // Missing-mark reports
 export const getStudentReports = async (params = {}) => {
   const response = await apiClient.get('/student/reports', { params })
@@ -93,6 +108,11 @@ export const getStudentSpecialCase = async (caseId) => {
 // Attendance
 export const getStudentAttendance = async (params = {}) => {
   const response = await apiClient.get('/student/attendance', { params })
+  return response.data
+}
+
+export const checkInStudentAttendance = async (data) => {
+  const response = await apiClient.post('/student/attendance/check-in', data)
   return response.data
 }
 

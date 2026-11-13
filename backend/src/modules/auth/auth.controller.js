@@ -52,7 +52,7 @@ export async function register(req, res, next) {
 	try {
 		const result = await registerAccount(req.body);
 		const message = result.requiresDepartmentRegistration
-			? "Initial registration received. Complete the lecturer department form before your department COD can review the application."
+			? "Initial registration received. Complete lecturer registration step 2 so your primary department's COD can review the application."
 			: "Registration successful. You can now sign in with your registration number and password.";
 		return sendSuccess(res, message, result, 202);
 	} catch (error) { return next(error); }
@@ -65,7 +65,7 @@ export async function getRegistrationDepartments(req, res, next) {
 export async function registerLecturerDepartment(req, res, next) {
 	try {
 		const result = await completeLecturerDepartmentRegistration(req.body, req.app.locals.prisma);
-		return sendSuccess(res, "Lecturer department registration received", result, 202);
+		return sendSuccess(res, "Lecturer department selections received", result, 202);
 	} catch (error) { return next(error); }
 }
 

@@ -11,6 +11,7 @@ const {
   getReports,
   getAssignedCourseUnits,
   getAssignedCourseUnitAssessments,
+  getActiveClassrooms,
   getAssignedStudents,
   getReportById,
   getComments,
@@ -22,6 +23,7 @@ const {
   getAttendanceSessionsController,
   getAttendanceSessionByIdController,
 } = await import('../../src/modules/lecturer/lecturer.controller.js');
+const { academicYearForDate } = await import('../../src/shared/utils/academic-year.js');
 
 const createResponse = () => {
   const res = {
@@ -38,9 +40,27 @@ const createResponse = () => {
       return this;
     },
   };
-
   return res;
 };
+
+test('returns only active classrooms with lecturer-safe selection fields', async () => {
+  let query;
+  const res = createResponse();
+  await getActiveClassrooms({
+    app: { locals: { prisma: { classroom: { findMany: async (args) => {
+      query = args;
+      return [{ id: 'classroom-1', name: 'Block A, Room 12', boundaryMeters: 80 }];
+    } } } } },
+  }, res, (error) => { throw error; });
+
+  assert.deepEqual(query, {
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+    select: { id: true, name: true, boundaryMeters: true },
+  });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.data, [{ id: 'classroom-1', name: 'Block A, Room 12', boundaryMeters: 80 }]);
+});
 
 test('returns 401 when assigned course units authentication is missing', async () => {
   const res = createResponse();
@@ -64,6 +84,7 @@ test('returns only course units assigned to the authenticated lecturer', async (
     lecturerProfile: {
       findUnique: async (query) => {
         assert.deepEqual(query.where, { userId: 'lecturer-user-1' });
+        assert.equal(query.select.unitAssignments.where.academicYear, academicYearForDate(new Date()));
         return { unitAssignments };
       },
     },
@@ -89,7 +110,7 @@ test('returns assessments only for the selected assigned course unit and session
       findFirst: async ({ where }) => {
         assert.deepEqual(where, {
           id: 'unit-1',
-          lecturerMappings: { some: { lecturerProfileId: 'lecturer-profile-1' } },
+          lecturerMappings: { some: { lecturerProfileId: 'lecturer-profile-1', academicYear: academicYearForDate(new Date()) } },
         });
         return { id: 'unit-1' };
       },
@@ -115,6 +136,8 @@ test('returns assessments only for the selected assigned course unit and session
 });
 
 test("returns enrolled students only from the authenticated lecturer's assigned course units", async () => {
+  const academicYear = academicYearForDate(new Date());
+  const currentYearStart = Number(academicYear.slice(0, 4));
   const enrollments = [{
     id: 'enrollment-1',
     student: {
@@ -133,13 +156,31 @@ test("returns enrolled students only from the authenticated lecturer's assigned 
   }];
   const prisma = {
     lecturerProfile: { findUnique: async () => ({ id: 'lecturer-profile-1' }) },
+    courseUnitLecturer: {
+      findMany: async ({ where }) => {
+        assert.deepEqual(where, { lecturerProfileId: 'lecturer-profile-1', academicYear: { not: null } });
+        return [{ courseUnitId: 'unit-1', academicYear }];
+      },
+    },
+    academicPeriod: {
+      findMany: async () => [{
+        id: 'period-1',
+        code: academicYear,
+        name: academicYear,
+        startsAt: new Date(Date.UTC(currentYearStart, 8, 1)),
+      }],
+    },
     unitEnrollment: {
       count: async ({ where }) => {
-        assert.deepEqual(where.courseUnit.lecturerMappings, { some: { lecturerProfileId: 'lecturer-profile-1' } });
+        assert.deepEqual(where, {
+          OR: [{ academicPeriodId: { in: ['period-1'] }, courseUnitId: { in: ['unit-1'] } }],
+        });
         return 1;
       },
       findMany: async ({ where, skip, take }) => {
-        assert.deepEqual(where.courseUnit.lecturerMappings, { some: { lecturerProfileId: 'lecturer-profile-1' } });
+        assert.deepEqual(where, {
+          OR: [{ academicPeriodId: { in: ['period-1'] }, courseUnitId: { in: ['unit-1'] } }],
+        });
         assert.equal(skip, 0);
         assert.equal(take, 20);
         return enrollments;
@@ -825,7 +866,10 @@ const createAttendanceControllerPrisma = ({
     findUnique: async () => lecturer,
   },
   courseUnitLecturer: {
-    findUnique: async () => assignment,
+    findFirst: async ({ where }) => {
+      assert.equal(where.academicYear, academicYearForDate(validAttendanceBody.startsAt));
+      return assignment;
+    },
   },
   classroom: {
     findFirst: async () => classroom,
@@ -840,6 +884,7 @@ const validAttendanceBody = {
   courseUnitId: '550e8400-e29b-41d4-a716-446655440000',
   classroomId: '650e8400-e29b-41d4-a716-446655440000',
   startsAt: '2026-11-02T09:00:00+03:00',
+  endsAt: '2026-11-02T10:00:00+03:00',
 };
 
 test('returns 401 when attendance session authentication is missing', async () => {

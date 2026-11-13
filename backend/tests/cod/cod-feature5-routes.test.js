@@ -14,11 +14,44 @@ test("Feature 5 COD paths are composed once under the authenticated COD router",
 	assert.equal(typeof codRoutes.stack[0].handle, "function");
 	assert.equal(typeof codRoutes.stack[1].handle, "function");
 	assert.deepEqual(registered, [
-		"GET /reports/overdue", "GET /appeals/overdue", "GET /special-cases/overdue", "GET /appeals",
+		"GET /appeals/overdue", "GET /special-cases/overdue", "GET /appeals",
 		"GET /appeals/:appealId", "POST /appeals/:appealId/decision", "GET /special-cases",
 		"GET /special-cases/:caseId", "POST /special-cases/:caseId/decision", "GET /special-case-categories",
 		"POST /special-case-categories", "PATCH /special-case-categories/:id",
 	]);
+});
+
+test("registers enrollment-request review routes behind COD authentication", () => {
+	const inboxRoute = codRoutes.stack.find((layer) => layer.route?.path === "/enrollment-requests" && layer.route.methods.get);
+	const decisionRoute = codRoutes.stack.find((layer) => layer.route?.path === "/enrollment-requests/decision" && layer.route.methods.post);
+	assert.ok(inboxRoute);
+	assert.equal(inboxRoute.route.stack.length, 2);
+	assert.ok(decisionRoute);
+	assert.equal(decisionRoute.route.stack.length, 2);
+});
+
+test("registers COD notification inbox and read actions behind the COD router authorization", () => {
+	const inbox = codRoutes.stack.find((layer) => layer.route?.path === "/notifications" && layer.route.methods.get);
+	const readAll = codRoutes.stack.find((layer) => layer.route?.path === "/notifications/read-all" && layer.route.methods.patch);
+	const readOne = codRoutes.stack.find((layer) => layer.route?.path === "/notifications/:notificationId/read" && layer.route.methods.patch);
+
+	assert.equal(typeof codRoutes.stack[0].handle, "function");
+	assert.equal(typeof codRoutes.stack[1].handle, "function");
+	assert.ok(inbox);
+	assert.equal(inbox.route.stack.length, 2);
+	assert.ok(readAll);
+	assert.equal(readAll.route.stack.length, 1);
+	assert.ok(readOne);
+	assert.equal(readOne.route.stack.length, 2);
+});
+
+test("registers COD approval routes for lecturer department membership requests", () => {
+	const inboxRoute = codRoutes.stack.find((layer) => layer.route?.path === "/lecturer-department-requests" && layer.route.methods.get);
+	const decisionRoute = codRoutes.stack.find((layer) => layer.route?.path === "/lecturer-department-requests/:id" && layer.route.methods.patch);
+	assert.ok(inboxRoute);
+	assert.equal(inboxRoute.route.stack.length, 1);
+	assert.ok(decisionRoute);
+	assert.equal(decisionRoute.route.stack.length, 3);
 });
 
 test("public and administrator Feature 5 routes remain separately registered", () => {
