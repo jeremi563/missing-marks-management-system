@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { getRegistrationDepartments, registerLecturerDepartment } from '../api/auth'
 import { extractRecords } from '../features/shared/recordUtils'
+import { useAuth } from '../auth/useAuth'
 
 const initialForm = {
   displayName: '',
@@ -13,6 +14,7 @@ const initialForm = {
 }
 
 export default function LecturerDepartmentRegistration() {
+  const { user, isAuthenticated, isLoading } = useAuth()
   const [form, setForm] = useState(initialForm)
   const [departments, setDepartments] = useState([])
   const [loadingDepartments, setLoadingDepartments] = useState(true)
@@ -20,6 +22,11 @@ export default function LecturerDepartmentRegistration() {
   const [submitting, setSubmitting] = useState(false)
   const [complete, setComplete] = useState(false)
   const [error, setError] = useState('')
+
+  if (isLoading) return null
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!user?.roles?.includes('lecturer')) return <Navigate to="/403" replace />
+  if (user?.approvalStatus === 'APPROVED') return <Navigate to="/lecturer" replace />
 
   useEffect(() => {
     let active = true
