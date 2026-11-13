@@ -31,7 +31,7 @@ export default function LandingPage() {
         </Link>
         <nav aria-label="Main navigation">
           <Link className="public-login-link" to="/login">Sign in</Link>
-          <Link className="button button-primary" to="/register">Get started <ArrowRight size={16} /></Link>
+          <Link className="button button-primary" to="/login">Student sign in <ArrowRight size={16} /></Link>
         </nav>
       </header>
 
@@ -43,8 +43,8 @@ export default function LandingPage() {
             A calm, transparent way to report missing assessment marks and follow each case from submission to resolution.
           </p>
           <div className="hero-actions">
-            <Link className="button button-primary" to="/register">Create your account <ArrowRight size={17} /></Link>
-            <Link className="button button-secondary" to="/login">Sign in to your account</Link>
+            <Link className="button button-primary" to="/login">Student sign in <ArrowRight size={17} /></Link>
+            <Link className="button button-secondary" to="/register">Lecturer registration</Link>
           </div>
           <div className="hero-assurance">
             <span><ShieldCheck size={17} /> Private by role</span>
@@ -91,8 +91,8 @@ export default function LandingPage() {
       </section>
 
       <section className="landing-cta">
-        <div><p className="eyebrow">READY WHEN YOU ARE</p><h2>Get the clarity your case deserves.</h2><p>Sign in to follow your reports, or create an account to get started.</p></div>
-        <Link className="button button-light" to="/register">Create an account <ArrowRight size={17} /></Link>
+        <div><p className="eyebrow">READY WHEN YOU ARE</p><h2>Get the clarity your case deserves.</h2><p>Students sign in with their registration roster details. Lecturers can register for access.</p></div>
+        <Link className="button button-light" to="/login">Sign in <ArrowRight size={17} /></Link>
       </section>
 
       <footer className="public-footer">
@@ -110,7 +110,7 @@ export default function LandingPage() {
             <Link to="/">Home</Link>
             <a href="#overview">How it works</a>
             <Link to="/login">Sign in</Link>
-            <Link to="/register">Create account</Link>
+            <Link to="/register">Lecturer registration</Link>
           </nav>
 
           <div className="footer-purpose">

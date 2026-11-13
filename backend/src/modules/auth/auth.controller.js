@@ -51,10 +51,7 @@ export function extendSessionController(req, res, next) {
 export async function register(req, res, next) {
 	try {
 		const result = await registerAccount(req.body);
-		const message = result.requiresDepartmentRegistration
-			? "Initial registration received. Complete lecturer registration step 2 so your primary department's COD can review the application."
-			: "Registration successful. You can now sign in with your registration number and password.";
-		return sendSuccess(res, message, result, 202);
+		return sendSuccess(res, "Lecturer registration received. Complete department registration so your primary department's COD can review the application.", result, 202);
 	} catch (error) { return next(error); }
 }
 

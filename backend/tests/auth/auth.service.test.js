@@ -7,7 +7,7 @@ process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test?schema=public";
 process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
-const { changePassword, completeLecturerDepartmentRegistration, extendSession, listRegistrationDepartments, loginWithCredentials, registerAccount, requestEmailChange, updateAvatar, verifyEmailAddress } = await import("../../src/modules/auth/auth.service.js");
+const { changePassword, completeLecturerDepartmentRegistration, extendSession, listRegistrationDepartments, loginWithCredentials, registerAccount, requestEmailChange, resetPassword, updateAvatar, verifyEmailAddress } = await import("../../src/modules/auth/auth.service.js");
 
 const makeUser = async (overrides = {}) => ({
 	id: "00000000-0000-4000-8000-000000000001",
@@ -99,18 +99,19 @@ test("requires a registration number and blocks unapproved or unverified non-sta
 
 test("changes a password only after verifying the current password", async () => {
 	const user = await makeUser();
-	let updatedPasswordHash;
+	let updatedUser;
 	await changePassword(user.id, "student-password", "new-password-123", {
 		user: {
 			findUnique: async () => ({ passwordHash: user.passwordHash }),
 			update: async ({ where, data }) => {
 				assert.equal(where.id, user.id);
-				updatedPasswordHash = data.passwordHash;
+				updatedUser = data;
 			},
 		},
 	});
-	assert.equal(await bcrypt.compare("new-password-123", updatedPasswordHash), true);
-	assert.notEqual(updatedPasswordHash, user.passwordHash);
+	assert.equal(await bcrypt.compare("new-password-123", updatedUser.passwordHash), true);
+	assert.notEqual(updatedUser.passwordHash, user.passwordHash);
+	assert.equal(updatedUser.mustChangePassword, false);
 });
 
 test("does not change password when the current password is incorrect", async () => {
@@ -182,6 +183,27 @@ test("confirms a pending email change with its verification token", async () => 
 	assert.deepEqual(result, { status: "APPROVED", email: pendingEmail });
 });
 
+test("password reset also clears the temporary-password requirement", async () => {
+	let updatedUser;
+	await resetPassword("reset-token", "new-private-password", {
+		$transaction: async (callback) => callback({
+			accountSecurityToken: {
+				findUnique: async () => ({
+					id: "token-id",
+					userId: "user-id",
+					type: "PASSWORD_RESET",
+					usedAt: null,
+					expiresAt: new Date(Date.now() + 60_000),
+				}),
+				updateMany: async () => ({ count: 1 }),
+			},
+			user: { update: async ({ data }) => { updatedUser = data; } },
+		}),
+	});
+	assert.equal(await bcrypt.compare("new-private-password", updatedUser.passwordHash), true);
+	assert.equal(updatedUser.mustChangePassword, false);
+});
+
 test("validates uploaded avatar image signatures and supports removal", async () => {
 	const userId = "00000000-0000-4000-8000-000000000001";
 	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -220,21 +242,67 @@ function registrationHarness(eligibility, existingUser = null, course = { id: "c
 	return { calls, db: { $transaction: async (callback) => callback(tx) } };
 }
 
-test("registers a roster-matched student as verified with a hashed password", async () => {
+test("first roster sign-in provisions a student and requires a private password", async () => {
 	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
-	const harness = registrationHarness({ studentNumber, email: "student@example.test", linkedUserId: null });
-	const result = await registerAccount({
-		email: " Student@Example.Test ", password: "student-password", displayName: "Student", registrationNumber: ` ${studentNumber.toLowerCase()} `,
-	}, harness.db, async () => assert.fail("Roster-matched students do not need verification email"));
-	assert.deepEqual(result, { status: "REGISTERED", verificationEmailSent: false, requiresEmailVerification: false });
-	assert.equal(harness.calls.user.email, "student@example.test");
-	assert.equal(harness.calls.user.approvalStatus, "APPROVED");
-	assert.equal(harness.calls.user.isActive, true);
-	assert.ok(harness.calls.user.emailVerifiedAt instanceof Date);
-	assert.equal(await bcrypt.compare("student-password", harness.calls.user.passwordHash), true);
-	assert.deepEqual(harness.calls.identifier, { userId: "00000000-0000-4000-8000-000000000002", type: "STUDENT_NUMBER", value: studentNumber });
-	assert.equal(harness.calls.rosterLink, "00000000-0000-4000-8000-000000000002");
-	assert.equal(harness.calls.token, undefined);
+	const calls = {};
+	const userId = "00000000-0000-4000-8000-000000000002";
+	const eligibility = { id: "eligibility-id", studentNumber: studentNumber.toUpperCase(), email: "student@example.test", linkedUserId: null };
+	const tx = {
+		studentRegistrationEligibility: {
+			findUnique: async () => eligibility,
+			updateMany: async ({ data }) => { calls.linkedUserId = data.linkedUserId; return { count: 1 }; },
+		},
+		course: { findFirst: async () => ({ id: "course-id" }) },
+		user: {
+			findUnique: async () => null,
+			create: async ({ data }) => { calls.user = data; return { id: userId, ...data }; },
+		},
+		role: { upsert: async () => ({ id: "student-role", name: "student" }) },
+		userRole: { create: async ({ data }) => { calls.userRole = data; } },
+		accountLoginIdentifier: { create: async ({ data }) => { calls.identifier = data; } },
+		studentProfile: { create: async ({ data }) => { calls.profile = data; } },
+	};
+	const db = {
+		accountLoginIdentifier: { findUnique: async () => null },
+		$transaction: async (callback) => callback(tx),
+	};
+
+	const result = await loginWithCredentials(studentNumber.toLowerCase(), studentNumber.toLowerCase(), db);
+
+	assert.equal(result.user.id, userId);
+	assert.equal(result.user.mustChangePassword, true);
+	assert.deepEqual(result.user.roles, ["student"]);
+	assert.equal(calls.user.email, "student@example.test");
+	assert.equal(calls.user.isActive, true);
+	assert.equal(calls.user.approvalStatus, "APPROVED");
+	assert.equal(calls.user.mustChangePassword, true);
+	assert.ok(calls.user.emailVerifiedAt instanceof Date);
+	assert.equal(await bcrypt.compare(studentNumber, calls.user.passwordHash), true);
+	assert.deepEqual(calls.identifier, { userId, type: "STUDENT_NUMBER", value: studentNumber.toUpperCase() });
+	assert.deepEqual(calls.profile, { userId, studentNumber: studentNumber.toUpperCase(), officialEmail: "student@example.test" });
+	assert.equal(calls.linkedUserId, userId);
+});
+
+test("does not provision a roster student when the temporary password does not match", async () => {
+	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
+	let transactionStarted = false;
+	await assert.rejects(loginWithCredentials(studentNumber, "wrong-password", {
+		accountLoginIdentifier: { findUnique: async () => null },
+		$transaction: async () => { transactionStarted = true; },
+	}), { statusCode: 401 });
+	assert.equal(transactionStarted, false);
+});
+
+test("does not provision a roster student when its department course no longer exists", async () => {
+	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
+	const db = {
+		accountLoginIdentifier: { findUnique: async () => null },
+		$transaction: async (callback) => callback({
+			studentRegistrationEligibility: { findUnique: async () => ({ id: "eligibility-id", studentNumber, email: "student@example.test", linkedUserId: null }) },
+			course: { findFirst: async () => null },
+		}),
+	};
+	await assert.rejects(loginWithCredentials(studentNumber, studentNumber, db), { statusCode: 422 });
 });
 
 test("registers numbers absent from the student roster as staff pending approval", async () => {
@@ -247,6 +315,18 @@ test("registers numbers absent from the student roster as staff pending approval
 	assert.equal(harness.calls.identifier.value, "AB/0123/STAFF9");
 	assert.deepEqual(harness.calls.lecturerProfile, { userId: "00000000-0000-4000-8000-000000000002", staffNumber: "AB/0123/STAFF9" });
 	assert.equal(harness.calls.token, undefined);
+});
+
+test("rejects self-registration using a student roster number", async () => {
+	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
+	let transactionStarted = false;
+	await assert.rejects(registerAccount({
+		email: "student@example.test",
+		password: "student-password",
+		displayName: "Student",
+		registrationNumber: studentNumber,
+	}, { $transaction: async () => { transactionStarted = true; } }), { statusCode: 403 });
+	assert.equal(transactionStarted, false);
 });
 
 test("staff registration does not require email verification delivery", async () => {
@@ -363,70 +443,31 @@ test("lecturer department registration rejects incorrect credentials without ass
 	assert.equal(assignmentCount, 0);
 });
 
-test("recovers an existing unverified roster-linked student account", async () => {
+test("treats first-sign-in registration numbers as case insensitive", async () => {
 	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
-	const studentId = "00000000-0000-4000-8000-000000000003";
-	const existingUser = {
-		id: studentId,
-		email: "student@example.test",
-		emailVerifiedAt: null,
-		approvalStatus: "APPROVED",
-		roles: [{ role: { name: "student" } }],
-		studentProfile: { studentNumber },
+	const lowerCaseNumber = studentNumber.toLowerCase();
+	const userId = "00000000-0000-4000-8000-000000000002";
+	const eligibility = { id: "eligibility-id", studentNumber, email: "student@example.test", linkedUserId: null };
+	const db = {
+		accountLoginIdentifier: { findUnique: async () => null },
+		$transaction: async (callback) => callback({
+			studentRegistrationEligibility: {
+				findUnique: async () => eligibility,
+				updateMany: async () => ({ count: 1 }),
+			},
+			course: { findFirst: async () => ({ id: "course-id" }) },
+			user: {
+				findUnique: async () => null,
+				create: async ({ data }) => ({ id: userId, ...data }),
+			},
+			role: { upsert: async () => ({ id: "student-role", name: "student" }) },
+			userRole: { create: async () => {} },
+			accountLoginIdentifier: { create: async () => {} },
+			studentProfile: { create: async () => {} },
+		}),
 	};
-	const harness = registrationHarness({ studentNumber, email: "student@example.test", linkedUserId: studentId }, existingUser);
-	const result = await registerAccount({
-		email: "student@example.test",
-		password: "replacement-password",
-		displayName: "Student",
-		registrationNumber: studentNumber,
-	}, harness.db, async () => assert.fail("Roster-matched students do not need verification email"));
-
-	assert.deepEqual(result, { status: "REGISTERED", verificationEmailSent: false, requiresEmailVerification: false });
-	assert.deepEqual(harness.calls.userUpdate.where, { id: studentId });
-	assert.equal(harness.calls.userUpdate.data.isActive, true);
-	assert.ok(harness.calls.userUpdate.data.emailVerifiedAt instanceof Date);
-	assert.equal(await bcrypt.compare("replacement-password", harness.calls.userUpdate.data.passwordHash), true);
-});
-
-test("does not allow re-registration of an already verified roster-linked student", async () => {
-	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
-	const existingUser = {
-		id: "00000000-0000-4000-8000-000000000003",
-		email: "student@example.test",
-		emailVerifiedAt: new Date(),
-		approvalStatus: "APPROVED",
-		roles: [{ role: { name: "student" } }],
-		studentProfile: { studentNumber },
-	};
-	const harness = registrationHarness({ studentNumber, email: "student@example.test", linkedUserId: existingUser.id }, existingUser);
-	await assert.rejects(registerAccount({
-		email: "student@example.test",
-		password: "replacement-password",
-		displayName: "Student",
-		registrationNumber: studentNumber,
-	}, harness.db, async () => {}), { statusCode: 409 });
-	assert.equal(harness.calls.userUpdate, undefined);
-});
-
-test("rejects roster-matched registration numbers with a different email", async () => {
-	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
-	const harness = registrationHarness({ studentNumber, email: "student@example.test", linkedUserId: null });
-	await assert.rejects(registerAccount({
-		email: "other@example.test", password: "student-password", displayName: "Student", registrationNumber: studentNumber,
-	}, harness.db, async () => {}), { statusCode: 422 });
-});
-
-test("rejects student registration against a stale roster entry when its course no longer exists", async () => {
-	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
-	const harness = registrationHarness({ studentNumber, email: "student@example.test", linkedUserId: null }, null, null);
-	await assert.rejects(registerAccount({
-		email: "student@example.test",
-		password: "student-password",
-		displayName: "Student",
-		registrationNumber: studentNumber,
-	}, harness.db), { statusCode: 422 });
-	assert.equal(harness.calls.user, undefined);
+	const result = await loginWithCredentials(lowerCaseNumber, lowerCaseNumber, db);
+	assert.equal(result.user.id, userId);
 });
 
 test("rejects identifiers that do not match a student roster or staff format", async () => {
