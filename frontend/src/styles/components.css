@@ -185,12 +185,30 @@ tr:last-child td { border-bottom: 0; }
   .dashboard-main { margin-left: 0; }
   .topbar { padding: 0 20px; }
   .dashboard-content { padding: 25px 20px; }
-  .landing-hero { gap: 35px; min-height: 580px; }
+  .landing-hero { min-height: 0; }
+  .hero-copy { position: relative; top: auto; left: auto; width: min(100%, 720px); padding: 68px 32px 0; transform: none; }
+  .hero-copy h1 { font-size: clamp(40px, 5vw, 56px); }
+  .hero-visual { inset: 16px; }
+  .landing-preview { position: relative; top: auto; right: auto; width: min(380px, calc(100% - 64px)); margin: 34px 32px 32px auto; transform: none; }
+  .footer-inner { grid-template-columns: 1fr 1fr; gap: 24px; }
+  .footer-meta { text-align: left; }
 }
 @media (max-width: 680px) {
-  .landing-hero { grid-template-columns: 1fr; gap: 20px; padding-top: 45px; }
-  .hero-art { min-height: 300px; }
+  .landing-hero { min-height: 0; padding: 0; }
+  .hero-visual { inset: 12px; border-radius: 22px; }
+  .hero-visual-image { animation-duration: 36s; }
+  .hero-visual-image::before { background: linear-gradient(90deg, rgba(18,12,30,0.76), rgba(18,12,30,0.48)), linear-gradient(0deg, rgba(18,12,30,0.42), transparent 70%); }
+  .hero-copy { position: relative; top: auto; left: auto; width: auto; padding: 54px 24px 16px; transform: none; }
   .hero-copy h1 { font-size: 43px; }
+  .hero-description { font-size: 15px; }
+  .hero-actions { align-items: stretch; }
+  .hero-actions .button { min-height: 46px; }
+  .landing-preview { position: relative; top: auto; right: auto; width: calc(100% - 32px); max-width: 420px; margin: 16px auto 24px; transform: none; }
+  .footer-inner { grid-template-columns: 1fr; gap: 23px; padding: 28px 22px; }
+  .footer-links { grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 340px); }
+  .footer-links > strong { grid-column: 1 / -1; }
+  .footer-purpose p { max-width: 360px; }
+  .footer-meta { padding-top: 14px; border-top: 1px solid var(--line); }
   .topbar { gap: 9px; padding: 0 12px; }
   .topbar-user > span { display: none; }
   .student-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
@@ -202,4 +220,9 @@ tr:last-child td { border-bottom: 0; }
   .auth-card { padding: 24px; }
   .topbar-user span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .page-heading { flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-visual-image { animation: none; }
+  .button, .public-login-link, .footer-links a { transition: none; }
 }
