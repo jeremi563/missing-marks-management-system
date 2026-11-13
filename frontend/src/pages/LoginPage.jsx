@@ -72,7 +72,10 @@ export default function LoginPage() {
               <UserRound className="login-input-icon" size={18} aria-hidden="true" />
               <input className="login-input" id="login-identifier" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" maxLength={100} required />
             </div>
-            <label htmlFor="login-password">Password</label>
+            <div className="login-password-label-row">
+              <label htmlFor="login-password">Password</label>
+              <Link to="/forgot-password">Forgot password?</Link>
+            </div>
             <div className="auth-password-field login-input-wrap">
               <LockKeyhole className="login-input-icon" size={18} aria-hidden="true" />
               <input className="login-input" id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
