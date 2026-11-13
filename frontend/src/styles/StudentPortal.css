@@ -1,10 +1,10 @@
 .student-portal {
-  --student-ink: #122a35;
-  --student-muted: #637983;
-  --student-line: #dce7e9;
-  --student-teal: #087e83;
-  --student-teal-dark: #06676c;
-  --student-canvas: #f3f7f7;
+  --student-ink: #171717;
+  --student-muted: #5f636a;
+  --student-line: #E5E5E5;
+  --student-teal: var(--primary);
+  --student-teal-dark: #561de6;
+  --student-canvas: #FFFFFF;
   min-height: 100vh;
   color: var(--student-ink);
   background: var(--student-canvas);
@@ -13,31 +13,31 @@
 .student-portal .sidebar {
   width: 252px;
   padding: 26px 17px 20px;
-  color: #e8f3f4;
-  background: #102a35;
-  border: 0;
-  box-shadow: 12px 0 32px #102a3510;
+  color: var(--ink);
+  background: #FFFFFF;
+  border-right: 1px solid var(--line);
+  box-shadow: 8px 0 28px rgba(23,23,23,.04);
 }
 
 .student-portal .sidebar-brand {
   padding: 0 5px;
-  color: #fff;
+  color: var(--ink);
 }
 
 .student-portal .sidebar-brand small {
-  color: #9ab0b8;
+  color: var(--muted);
 }
 
 .student-portal .brand-icon {
-  color: #102a35;
-  background: #83d6c6;
+  color: #fff;
+  background: linear-gradient(140deg, var(--primary), var(--secondary));
   border-radius: 12px;
   box-shadow: none;
 }
 
 .student-portal .sidebar-role {
   margin: 35px 9px 13px;
-  color: #84a1aa;
+  color: var(--muted);
 }
 
 .student-portal .sidebar-nav {
@@ -47,7 +47,7 @@
 .student-portal .sidebar-link {
   min-height: 46px;
   padding: 0 13px;
-  color: #b6c8cd;
+  color: #45454a;
   border: 1px solid transparent;
   border-radius: 10px;
   font-weight: 550;
@@ -55,23 +55,23 @@
 }
 
 .student-portal .sidebar-link svg {
-  color: #91aab1;
+  color: #71747b;
 }
 
 .student-portal .sidebar-link:hover {
-  color: #fff;
-  background: #ffffff0d;
+  color: var(--primary);
+  background: var(--secondary-soft);
 }
 
 .student-portal .sidebar-link.active {
-  color: #fff;
-  background: #ffffff12;
-  border-color: #ffffff16;
-  box-shadow: inset 3px 0 #83d6c6;
+  color: var(--primary);
+  background: var(--secondary-soft);
+  border-color: #e4d7ff;
+  box-shadow: inset 3px 0 var(--primary);
 }
 
 .student-portal .sidebar-link.active svg {
-  color: #83d6c6;
+  color: var(--primary);
 }
 
 .student-portal .dashboard-main {
@@ -81,13 +81,13 @@
 .student-portal .topbar {
   height: 72px;
   padding: 0 clamp(22px, 3.2vw, 48px);
-  background: #f9fbfbf2;
+  background: rgba(255,255,255,.96);
   border-color: var(--student-line);
   backdrop-filter: blur(14px);
 }
 
 .student-portal .topbar h1 {
-  color: #48606a;
+  color: var(--ink);
   font-size: 13px;
   font-weight: 650;
   letter-spacing: .01em;
@@ -102,14 +102,14 @@
 .student-portal .topbar-user .icon-button {
   width: 38px;
   height: 38px;
-  color: #526a73;
-  background: #edf3f3;
-  border: 1px solid #e0e9ea;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 50%;
 }
 
 .student-portal .topbar-user .icon-button:hover {
-  color: #a63e39;
+  color: #b64242;
   background: #fff0ed;
 }
 
@@ -144,8 +144,8 @@
   padding: 32px 36px;
   overflow: hidden;
   color: #f6ffff;
-  background: #123b45;
-  border: 1px solid #1c4a53;
+  background: linear-gradient(118deg, #171717, #26222f 78%, #38245a);
+  border: 1px solid #30283e;
   border-radius: 17px;
   box-shadow: 0 12px 26px #173a4517;
 }
@@ -170,7 +170,7 @@
 }
 
 .student-portal .student-welcome .student-eyebrow {
-  color: #8dd9c8;
+  color: #D7C2FF;
 }
 
 .student-portal .student-welcome h2 {
@@ -258,7 +258,7 @@
 .student-portal .student-stat-icon {
   width: 44px;
   height: 44px;
-  color: #087e83;
+  color: var(--primary);
   background: #e4f4f1;
   border-radius: 12px;
 }
