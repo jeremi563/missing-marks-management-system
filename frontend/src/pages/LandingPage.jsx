@@ -52,6 +52,10 @@ export default function LandingPage() {
           </div>
         </div>
 
+        <div className="hero-visual" role="img" aria-label="Campus buildings surrounded by green hills">
+          <div className="hero-visual-image" />
+        </div>
+
         <div className="landing-preview" aria-label="Example missing mark report progress">
           <div className="preview-window-bar"><div className="preview-brand-mark"><GraduationCap size={15} /></div><span>Case overview</span><span className="preview-window-dots">•••</span></div>
           <div className="preview-content">
@@ -68,7 +72,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-benefits">
+      <section className="landing-benefits" id="overview">
         <div className="landing-section-heading">
           <p className="eyebrow">A BETTER WAY TO FOLLOW UP</p>
           <h2>Clarity for every step.</h2>
@@ -90,7 +94,36 @@ export default function LandingPage() {
         <div><p className="eyebrow">READY WHEN YOU ARE</p><h2>Get the clarity your case deserves.</h2><p>Sign in to follow your reports, or create an account to get started.</p></div>
         <Link className="button button-light" to="/register">Create an account <ArrowRight size={17} /></Link>
       </section>
-      <footer className="public-footer"><span>Missing Marks Management System</span><span>Academic support, with clarity.</span></footer>
+
+      <footer className="public-footer">
+        <div className="footer-inner">
+          <div className="footer-brand">
+            <span className="brand-icon"><GraduationCap size={18} /></span>
+            <div>
+              <strong>Missing Marks</strong>
+              <small>Academic support portal</small>
+            </div>
+          </div>
+
+          <nav className="footer-links" aria-label="Footer navigation">
+            <strong>Explore</strong>
+            <Link to="/">Home</Link>
+            <a href="#overview">How it works</a>
+            <Link to="/login">Sign in</Link>
+            <Link to="/register">Create account</Link>
+          </nav>
+
+          <div className="footer-purpose">
+            <strong>Academic support, with clarity.</strong>
+            <p>Track missing-mark reports from submission through review to resolution.</p>
+          </div>
+
+          <div className="footer-meta">
+            <span>© {new Date().getFullYear()} Missing Marks</span>
+            <span>All rights reserved.</span>
+          </div>
+        </div>
+      </footer>
     </main>
   )
 }
