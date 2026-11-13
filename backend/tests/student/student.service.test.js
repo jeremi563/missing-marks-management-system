@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
+import { createHash } from "node:crypto";
+import { getStudentProfile, getStudentReportOptions, buildAcademicYearOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -30,6 +31,58 @@ test("loads profile by authenticated user ID and selects only permitted fields",
 test("returns not found when the authenticated user has no student profile", async () => {
 	const prisma = { studentProfile: { findUnique: async () => null } };
 	await assert.rejects(getStudentProfile(prisma, "user-1"), { statusCode: 404 });
+});
+
+test("lists the student's enrolled course units and periods within their department", async () => {
+	let enrollmentQuery;
+	const courseUnit = { id: "unit-1", code: "IN101", name: "Introduction to Computing" };
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: {
+			findMany: async (query) => {
+				enrollmentQuery = query;
+				return [
+					{ courseUnit, academicPeriod: { id: "period-2", code: "2026-T2", name: "2026 Term 2", startsAt: new Date("2026-09-01") } },
+					{ courseUnit, academicPeriod: { id: "period-1", code: "2026-T1", name: "2026 Term 1", startsAt: new Date("2026-09-01") } },
+				];
+			},
+		},
+	};
+
+	const result = await getStudentReportOptions(prisma, "user-1", new Date("2026-11-12T00:00:00Z"));
+
+	assert.deepEqual(enrollmentQuery.where, {
+		studentProfileId: "student-1",
+		courseUnit: { department: { initials: "IN" }, course: { is: { code: "16" } } },
+	});
+	assert.deepEqual(result, [{
+		...courseUnit,
+		academicYears: [
+			{ value: "2026/27", label: "2026/27", academicPeriodId: "period-1" },
+		],
+	}]);
+});
+
+test("generates academic years from 2013/14 through the current August-July year only", () => {
+	const periods = [{ id: "future", startsAt: new Date("2027-09-01") }];
+	const beforeAugust = buildAcademicYearOptions(periods, new Date("2026-07-31T23:59:59Z"));
+	const afterAugust = buildAcademicYearOptions(periods, new Date("2026-08-01T00:00:00Z"));
+
+	assert.deepEqual(beforeAugust, []);
+	assert.equal(afterAugust.at(-1).value, "2026/27");
+	assert.equal(afterAugust.some(({ value }) => value === "2027/28"), false);
+	assert.equal(buildAcademicYearOptions([{ id: "period-2026", startsAt: new Date("2026-08-31T00:00:00Z") }], new Date("2026-11-13T00:00:00Z")).at(-1).academicPeriodId, "period-2026");
+});
+
+test("does not list report options when the authenticated user has no student profile", async () => {
+	let enrollmentQueryCalled = false;
+	const prisma = {
+		studentProfile: { findUnique: async () => null },
+		unitEnrollment: { findMany: async () => { enrollmentQueryCalled = true; return []; } },
+	};
+
+	await assert.rejects(getStudentReportOptions(prisma, "user-1"), { statusCode: 404 });
+	assert.equal(enrollmentQueryCalled, false);
 });
 
 test("lists only the authenticated student's reports with pagination", async () => {
@@ -120,7 +173,7 @@ test("returns the same not-found error for reports outside the student's scope",
 test("submits an enrolled student's report with status history and audit atomically", async () => {
 	const input = {
 		courseUnitId: "unit-1",
-		academicPeriodId: "period-1",
+		academicYear: "2026/27",
 		assessmentId: "assessment-1",
 		assessmentComponent: "CAT 1",
 		description: "My CAT mark is missing.",
@@ -129,19 +182,13 @@ test("submits an enrolled student's report with status history and audit atomica
 	const transactionCalls = [];
 	const report = { id: "report-1", reference: "MM-2026-ABCDEF0123", status: "Submitted" };
 	const prisma = {
-		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
 		unitEnrollment: {
-			findUnique: async ({ where }) => {
-				assert.deepEqual(where.studentProfileId_courseUnitId_academicPeriodId, {
-					studentProfileId: "student-1",
-					courseUnitId: "unit-1",
-					academicPeriodId: "period-1",
-				});
-				return { id: "enrollment-1" };
-			},
+			findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }],
 		},
 		assessment: { findFirst: async () => ({ id: "assessment-1" }) },
 		$transaction: async (callback) => callback({
+			courseUnitLecturer: { findUnique: async () => null },
 			missingMarkReport: { create: async ({ data }) => { reportData = data; return report; } },
 			reportStatusHistory: { create: async ({ data }) => { transactionCalls.push({ type: "history", data }); } },
 			auditLog: { create: async ({ data }) => { transactionCalls.push({ type: "audit", data }); } },
@@ -152,6 +199,7 @@ test("submits an enrolled student's report with status history and audit atomica
 
 	assert.equal(result, report);
 	assert.equal(reportData.studentProfileId, "student-1");
+	assert.equal(reportData.academicPeriodId, "period-1");
 	assert.equal(reportData.status, "Submitted");
 	assert.match(reportData.reference, /^MM-\d{4}-[A-F0-9]{10}$/);
 	assert.equal(reportData.assessmentId, "assessment-1");
@@ -166,17 +214,82 @@ test("submits an enrolled student's report with status history and audit atomica
 	assert.equal(transactionCalls[1].data.entityId, "report-1");
 });
 
+test("submits a report without assessment metadata using the default component label", async () => {
+	let reportData;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
+		$transaction: async (callback) => callback({
+			courseUnitLecturer: { findUnique: async () => null },
+			missingMarkReport: { create: async ({ data }) => { reportData = data; return { id: "report-1" }; } },
+			reportStatusHistory: { create: async () => {} },
+			auditLog: { create: async () => {} },
+		}),
+	};
+
+	await submitMissingMarkReport(prisma, "user-1", {
+		courseUnitId: "unit-1",
+		academicYear: "2026/27",
+		description: "My mark is missing.",
+	});
+
+	assert.equal(reportData.assessmentComponent, "Not specified");
+	assert.equal(reportData.assessmentId, undefined);
+});
+
+test("automatically assigns new reports to the lecturer owning the unit for that academic year", async () => {
+	const transactionCalls = [];
+	let reportData;
+	const report = {
+		id: "report-1",
+		reference: "MM-2026-ABCDEF0123",
+		courseUnit: { code: "IN101" },
+	};
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
+		$transaction: async (callback) => callback({
+			courseUnitLecturer: {
+				findUnique: async ({ where }) => {
+					assert.deepEqual(where, { courseUnitId_academicYear: { courseUnitId: "unit-1", academicYear: "2026/27" } });
+					return { lecturerProfileId: "lecturer-1", lecturer: { userId: "lecturer-user-1" } };
+				},
+			},
+			missingMarkReport: { create: async ({ data }) => { reportData = data; return report; } },
+			reportAssignment: { create: async ({ data }) => transactionCalls.push({ type: "assignment", data }) },
+			reportStatusHistory: { create: async ({ data }) => transactionCalls.push({ type: "history", data }) },
+			notification: { create: async ({ data }) => transactionCalls.push({ type: "notification", data }) },
+			auditLog: { create: async ({ data }) => transactionCalls.push({ type: "audit", data }) },
+		}),
+	};
+
+	await submitMissingMarkReport(prisma, "student-user-1", {
+		courseUnitId: "unit-1",
+		academicYear: "2026/27",
+		description: "Missing CAT mark",
+	});
+
+	assert.equal(reportData.assignedLecturerProfileId, "lecturer-1");
+	assert.equal(reportData.status, "PENDING");
+	assert.equal(transactionCalls.find(({ type }) => type === "assignment").data.newLecturerProfileId, "lecturer-1");
+	const notifications = transactionCalls.filter(({ type }) => type === "notification");
+	assert.equal(notifications.length, 1);
+	assert.equal(notifications[0].data.userId, "lecturer-user-1");
+	assert.equal(notifications[0].data.title, "New missing-mark report");
+	assert.equal(transactionCalls.filter(({ type }) => type === "history").length, 2);
+});
+
 test("rejects report submission when the student is not enrolled", async () => {
 	let transactionStarted = false;
 	const prisma = {
-		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		unitEnrollment: { findUnique: async () => null },
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: { findMany: async () => [] },
 		$transaction: async () => { transactionStarted = true; },
 	};
 
 	await assert.rejects(submitMissingMarkReport(prisma, "user-1", {
 		courseUnitId: "unit-1",
-		academicPeriodId: "period-1",
+		academicYear: "2026/27",
 		assessmentComponent: "CAT 1",
 		description: "Missing mark",
 	}), { statusCode: 422 });
@@ -186,15 +299,15 @@ test("rejects report submission when the student is not enrolled", async () => {
 test("rejects an assessment that does not belong to the selected unit", async () => {
 	let transactionStarted = false;
 	const prisma = {
-		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		unitEnrollment: { findUnique: async () => ({ id: "enrollment-1" }) },
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
 		assessment: { findFirst: async () => null },
 		$transaction: async () => { transactionStarted = true; },
 	};
 
 	await assert.rejects(submitMissingMarkReport(prisma, "user-1", {
 		courseUnitId: "unit-1",
-		academicPeriodId: "period-1",
+		academicYear: "2026/27",
 		assessmentId: "assessment-elsewhere",
 		assessmentComponent: "CAT 1",
 		description: "Missing mark",
@@ -248,6 +361,208 @@ test("does not query attendance history when no student profile exists", async (
 
 	await assert.rejects(getStudentAttendanceHistory(prisma, "user-1"), { statusCode: 404 });
 	assert.equal(historyQueryCalled, false);
+});
+
+function createCheckInPrisma(overrides = {}) {
+	const state = { attempts: [], records: [], histories: [] };
+	const session = {
+		id: "session-1",
+		status: "active",
+		startsAt: new Date("2026-11-13T06:00:00.000Z"),
+		endsAt: new Date("2026-11-13T08:00:00.000Z"),
+		sessionType: "CLASS",
+		courseUnit: {
+			id: "unit-1",
+			code: "IN101",
+			name: "Computing",
+			department: { initials: "IN" },
+			course: { code: "16" },
+		},
+		classroom: { name: "Room 1", latitude: -1.286389, longitude: 36.817223, boundaryMeters: 80, isActive: true },
+		...overrides.session,
+	};
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		attendanceSession: {
+			findUnique: async ({ where }) => {
+				assert.equal(where.accessTokenHash, createHash("sha256").update("a".repeat(64)).digest("hex"));
+				return session;
+			},
+		},
+		unitEnrollment: {
+			findMany: async () => [{ academicPeriod: { startsAt: new Date("2026-08-01"), code: "2026-T1", name: "2026 Term 1" } }],
+		},
+		attendanceAttempt: { create: async ({ data }) => state.attempts.push(data) },
+		attendanceRecord: { findUnique: async () => null },
+		$transaction: async (callback) => callback({
+			attendanceRecord: {
+				create: async ({ data }) => {
+					state.records.push(data);
+					return { id: "record-1", ...data };
+				},
+			},
+			attendanceHistory: {
+				create: async ({ data }) => { state.histories.push(data); },
+			},
+		}),
+		...overrides.prisma,
+	};
+	return { prisma, session, state };
+}
+
+test("records a student attendance check-in only after active-session, enrollment, and GPS checks", async () => {
+	const { prisma, state } = createCheckInPrisma();
+	const now = new Date("2026-11-13T07:00:00.000Z");
+	const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, now);
+
+	assert.equal(result.record.id, "record-1");
+	assert.equal(result.record.locationVerified, true);
+	assert.equal(state.records.length, 1);
+	assert.equal(state.records[0].status, "PRESENT");
+	assert.equal(state.histories[0].attendanceRecordId, "record-1");
+	assert.equal(state.histories[0].courseUnitCode, "IN101");
+	assert.equal(state.attempts.length, 0);
+});
+
+test("rejects check-ins outside the configured boundary and records a rejected attempt", async () => {
+	const { prisma, state } = createCheckInPrisma();
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.30,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 403,
+		message: "Your device location is outside the configured classroom boundary",
+	});
+
+	assert.deepEqual(state.attempts, [{
+		sessionId: "session-1",
+		studentProfileId: "student-1",
+		outcome: "REJECTED",
+		failureReason: "OUTSIDE_CLASSROOM",
+	}]);
+	assert.equal(state.records.length, 0);
+});
+
+test("validates coarse GPS readings through the location check instead of request validation", async () => {
+	const { prisma, state } = createCheckInPrisma();
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 6000,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 403,
+		message: "Your location is too close to the boundary to verify attendance. Move closer to the classroom and try again",
+	});
+
+	assert.equal(state.attempts[0].failureReason, "LOCATION_ACCURACY_INSUFFICIENT");
+	assert.equal(state.records.length, 0);
+});
+
+test("rejects students who are not enrolled in the session course unit", async () => {
+	const enrollmentLookup = async ({ where }) => {
+		assert.deepEqual(where, { studentProfileId: "student-1", courseUnitId: "unit-1" });
+		return [];
+	};
+	const { prisma } = createCheckInPrisma({
+		prisma: { unitEnrollment: { findMany: enrollmentLookup } },
+	});
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 403,
+		message: "You are not enrolled in this course unit for the session's academic year",
+	});
+});
+
+test("rejects check-ins for a course unit outside the student's registered course", async () => {
+	let enrollmentLookupCalled = false;
+	const { prisma, state } = createCheckInPrisma({
+		session: {
+			courseUnit: {
+				id: "unit-1",
+				code: "CB101",
+				name: "Business",
+				department: { initials: "CB" },
+				course: { code: "16" },
+			},
+		},
+		prisma: {
+			unitEnrollment: {
+				findMany: async () => {
+					enrollmentLookupCalled = true;
+					return [{ academicPeriod: { startsAt: new Date("2026-08-01"), code: "2026-T1", name: "2026 Term 1" } }];
+				},
+			},
+		},
+	});
+
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 403,
+		message: "This course unit is not part of your registered course",
+	});
+	assert.equal(enrollmentLookupCalled, false);
+	assert.equal(state.records.length, 0);
+});
+
+test("rejects enrollment in the course unit when it is for a different academic year", async () => {
+	const { prisma, state } = createCheckInPrisma({
+		prisma: {
+			unitEnrollment: {
+				findMany: async ({ where }) => {
+					assert.deepEqual(where, { studentProfileId: "student-1", courseUnitId: "unit-1" });
+					return [{
+						academicPeriod: {
+							startsAt: new Date("2025-08-01"),
+							code: "2025-T1",
+							name: "2025 Term 1",
+						},
+					}];
+				},
+			},
+		},
+	});
+
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 403,
+		message: "You are not enrolled in this course unit for the session's academic year",
+	});
+	assert.equal(state.records.length, 0);
+});
+
+test("rejects a QR check-in after its scheduled end time", async () => {
+	const { prisma } = createCheckInPrisma({
+		session: { endsAt: new Date("2026-11-13T06:59:00.000Z") },
+	});
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 409,
+		message: "This attendance session is not currently accepting check-ins",
+	});
 });
 
 test("updates a submitted report only when it belongs to the student and is still editable", async () => {

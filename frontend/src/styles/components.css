@@ -256,6 +256,11 @@ tr:last-child td { border-bottom: 0; }
 .auth-intro { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
 .auth-card form { display: grid; gap: 9px; }
 .auth-card form label:not(:first-child) { margin-top: 7px; }
+.lecturer-registration-departments { display: grid; gap: 9px; margin: 4px 0; padding: 0; border: 0; }
+.lecturer-registration-departments legend { margin-bottom: 4px; color: #38455e; font-size: 13px; font-weight: 650; }
+.lecturer-registration-department { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid #dce2ec; border-radius: 9px; }
+.lecturer-registration-department label { display: inline-flex; align-items: center; gap: 8px; margin: 0 !important; }
+.lecturer-registration-department input { width: auto; min-height: 0; margin: 0; padding: 0; }
 .auth-password-field { position: relative; }
 .auth-password-field input { padding-right: 46px; }
 .auth-password-toggle { position: absolute; top: 50%; right: 7px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: #5d5d5d; background: transparent; border: 0; border-radius: 7px; transform: translateY(-50%); }
@@ -294,6 +299,19 @@ tr:last-child td { border-bottom: 0; }
 .student-report-actions a, .student-recent-section a { color: var(--primary); font-size: 13px; font-weight: 650; }
 .student-clear-filter { color: var(--primary); }
 .details-card h2 { margin-top: 0; }
+.report-attendance-review { display: grid; gap: 14px; margin: 18px 0; }
+.report-attendance-review-heading h3 { margin: 0 0 5px; }
+.report-attendance-review-heading p,
+.report-attendance-review-note { margin: 0; color: var(--muted); font-size: 12px; }
+.report-attendance-check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.report-attendance-check { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 12px; background: #f7faf9; border: 1px solid var(--line); border-radius: 10px; }
+.report-attendance-check > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; }
+.report-attendance-check strong { color: var(--ink); font-size: 12px; }
+.report-attendance-check span { color: #647d80; font-size: 11px; font-weight: 700; }
+.report-attendance-check small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.report-attendance-check-present span { color: #17784c; }
+.report-attendance-check-absent span { color: #b64242; }
+.report-attendance-class-check span { color: var(--blue); }
 .comment-item { padding: 14px 0; border-bottom: 1px solid #edf0f5; }
 .comment-header small, .comment-item p { color: var(--muted); font-size: 12px; }
 .comment-form { display: grid; gap: 10px; margin-top: 18px; }
@@ -348,6 +366,7 @@ tr:last-child td { border-bottom: 0; }
   .topbar { gap: 9px; padding: 0 12px; }
   .topbar-user > span { display: none; }
   .student-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .report-attendance-check-grid { grid-template-columns: 1fr; }
   .student-welcome, .student-reports-header, .notifications-header, .student-reports-toolbar, .notifications-toolbar { align-items: flex-start; flex-direction: column; }
   .record-card { flex-direction: column; }
   .form-grid { grid-template-columns: 1fr; }

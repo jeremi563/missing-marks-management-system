@@ -25,5 +25,8 @@ export function evaluateAttendanceEligibility({ attendedSessions, applicableSess
 export async function evaluateConfiguredAttendanceEligibility({ db, attendedSessions, applicableSessions }) {
 	const configuredThreshold = await getSystemSettingValue(db, "attendance_minimum_percentage", 80);
 	const minimumPercentage = typeof configuredThreshold === "number" && configuredThreshold >= 0 && configuredThreshold <= 100 ? configuredThreshold : 80;
-	return evaluateAttendanceEligibility({ attendedSessions, applicableSessions, minimumPercentage });
+	return {
+		...evaluateAttendanceEligibility({ attendedSessions, applicableSessions, minimumPercentage }),
+		minimumPercentage,
+	};
 }

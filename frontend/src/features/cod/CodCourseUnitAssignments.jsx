@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { RefreshCw, UserPlus } from 'lucide-react'
 import {
   assignCodLecturerToCourseUnit,
@@ -9,9 +9,14 @@ import {
 import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
-import { extractRecords } from '../shared/recordUtils'
+import { extractRecords, groupCourseUnitsByCourse } from '../shared/recordUtils'
+import { academicYearForDate } from '../../shared/academic-year'
 
 const LIST_LIMIT = 100
+
+function getCurrentAcademicYear(now = new Date()) {
+  return academicYearForDate(now)
+}
 
 function unwrapItems(response) {
   const data = response?.data?.data ?? response?.data ?? response
@@ -31,6 +36,7 @@ export default function CodCourseUnitAssignments() {
   const [busyUnitId, setBusyUnitId] = useState('')
   const [refresh, setRefresh] = useState(0)
   const selectedDepartment = departments.find(({ id }) => id === departmentId)
+  const currentAcademicYear = getCurrentAcademicYear()
   const requestKey = `${departmentId}:${refresh}`
   const isLoading = loading || Boolean(departmentId && loadedRequest !== requestKey)
 
@@ -143,52 +149,63 @@ export default function CodCourseUnitAssignments() {
           <div className="page-heading">
             <div>
               <h3>{selectedDepartment ? `${selectedDepartment.name} course units` : 'Department course units'}</h3>
-              <p>Current assignments are shown for each course unit.</p>
+              <p>Current academic year: <strong>{currentAcademicYear}</strong></p>
+              <p>Course units are grouped by course and identified by code. Current assignments are shown for this academic year.</p>
             </div>
           </div>
           {isLoading ? <LoadingState message="Loading unit assignments…" /> :
             error ? <ErrorState title="Unable to load assignments" message={error} onRetry={() => setRefresh((value) => value + 1)} /> :
-              courseUnits.length === 0 ? <EmptyState title="No course units found" message="Create course units in Academic setup before assigning them to lecturers." /> : (
+              courseUnits.length === 0 ? <EmptyState title="No course units found" message="Ask an administrator to create a course and add its course units before assigning lecturers." /> : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Course unit</th><th>Assigned lecturers</th><th>Assign lecturer</th><th>Action</th></tr></thead>
-                    <tbody>{courseUnits.map((courseUnit) => {
-                      const assignedIds = courseUnit.lecturerMappings?.map(({ lecturer }) => lecturer.id) || []
-                      const availableLecturers = lecturers.filter(({ lecturerProfile }) => !assignedIds.includes(lecturerProfile.id))
-                      return (
-                        <tr key={courseUnit.id}>
-                          <td><strong>{courseUnit.code}</strong><br />{courseUnit.name}</td>
-                          <td>{courseUnit.lecturerMappings?.length
-                            ? courseUnit.lecturerMappings.map(({ lecturer }) => lecturer.user.displayName || lecturer.user.email).join(', ')
-                            : 'No lecturers assigned'}</td>
-                          <td>
-                            <select
-                              aria-label={`Lecturer for ${courseUnit.code}`}
-                              value={selectedLecturers[courseUnit.id] || ''}
-                              onChange={(event) => setSelectedLecturers((current) => ({ ...current, [courseUnit.id]: event.target.value }))}
-                              disabled={!availableLecturers.length || busyUnitId === courseUnit.id}
-                            >
-                              <option value="">{availableLecturers.length ? 'Select lecturer' : 'No eligible lecturers'}</option>
-                              {availableLecturers.map((lecturer) => (
-                                <option key={lecturer.lecturerProfile.id} value={lecturer.lecturerProfile.id}>
-                                  {lecturer.displayName || lecturer.email}{lecturer.lecturerProfile.staffNumber ? ` · ${lecturer.lecturerProfile.staffNumber}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <button
-                              className="button button-primary"
-                              type="button"
-                              disabled={!selectedLecturers[courseUnit.id] || busyUnitId === courseUnit.id}
-                              onClick={() => assignLecturer(courseUnit)}
-                            >
-                              <UserPlus size={15} />{busyUnitId === courseUnit.id ? 'Assigning…' : 'Assign'}
-                            </button>
-                          </td>
+                    <thead><tr><th>Course unit code</th><th>Assigned lecturers</th><th>Assign lecturer</th><th>Action</th></tr></thead>
+                    <tbody>{groupCourseUnitsByCourse(courseUnits).map(({ course, courseUnits: groupedUnits }) => (
+                      <Fragment key={course?.id ?? 'unassigned'}>
+                        <tr className="course-group-row">
+                          <th colSpan="4" scope="rowgroup">
+                            {course ? `${course.code} — ${course.name}` : 'Course not assigned'}
+                          </th>
                         </tr>
-                      )
-                    })}</tbody>
+                        {groupedUnits.map((courseUnit) => {
+                          const assignedIds = courseUnit.lecturerMappings?.map(({ lecturer }) => lecturer.id) || []
+                          const availableLecturers = lecturers.filter(({ lecturerProfile }) => !assignedIds.includes(lecturerProfile.id))
+                          const hasCurrentYearAssignment = Boolean(courseUnit.lecturerMappings?.length)
+                          return (
+                            <tr key={courseUnit.id}>
+                              <td><strong>{courseUnit.code}</strong></td>
+                              <td>{courseUnit.lecturerMappings?.length
+                                ? courseUnit.lecturerMappings.map(({ lecturer }) => lecturer.user.displayName || lecturer.user.email).join(', ')
+                                : 'No lecturers assigned'}</td>
+                              <td>
+                                <select
+                                  aria-label={`Lecturer for ${courseUnit.code}`}
+                                  value={selectedLecturers[courseUnit.id] || ''}
+                                  onChange={(event) => setSelectedLecturers((current) => ({ ...current, [courseUnit.id]: event.target.value }))}
+                                  disabled={hasCurrentYearAssignment || !availableLecturers.length || busyUnitId === courseUnit.id}
+                                >
+                                  <option value="">{hasCurrentYearAssignment ? 'Already assigned this academic year' : availableLecturers.length ? 'Select lecturer' : 'No eligible lecturers'}</option>
+                                  {availableLecturers.map((lecturer) => (
+                                    <option key={lecturer.lecturerProfile.id} value={lecturer.lecturerProfile.id}>
+                                      {lecturer.displayName || lecturer.email}{lecturer.lecturerProfile.staffNumber ? ` · ${lecturer.lecturerProfile.staffNumber}` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                <button
+                                  className="button button-primary"
+                                  type="button"
+                                  disabled={hasCurrentYearAssignment || !selectedLecturers[courseUnit.id] || busyUnitId === courseUnit.id}
+                                  onClick={() => assignLecturer(courseUnit)}
+                                >
+                                  <UserPlus size={15} />{busyUnitId === courseUnit.id ? 'Assigning…' : 'Assign'}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </Fragment>
+                    ))}</tbody>
                   </table>
                 </div>
               )}

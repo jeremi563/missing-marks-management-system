@@ -24,6 +24,18 @@ enum AccountSecurityTokenType {
   EMAIL_CHANGE
 }
 
+enum StudentEnrollmentRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum DepartmentMembershipRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -60,10 +72,13 @@ model User {
   designatedDepartments         Department[]                  @relation("DepartmentDesignatedCOD")
   appealDecisions                Appeal[]                      @relation("AppealDecisionActor")
   specialCaseSubmissions         SpecialCase[]                 @relation("SpecialCaseSubmitter")
+  departmentMembershipRequests  DepartmentMembershipRequest[] @relation("DepartmentMembershipRequestLecturer")
+  reviewedDepartmentMembershipRequests DepartmentMembershipRequest[] @relation("DepartmentMembershipRequestReviewer")
   specialCaseDecisions            SpecialCase[]                 @relation("SpecialCaseDecisionActor")
   managedSpecialCaseCategories  SpecialCaseCategory[]         @relation("SpecialCaseCategoryManager")
   managedPublicHolidays         PublicHoliday[]               @relation("PublicHolidayManager")
   administeredAttendanceCorrections AttendanceCorrection[] @relation("AdminAttendanceCorrectionActor")
+  reviewedEnrollmentRequests       StudentEnrollmentRequest[] @relation("EnrollmentRequestReviewer")
 
   @@map("users")
 }
@@ -145,6 +160,7 @@ model StudentProfile {
 
   user                    User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
   enrollments             UnitEnrollment[]
+  enrollmentRequests      StudentEnrollmentRequest[]
   reports                 MissingMarkReport[]
   appeals                 Appeal[]
   attendance              AttendanceRecord[]
@@ -189,8 +205,10 @@ model Department {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  courses     Course[]
   courseUnits CourseUnit[]
   members     DepartmentMembership[]
+  membershipRequests DepartmentMembershipRequest[]
   designatedCodUserId String? @map("designated_cod_user_id") @db.Uuid
   designatedCod User? @relation("DepartmentDesignatedCOD", fields: [designatedCodUserId], references: [id], onDelete: SetNull)
 
@@ -212,22 +230,42 @@ model DepartmentMembership {
   @@map("department_memberships")
 }
 
+model Course {
+  id           String   @id @default(uuid()) @db.Uuid
+  departmentId String   @map("department_id") @db.Uuid
+  code         String   @db.VarChar(2)
+  name         String   @db.VarChar(200)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  department Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  courseUnits CourseUnit[]
+
+  @@unique([departmentId, code])
+  @@index([departmentId])
+  @@map("courses")
+}
+
 model CourseUnit {
   id           String   @id @default(uuid()) @db.Uuid
   departmentId String   @map("department_id") @db.Uuid
+  courseId     String?  @map("course_id") @db.Uuid
   code         String
   name         String
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   department         Department           @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  course             Course?              @relation(fields: [courseId], references: [id], onDelete: Restrict)
   enrollments        UnitEnrollment[]
+  enrollmentRequests StudentEnrollmentRequest[]
   lecturerMappings   CourseUnitLecturer[]
   reports            MissingMarkReport[]
   attendanceSessions AttendanceSession[]
   assessments        Assessment[]
 
   @@unique([departmentId, code])
+  @@index([courseId])
   @@index([code])
   @@map("course_units")
 }
@@ -238,13 +276,36 @@ model AcademicPeriod {
   name      String
   startsAt  DateTime? @map("starts_at")
   endsAt    DateTime? @map("ends_at")
+  enrollmentOpensAt DateTime? @map("enrollment_opens_at")
+  enrollmentClosesAt DateTime? @map("enrollment_closes_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
   enrollments UnitEnrollment[]
   reports     MissingMarkReport[]
+  enrollmentRequests StudentEnrollmentRequest[]
 
   @@index([name])
   @@map("academic_periods")
+}
+
+model DepartmentMembershipRequest {
+  id                 String                              @id @default(uuid()) @db.Uuid
+  lecturerUserId     String                              @map("lecturer_user_id") @db.Uuid
+  departmentId       String                              @map("department_id") @db.Uuid
+  status             DepartmentMembershipRequestStatus  @default(PENDING)
+  reviewedByUserId   String?                             @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?                           @map("reviewed_at")
+  createdAt          DateTime                            @default(now()) @map("created_at")
+  updatedAt          DateTime                            @updatedAt @map("updated_at")
+
+  lecturer   User        @relation("DepartmentMembershipRequestLecturer", fields: [lecturerUserId], references: [id], onDelete: Cascade)
+  department Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  reviewedBy User?       @relation("DepartmentMembershipRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([lecturerUserId, departmentId])
+  @@index([departmentId, status, createdAt])
+  @@index([reviewedByUserId, reviewedAt])
+  @@map("department_membership_requests")
 }
 
 model UnitEnrollment {
@@ -263,16 +324,41 @@ model UnitEnrollment {
   @@map("unit_enrollments")
 }
 
+model StudentEnrollmentRequest {
+  id                 String                        @id @default(uuid()) @db.Uuid
+  studentProfileId   String                        @map("student_profile_id") @db.Uuid
+  courseUnitId       String                        @map("course_unit_id") @db.Uuid
+  academicPeriodId   String                        @map("academic_period_id") @db.Uuid
+  status             StudentEnrollmentRequestStatus @default(PENDING)
+  reviewedByUserId   String?                       @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt         DateTime?                     @map("reviewed_at")
+  decisionNote       String?                       @map("decision_note") @db.VarChar(1000)
+  createdAt          DateTime                      @default(now()) @map("created_at")
+  updatedAt          DateTime                      @updatedAt @map("updated_at")
+
+  student      StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  courseUnit   CourseUnit     @relation(fields: [courseUnitId], references: [id], onDelete: Restrict)
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id], onDelete: Restrict)
+  reviewedBy   User?          @relation("EnrollmentRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([studentProfileId, courseUnitId, academicPeriodId])
+  @@index([status, createdAt])
+  @@index([courseUnitId, status])
+  @@index([reviewedByUserId, reviewedAt])
+  @@map("student_enrollment_requests")
+}
+
 model CourseUnitLecturer {
   id                String   @id @default(uuid()) @db.Uuid
   courseUnitId      String   @map("course_unit_id") @db.Uuid
   lecturerProfileId String   @map("lecturer_profile_id") @db.Uuid
+  academicYear      String?  @map("academic_year") @db.VarChar(7)
   createdAt         DateTime @default(now()) @map("created_at")
 
   courseUnit CourseUnit      @relation(fields: [courseUnitId], references: [id], onDelete: Restrict)
   lecturer   LecturerProfile @relation(fields: [lecturerProfileId], references: [id], onDelete: Restrict)
 
-  @@unique([courseUnitId, lecturerProfileId])
+  @@unique([courseUnitId, academicYear])
   @@index([lecturerProfileId])
   @@map("course_unit_lecturers")
 }

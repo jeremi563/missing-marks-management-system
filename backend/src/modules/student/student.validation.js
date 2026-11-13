@@ -11,9 +11,9 @@ const studentReportIdSchema = z.object({
 
 const createReportBodySchema = z.object({
 	courseUnitId: z.string().uuid(),
-	academicPeriodId: z.string().uuid(),
+	academicYear: z.string().regex(/^20\d{2}\/\d{2}$/, "Academic year must use the YYYY/YY format."),
 	assessmentId: z.string().uuid().optional(),
-	assessmentComponent: z.string().trim().min(1).max(100),
+	assessmentComponent: z.string().trim().min(1).max(100).optional(),
 	description: z.string().trim().min(1).max(5000),
 }).strict();
 
@@ -46,6 +46,12 @@ const attendanceDiscrepancySourceSchema = z.object({
 	}
 });
 const attendanceDiscrepancyParamsSchema = z.object({ id: z.string().uuid() });
+const studentAttendanceCheckInSchema = z.object({
+	token: z.string().regex(/^[a-f0-9]{64}$/i, "A valid attendance link token is required."),
+	latitude: z.number().finite().min(-90).max(90),
+	longitude: z.number().finite().min(-180).max(180),
+	accuracyMeters: z.number().finite().min(0).max(20_000_000),
+}).strict();
 
 export function validateReportListQuery(req, res, next) {
 	const result = reportListQuerySchema.safeParse(req.query);
@@ -147,5 +153,12 @@ export function validateAttendanceDiscrepancyParams(req, res, next) {
 	const result = attendanceDiscrepancyParamsSchema.safeParse(req.params);
 	if (!result.success) return next(Object.assign(new Error("Request validation failed"), { statusCode: 400, details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })) }));
 	req.validatedParams = result.data;
+	return next();
+}
+
+export function validateStudentAttendanceCheckIn(req, res, next) {
+	const result = studentAttendanceCheckInSchema.safeParse(req.body);
+	if (!result.success) return next(Object.assign(new Error("Request validation failed"), { statusCode: 400, details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })) }));
+	req.validatedBody = result.data;
 	return next();
 }

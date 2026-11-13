@@ -65,15 +65,15 @@ async function claimBatch(db = prisma) {
 }
 
 async function eventStillOverdue(tx, event, now) {
-	if (event.eventType === "LECTURER_REPORT_OVERDUE" || event.eventType === "COD_REPORT_OVERDUE") {
+	if (event.eventType === "COD_REPORT_OVERDUE") return { eligible: false };
+	if (event.eventType === "LECTURER_REPORT_OVERDUE") {
 		const report = await tx.missingMarkReport.findUnique({
 			where: { id: event.entityId },
 			select: { status: true, assignedLecturerProfileId: true, courseUnit: { select: { department: { select: { id: true, designatedCodUserId: true } } } }, assignments: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, newLecturerProfileId: true, deadlineAt: true, workStartedAt: true, newLecturer: { select: { userId: true } } } } },
 		});
 		const assignment = report?.assignments[0];
 		if (!report || report.status.toUpperCase() !== "PENDING" || !assignment?.workStartedAt || !assignment.deadlineAt) return { eligible: false };
-		if (event.eventType === "LECTURER_REPORT_OVERDUE" && (assignment.newLecturerProfileId !== report.assignedLecturerProfileId || assignment.newLecturer.userId !== event.recipientUserId)) return { eligible: false };
-		if (event.eventType === "COD_REPORT_OVERDUE" && (report.courseUnit.department.designatedCodUserId !== event.recipientUserId || !await isValidDesignatedCod(tx, report.courseUnit.department.id, event.recipientUserId))) return { eligible: false };
+		if (assignment.newLecturerProfileId !== report.assignedLecturerProfileId || assignment.newLecturer.userId !== event.recipientUserId) return { eligible: false };
 		return assignment.deadlineAt < now ? { eligible: true } : { eligible: false, deadlineAt: assignment.deadlineAt };
 	}
 	if (event.eventType === "COD_APPEAL_OVERDUE") {

@@ -3,6 +3,137 @@ import { createHash, randomBytes } from 'node:crypto';
 import { recordAuditEvent } from '../../shared/services/audit.service.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { loadAttendanceDiscrepancySource } from '../../shared/services/attendance-discrepancy-source.service.js';
+import { evaluateConfiguredAttendanceEligibility } from '../../shared/services/eligibility.service.js';
+import { createNotification } from '../../shared/services/notification.service.js';
+import { isActiveCodDepartmentMember } from '../../shared/services/designated-cod-authorization.service.js';
+import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
+
+function attendanceYearBounds(academicYear) {
+  const startYear = Number(academicYear?.slice(0, 4));
+  if (!Number.isInteger(startYear)) return null;
+  return {
+    startsAt: new Date(Date.UTC(startYear, 7, 1)),
+    endsAt: new Date(Date.UTC(startYear + 1, 7, 1)),
+  };
+}
+
+function isPresentStatus(status) {
+  return ['PRESENT', 'ATTENDED'].includes(String(status).toUpperCase());
+}
+
+async function getReportAttendanceReview(prisma, report) {
+  const academicYear = academicYearForPeriod(report.academicPeriod);
+  const bounds = attendanceYearBounds(academicYear);
+  if (!bounds) {
+    return {
+      academicYear: null,
+      assessments: {
+        CAT: { status: 'unknown', items: [] },
+        EXAM: { status: 'unknown', items: [] },
+      },
+      classAttendance: { attendedSessions: 0, applicableSessions: 0, percentage: null, minimumPercentage: null, meetsRequirement: null },
+    };
+  }
+
+  const [assessments, classSessions] = await Promise.all([
+    prisma.assessment.findMany({
+      where: {
+        courseUnitId: report.courseUnitId,
+        type: { in: ['CAT', 'EXAM'] },
+        OR: [
+          { assessmentDate: { gte: bounds.startsAt, lt: bounds.endsAt } },
+          { sessions: { some: { startsAt: { gte: bounds.startsAt, lt: bounds.endsAt } } } },
+        ],
+      },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        type: true,
+        attendanceRecords: {
+          where: { studentProfileId: report.studentProfileId },
+          select: { status: true },
+        },
+        sessions: {
+          where: {
+            sessionType: { in: ['CAT', 'EXAM'] },
+            status: 'completed',
+            startsAt: { gte: bounds.startsAt, lt: bounds.endsAt },
+          },
+          select: {
+            id: true,
+            records: {
+              where: { studentProfileId: report.studentProfileId },
+              select: { status: true },
+            },
+          },
+        },
+      },
+    }),
+    prisma.attendanceSession.findMany({
+      where: {
+        courseUnitId: report.courseUnitId,
+        sessionType: 'CLASS',
+        status: 'completed',
+        startsAt: { gte: bounds.startsAt, lt: bounds.endsAt },
+      },
+      select: {
+        id: true,
+        records: {
+          where: { studentProfileId: report.studentProfileId },
+          select: { status: true },
+        },
+      },
+    }),
+  ]);
+
+  const assessmentGroups = Object.fromEntries(['CAT', 'EXAM'].map((type) => {
+    const items = assessments.filter((assessment) => assessment.type.toUpperCase() === type).map((assessment) => {
+      const attendanceRows = assessment.attendanceRecords;
+      const hasPresentRecord = attendanceRows.some(({ status }) => isPresentStatus(status))
+        || assessment.sessions.some((session) => session.records.some(({ status }) => isPresentStatus(status)));
+      const hasExplicitAbsentRecord = attendanceRows.some(({ status }) => String(status).toUpperCase() === 'ABSENT');
+      const status = hasPresentRecord
+        ? 'present'
+        : hasExplicitAbsentRecord || assessment.sessions.length > 0
+          ? 'absent'
+          : 'unknown';
+      return {
+        assessmentId: assessment.id,
+        name: assessment.name,
+        code: assessment.code,
+        status,
+        completedSessions: assessment.sessions.length,
+      };
+    });
+    const status = items.length === 0 || items.some((item) => item.status === 'unknown')
+      ? 'unknown'
+      : items.some((item) => item.status === 'absent')
+        ? 'absent'
+        : 'present';
+    return [type, { status, items }];
+  }));
+
+  const attendedSessions = classSessions.filter((session) => session.records.some(({ status }) => isPresentStatus(status))).length;
+  const classAttendance = classSessions.length
+    ? await evaluateConfiguredAttendanceEligibility({
+      db: prisma,
+      attendedSessions,
+      applicableSessions: classSessions.length,
+    })
+    : { percentage: null, meetsRequirement: null, minimumPercentage: null };
+
+  return {
+    academicYear,
+    assessments: assessmentGroups,
+    classAttendance: {
+      attendedSessions,
+      applicableSessions: classSessions.length,
+      ...classAttendance,
+    },
+  };
+}
+
 export const getAssignedReports = async (
   prisma,
   lecturerUserId,
@@ -129,6 +260,8 @@ export const getAssignedReportById = async (
     select: {
       id: true,
       reference: true,
+      studentProfileId: true,
+      courseUnitId: true,
       assessmentComponent: true,
       description: true,
       status: true,
@@ -185,7 +318,8 @@ export const getAssignedReportById = async (
     throw error;
   }
 
-  return report;
+  const attendanceReview = await getReportAttendanceReview(prisma, report);
+  return { ...report, attendanceReview };
 };
 //feature 3:: report investigation and comments
 // Feature 3: Report investigation and comments
@@ -217,6 +351,8 @@ const getAssignedReportForComments = async (
     },
     select: {
       id: true,
+      reference: true,
+      student: { select: { userId: true } },
     },
   });
 
@@ -288,41 +424,49 @@ export const createReportComment = async (
   reportId,
   body
 ) => {
-  const report = await getAssignedReportForComments(
-    prisma,
-    lecturerUserId,
-    reportId
-  );
+  return prisma.$transaction(async (transaction) => {
+    const report = await getAssignedReportForComments(
+      transaction,
+      lecturerUserId,
+      reportId
+    );
 
-  // Keep lecturer-side thread updates hidden from students unless a separate visibility
-  // decision is implemented. Students only see comments marked visible to them or comments
-  // they authored themselves.
-  const comment = await prisma.reportComment.create({
-    data: {
-      reportId: report.id,
-      authorUserId: lecturerUserId,
-      body,
-      isStudentVisible: false,
-    },
-    select: {
-      id: true,
-      body: true,
-      createdAt: true,
-      author: {
-        select: commentAuthorSelection,
+    const comment = await transaction.reportComment.create({
+      data: {
+        reportId: report.id,
+        authorUserId: lecturerUserId,
+        body,
+        isStudentVisible: true,
       },
-    },
-  });
+      select: {
+        id: true,
+        body: true,
+        createdAt: true,
+        author: {
+          select: commentAuthorSelection,
+        },
+      },
+    });
 
-  return {
-    ...comment,
-    author: {
-      ...comment.author,
-      roles: comment.author.roles.map(
-        (userRole) => userRole.role.name
-      ),
-    },
-  };
+    await createNotification({
+      prismaClient: transaction,
+      userId: report.student.userId,
+      reportId: report.id,
+      title: 'Lecturer feedback on your report',
+      message: `Your lecturer shared feedback on report ${report.reference}.`,
+      dedupeKey: `REPORT_FEEDBACK:${comment.id}`,
+    });
+
+    return {
+      ...comment,
+      author: {
+        ...comment.author,
+        roles: comment.author.roles.map(
+          (userRole) => userRole.role.name
+        ),
+      },
+    };
+  });
 };
 
 // Feature 4: Submit a lecturer decision on an assigned report
@@ -493,7 +637,17 @@ export const escalateAssignedReport = async (prisma, lecturerUserId, reportId, r
 
   const report = await prisma.missingMarkReport.findFirst({
     where: { id: reportId, assignedLecturerProfileId: lecturer.id },
-    select: { id: true, reference: true, status: true },
+    select: {
+      id: true,
+      reference: true,
+      status: true,
+      courseUnit: {
+        select: {
+          code: true,
+          department: { select: { id: true, designatedCodUserId: true } },
+        },
+      },
+    },
   });
   if (!report) {
     const error = new Error('Missing-mark report not found.');
@@ -551,6 +705,18 @@ export const escalateAssignedReport = async (prisma, lecturerUserId, reportId, r
       entityId: report.id,
       metadata: { previousStatus: report.status, newStatus: 'ESCALATED' },
     });
+    const codUserId = report.courseUnit.department.designatedCodUserId;
+    if (await isActiveCodDepartmentMember(tx, codUserId, report.courseUnit.department.id)) {
+      await tx.notification.create({
+        data: {
+          userId: codUserId,
+          reportId: report.id,
+          title: 'Missing-mark report escalated',
+          message: `Report ${report.reference} for ${report.courseUnit.code} requires your review.`,
+          dedupeKey: `REPORT_ESCALATED:${report.id}:${codUserId}`,
+        },
+      });
+    }
 
     return {
       reportId: report.id,
@@ -721,12 +887,11 @@ export const createAttendanceSession = async (
   }
 
   // Verify that the lecturer is assigned to the selected course unit.
-  const assignment = await prisma.courseUnitLecturer.findUnique({
+  const assignment = await prisma.courseUnitLecturer.findFirst({
     where: {
-      courseUnitId_lecturerProfileId: {
-        courseUnitId: sessionData.courseUnitId,
-        lecturerProfileId: lecturer.id,
-      },
+      courseUnitId: sessionData.courseUnitId,
+      lecturerProfileId: lecturer.id,
+      academicYear: academicYearForDate(sessionData.startsAt),
     },
     select: {
       id: true,
@@ -1099,6 +1264,12 @@ export const startAttendanceSession = async (
     throw error;
   }
 
+  if (session.endsAt && new Date(session.endsAt) <= new Date()) {
+    const error = new Error('This attendance session has passed its scheduled end time and cannot be started.');
+    error.statusCode = 409;
+    throw error;
+  }
+
   const result = await prisma.attendanceSession.updateMany({
   where: {
     id: sessionId,
@@ -1123,10 +1294,145 @@ return prisma.attendanceSession.findUnique({
 });
 };
 
-// Feature 6: End an attendance session
-export const endAttendanceSession = async (
+export const generateAttendanceLink = async (
   prisma,
   lecturerUserId,
+  sessionId
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: { id: sessionId, lecturerProfileId: lecturer.id },
+    select: { id: true, status: true, endsAt: true },
+  });
+
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (session.status !== 'active') {
+    const error = new Error('Attendance links can only be generated for active sessions.');
+    error.statusCode = 409;
+    throw error;
+  }
+  if (session.endsAt && new Date(session.endsAt) <= new Date()) {
+    const error = new Error('Attendance links can only be generated before the session end time.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const qrToken = randomBytes(32).toString('hex');
+  const accessTokenHash = createHash('sha256').update(qrToken).digest('hex');
+  const result = await prisma.attendanceSession.updateMany({
+    where: { id: sessionId, lecturerProfileId: lecturer.id, status: 'active' },
+    data: { accessTokenHash },
+  });
+
+  if (result.count === 0) {
+    const error = new Error('Session state changed. Generate a link only for an active session.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return { sessionId, qrToken };
+};
+
+export const extendAttendanceSession = async (
+  prisma,
+  lecturerUserId,
+  sessionId,
+  endsAt,
+  now = new Date()
+) => {
+  const lecturer = await prisma.lecturerProfile.findUnique({
+    where: { userId: lecturerUserId },
+    select: { id: true },
+  });
+  if (!lecturer) {
+    const error = new Error('Lecturer profile not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const session = await prisma.attendanceSession.findFirst({
+    where: { id: sessionId, lecturerProfileId: lecturer.id },
+    select: { id: true, status: true, endsAt: true },
+  });
+  if (!session) {
+    const error = new Error('Attendance session not found.');
+    error.statusCode = 404;
+    throw error;
+  }
+  if (session.status !== 'active') {
+    const error = new Error('Only active attendance sessions can be extended.');
+    error.statusCode = 409;
+    throw error;
+  }
+  if (session.endsAt && new Date(session.endsAt) <= now) {
+    const error = new Error('An expired attendance session cannot be extended.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const nextEndTime = new Date(endsAt);
+  if (Number.isNaN(nextEndTime.valueOf()) || nextEndTime <= now) {
+    const error = new Error('The extended end time must be in the future.');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (session.endsAt && nextEndTime <= new Date(session.endsAt)) {
+    const error = new Error('The extended end time must be later than the current end time.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const result = await prisma.attendanceSession.updateMany({
+    where: {
+      id: sessionId,
+      lecturerProfileId: lecturer.id,
+      status: 'active',
+      endsAt: session.endsAt,
+    },
+    data: { endsAt: nextEndTime },
+  });
+  if (result.count === 0) {
+    const error = new Error('Session state changed. Refresh the session and try again.');
+    error.statusCode = 409;
+    throw error;
+  }
+
+  return prisma.attendanceSession.findUnique({ where: { id: sessionId } });
+};
+
+export const completeExpiredAttendanceSessions = async (prisma, now = new Date()) => {
+  const result = await prisma.attendanceSession.updateMany({
+    where: {
+      status: { in: ['scheduled', 'active'] },
+      endsAt: { lte: now },
+    },
+    data: {
+      status: 'completed',
+      accessTokenHash: null,
+    },
+  });
+  return result.count;
+};
+
+// Feature 6: End an attendance session
+export const endAttendanceSession = async (
+prisma,
+lecturerUserId,
   sessionId
 ) => {
   const lecturer = await prisma.lecturerProfile.findUnique({
@@ -1169,6 +1475,7 @@ export const endAttendanceSession = async (
   },
   data: {
     status: 'completed',
+    accessTokenHash: null,
   },
 });
 
@@ -1244,7 +1551,7 @@ export async function createLecturerAttendanceDiscrepancy(db, userId, input) {
 	const lecturer = await getDiscrepancyLecturer(db, userId);
 	const context = await loadAttendanceDiscrepancySource(db, input);
 	if (context.assignedLecturerProfileId !== lecturer.id) throw new AppError(404, "Attendance source not found");
-	const assignment = await db.courseUnitLecturer.findUnique({ where: { courseUnitId_lecturerProfileId: { courseUnitId: context.courseUnitId, lecturerProfileId: lecturer.id } }, select: { id: true } });
+	const assignment = await db.courseUnitLecturer.findFirst({ where: { courseUnitId: context.courseUnitId, lecturerProfileId: lecturer.id, academicYear: context.academicYear }, select: { id: true } });
 	if (!assignment) throw new AppError(404, "Attendance source not found");
 	try {
 	return await db.$transaction(async (tx) => {

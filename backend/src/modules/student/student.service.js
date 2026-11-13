@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { generateReference } from "../../shared/utils/generate-reference.js";
 import { addWorkingDays } from "../../shared/utils/business-days.js";
 import { enqueueNotificationOnce } from "../../shared/services/notification-outbox.service.js";
@@ -6,6 +7,10 @@ import { getSystemSettingValue } from "../../shared/services/system-settings.ser
 import { AppError } from "../../shared/utils/app-error.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { loadAttendanceDiscrepancySource } from "../../shared/services/attendance-discrepancy-source.service.js";
+import { academicYearForDate, academicYearForPeriod } from "../../shared/utils/academic-year.js";
+import { parseStudentRegistrationNumber } from "../../shared/utils/registration-number.js";
+
+const FIRST_REPORT_ACADEMIC_YEAR = 2026;
 
 export async function getStudentProfile(prisma, userId) {
 	const profile = await prisma.studentProfile.findUnique({
@@ -32,6 +37,87 @@ export async function getStudentProfile(prisma, userId) {
 	}
 
 	return profile;
+}
+
+export function buildAcademicYearOptions(enrolledPeriods, now = new Date()) {
+	const currentAcademicYearStart = Number(academicYearForDate(now).slice(0, 4));
+	const periodsByYear = new Map();
+	const periodsInOrder = [...enrolledPeriods].sort((left, right) => {
+		const leftStart = left.startsAt ? new Date(left.startsAt).valueOf() : Number.MAX_SAFE_INTEGER;
+		const rightStart = right.startsAt ? new Date(right.startsAt).valueOf() : Number.MAX_SAFE_INTEGER;
+		return leftStart - rightStart || left.id.localeCompare(right.id);
+	});
+	for (const period of periodsInOrder) {
+		const year = academicYearForPeriod(period);
+		if (!year) continue;
+		const existing = periodsByYear.get(year);
+		if (!existing || (period.startsAt && (!existing.startsAt || period.startsAt < existing.startsAt))) {
+			periodsByYear.set(year, period);
+		}
+	}
+
+	return Array.from({ length: Math.max(0, currentAcademicYearStart - FIRST_REPORT_ACADEMIC_YEAR + 1) }, (_, index) => {
+		const startYear = FIRST_REPORT_ACADEMIC_YEAR + index;
+		const value = `${startYear}/${String(startYear + 1).slice(-2)}`;
+		return { value, label: value, academicPeriodId: periodsByYear.get(value)?.id || null };
+	});
+}
+
+async function loadStudentReportOptions(prisma, student, now) {
+	const registration = parseStudentRegistrationNumber(student.studentNumber);
+	if (!registration) throw new AppError(422, "Ask an administrator to update your student number to the new department/course format before continuing");
+	const enrollments = await prisma.unitEnrollment.findMany({
+		where: {
+			studentProfileId: student.id,
+			courseUnit: {
+				department: { initials: registration.departmentInitials },
+				course: { is: { code: registration.courseCode } },
+			},
+		},
+		select: {
+			courseUnit: {
+				select: {
+					id: true,
+					code: true,
+					name: true,
+				},
+			},
+			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true } },
+		},
+	});
+
+	const courses = new Map();
+	for (const { courseUnit, academicPeriod } of enrollments) {
+		if (!courses.has(courseUnit.id)) {
+			courses.set(courseUnit.id, { ...courseUnit, enrolledPeriods: [] });
+		}
+		const course = courses.get(courseUnit.id);
+		course.enrolledPeriods.push(academicPeriod);
+	}
+
+	return [...courses.values()]
+		.map((course) => ({
+			id: course.id,
+			code: course.code,
+			name: course.name,
+			academicYears: buildAcademicYearOptions(course.enrolledPeriods, now),
+		}))
+		.sort((left, right) => left.code.localeCompare(right.code));
+}
+
+export async function getStudentReportOptions(prisma, userId, now = new Date()) {
+	const student = await prisma.studentProfile.findUnique({
+		where: { userId },
+		select: { id: true, studentNumber: true },
+	});
+
+	if (!student) {
+		const error = new Error("Student profile not found.");
+		error.statusCode = 404;
+		throw error;
+	}
+
+	return loadStudentReportOptions(prisma, student, now);
 }
 
 export async function getStudentReports(prisma, userId, pagination = {}) {
@@ -483,28 +569,19 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 export async function submitMissingMarkReport(prisma, userId, input) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
-		select: { id: true },
+		select: { id: true, studentNumber: true },
 	});
-
 	if (!student) {
 		const error = new Error("Student profile not found.");
 		error.statusCode = 404;
 		throw error;
 	}
 
-	const enrollment = await prisma.unitEnrollment.findUnique({
-		where: {
-			studentProfileId_courseUnitId_academicPeriodId: {
-				studentProfileId: student.id,
-				courseUnitId: input.courseUnitId,
-				academicPeriodId: input.academicPeriodId,
-			},
-		},
-		select: { id: true },
-	});
-
-	if (!enrollment) {
-		const error = new Error("You are not enrolled in the selected course unit and academic period.");
+	const courseUnits = await loadStudentReportOptions(prisma, student, new Date());
+	const selectedCourseUnit = courseUnits.find(({ id }) => id === input.courseUnitId);
+	const selectedAcademicYear = selectedCourseUnit?.academicYears.find(({ value }) => value === input.academicYear);
+	if (!selectedAcademicYear?.academicPeriodId) {
+		const error = new Error("You are not enrolled in the selected course unit and academic year.");
 		error.statusCode = 422;
 		throw error;
 	}
@@ -523,16 +600,30 @@ export async function submitMissingMarkReport(prisma, userId, input) {
 
 	const submittedAt = new Date();
 	return prisma.$transaction(async (transaction) => {
+		const assignment = await transaction.courseUnitLecturer.findUnique({
+			where: {
+				courseUnitId_academicYear: {
+					courseUnitId: input.courseUnitId,
+					academicYear: input.academicYear,
+				},
+			},
+			select: {
+				lecturerProfileId: true,
+				lecturer: { select: { userId: true } },
+			},
+		});
+		const initialStatus = assignment ? "PENDING" : "Submitted";
 		const report = await transaction.missingMarkReport.create({
 			data: {
 				reference: generateReference(submittedAt),
 				studentProfileId: student.id,
 				courseUnitId: input.courseUnitId,
-				academicPeriodId: input.academicPeriodId,
+				academicPeriodId: selectedAcademicYear.academicPeriodId,
+				assignedLecturerProfileId: assignment?.lecturerProfileId,
 				assessmentId: input.assessmentId,
-				assessmentComponent: input.assessmentComponent,
+				assessmentComponent: input.assessmentComponent || "Not specified",
 				description: input.description,
-				status: "Submitted",
+				status: initialStatus,
 				submittedAt,
 			},
 			select: {
@@ -558,18 +649,205 @@ export async function submitMissingMarkReport(prisma, userId, input) {
 			},
 		});
 
+		if (assignment) {
+			await transaction.reportAssignment.create({
+				data: {
+					reportId: report.id,
+					actorUserId: userId,
+					newLecturerProfileId: assignment.lecturerProfileId,
+					reason: "Automatically assigned to the lecturer responsible for this course unit and academic year.",
+				},
+			});
+			await transaction.reportStatusHistory.create({
+				data: {
+					reportId: report.id,
+					actorUserId: userId,
+					previousStatus: "Submitted",
+					newStatus: "PENDING",
+					reason: "Report assigned to the lecturer responsible for this course unit and academic year.",
+				},
+			});
+			await transaction.notification.create({
+				data: {
+					userId: assignment.lecturer.userId,
+					reportId: report.id,
+					title: "New missing-mark report",
+					message: `${student.studentNumber} submitted report ${report.reference} for ${report.courseUnit.code}.`,
+					dedupeKey: `REPORT_ASSIGNED:${report.id}:${assignment.lecturer.userId}`,
+				},
+			});
+		}
 		await transaction.auditLog.create({
 			data: {
 				actorId: userId,
 				action: "REPORT_SUBMITTED",
 				entityType: "MissingMarkReport",
 				entityId: report.id,
-				metadata: { reference: report.reference },
+				metadata: { reference: report.reference, assignedLecturerProfileId: assignment?.lecturerProfileId ?? null },
 			},
 		});
 
 		return report;
 	});
+}
+
+function distanceBetweenMeters(latitudeA, longitudeA, latitudeB, longitudeB) {
+	const radians = (degrees) => degrees * Math.PI / 180;
+	const earthRadiusMeters = 6_371_000;
+	const latitudeDelta = radians(latitudeB - latitudeA);
+	const longitudeDelta = radians(longitudeB - longitudeA);
+	const haversine = Math.sin(latitudeDelta / 2) ** 2
+		+ Math.cos(radians(latitudeA)) * Math.cos(radians(latitudeB))
+		* Math.sin(longitudeDelta / 2) ** 2;
+	return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
+}
+
+export async function submitStudentAttendanceCheckIn(prisma, userId, input, now = new Date()) {
+	const student = await prisma.studentProfile.findUnique({
+		where: { userId },
+		select: { id: true, studentNumber: true },
+	});
+
+	if (!student) throw new AppError(404, "Student profile not found");
+	const registration = parseStudentRegistrationNumber(student.studentNumber);
+	if (!registration) {
+		throw new AppError(422, "Ask an administrator to update your student number to the new department/course format before continuing");
+	}
+
+	const accessTokenHash = createHash("sha256").update(input.token).digest("hex");
+	const session = await prisma.attendanceSession.findUnique({
+		where: { accessTokenHash },
+		select: {
+			id: true,
+			status: true,
+			startsAt: true,
+			endsAt: true,
+			sessionType: true,
+			courseUnit: {
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					department: { select: { initials: true } },
+					course: { select: { code: true } },
+				},
+			},
+			classroom: {
+				select: {
+					name: true,
+					latitude: true,
+					longitude: true,
+					boundaryMeters: true,
+					isActive: true,
+				},
+			},
+		},
+	});
+
+	if (!session || !session.classroom) {
+		throw new AppError(404, "Attendance link is invalid or expired");
+	}
+	if (
+		session.courseUnit.department?.initials !== registration.departmentInitials
+		|| session.courseUnit.course?.code !== registration.courseCode
+	) {
+		throw new AppError(403, "This course unit is not part of your registered course");
+	}
+
+	if (
+		session.status !== "active"
+		|| new Date(session.startsAt) > now
+		|| (session.endsAt && new Date(session.endsAt) <= now)
+		|| !session.classroom.isActive
+	) {
+		throw new AppError(409, "This attendance session is not currently accepting check-ins");
+	}
+
+	const academicYear = academicYearForDate(session.startsAt);
+	const enrollments = await prisma.unitEnrollment.findMany({
+		where: {
+			studentProfileId: student.id,
+			courseUnitId: session.courseUnit.id,
+		},
+		select: { academicPeriod: { select: { startsAt: true, code: true, name: true } } },
+	});
+
+	if (!enrollments.some(({ academicPeriod }) => academicYearForPeriod(academicPeriod) === academicYear)) {
+		throw new AppError(403, "You are not enrolled in this course unit for the session's academic year");
+	}
+
+	const distanceMeters = distanceBetweenMeters(
+		input.latitude,
+		input.longitude,
+		Number(session.classroom.latitude),
+		Number(session.classroom.longitude),
+	);
+
+	if (distanceMeters + input.accuracyMeters > session.classroom.boundaryMeters) {
+		await prisma.attendanceAttempt.create({
+			data: {
+				sessionId: session.id,
+				studentProfileId: student.id,
+				outcome: "REJECTED",
+				failureReason: distanceMeters > session.classroom.boundaryMeters
+					? "OUTSIDE_CLASSROOM"
+					: "LOCATION_ACCURACY_INSUFFICIENT",
+			},
+		});
+		throw new AppError(403, distanceMeters > session.classroom.boundaryMeters
+			? "Your device location is outside the configured classroom boundary"
+			: "Your location is too close to the boundary to verify attendance. Move closer to the classroom and try again");
+	}
+
+	const existingRecord = await prisma.attendanceRecord.findUnique({
+		where: { sessionId_studentProfileId: { sessionId: session.id, studentProfileId: student.id } },
+		select: { id: true },
+	});
+	if (existingRecord) throw new AppError(409, "Attendance has already been recorded for this session");
+
+	try {
+		return await prisma.$transaction(async (transaction) => {
+			const recordedAt = now;
+			const record = await transaction.attendanceRecord.create({
+				data: {
+					sessionId: session.id,
+					studentProfileId: student.id,
+					status: "PRESENT",
+					locationVerified: true,
+					recordedAt,
+				},
+				select: { id: true, status: true, locationVerified: true, recordedAt: true },
+			});
+
+			await transaction.attendanceHistory.create({
+				data: {
+					attendanceRecordId: record.id,
+					studentProfileId: student.id,
+					courseUnitCode: session.courseUnit.code,
+					courseUnitName: session.courseUnit.name,
+					sessionStartedAt: session.startsAt,
+					status: record.status,
+					locationVerified: true,
+					signedAt: recordedAt,
+				},
+			});
+
+			return {
+				record,
+				session: {
+					id: session.id,
+					sessionType: session.sessionType,
+					courseUnit: session.courseUnit,
+					classroomName: session.classroom.name,
+				},
+			};
+		});
+	} catch (error) {
+		if (error.code === "P2002") {
+			throw new AppError(409, "Attendance has already been recorded for this session");
+		}
+		throw error;
+	}
 }
 
 export async function getStudentAttendanceHistory(prisma, userId, pagination = {}) {

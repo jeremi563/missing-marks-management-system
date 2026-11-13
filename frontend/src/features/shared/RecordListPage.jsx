@@ -68,10 +68,11 @@ export default function RecordListPage({
             tableColumns ? (
               <div className="table-wrap">
                 <table>
-                  <thead><tr>{tableColumns.map(({ label }) => <th key={label}>{label}</th>)}</tr></thead>
+                  <thead><tr>{tableColumns.map(({ label }) => <th key={label}>{label}</th>)}{renderActions && <th>Actions</th>}</tr></thead>
                   <tbody>{filtered.map((record, index) => (
                     <tr key={record.id || record.reference || index}>
                       {tableColumns.map(({ label, render }) => <td key={label}>{render(record)}</td>)}
+                      {renderActions && <td><div className="record-actions">{renderActions(record)}</div></td>}
                     </tr>
                   ))}</tbody>
                 </table>

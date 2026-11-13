@@ -7,7 +7,7 @@ import {
 
 const roleNames = z.enum(["student", "lecturer", "cod", "administrator"]);
 const studentNumber = z.string().trim().min(1).max(100).refine(isStudentRegistrationNumber, {
-	message: "Use the student number format AB/01243/year, with a year no later than the current year.",
+	message: "Use the student number format AB16/00111/26, with an admission year from 13 through the current year.",
 });
 const staffNumber = z.string().trim().min(1).max(100).refine(isStaffRegistrationNumber, {
 	message: "Use the staff number format AB/0123/staffnumber.",
@@ -37,18 +37,20 @@ export const createUserBody = z.object({
 	studentNumber: studentNumber.optional(),
 	staffNumber: staffNumber.optional(),
 	adminNumber: adminNumber.optional(),
+	departmentId: z.string().uuid("A valid department UUID is required.").optional(),
 }).strict().refine((body) => new Set(body.roles).size === body.roles.length, {
 	message: "Roles must not contain duplicates.",
 	path: ["roles"],
 }).refine((body) => {
 	if (body.roles.includes("administrator")) {
-		return body.roles.length === 1 && Boolean(body.adminNumber) && !body.studentNumber && !body.staffNumber;
+		return body.roles.length === 1 && Boolean(body.adminNumber) && !body.studentNumber && !body.staffNumber && !body.departmentId;
 	}
 	return body.roles.includes("cod")
 		&& body.roles.every((role) => role === "lecturer" || role === "cod")
 		&& Boolean(body.staffNumber)
 		&& !body.studentNumber
-		&& !body.adminNumber;
+		&& !body.adminNumber
+		&& Boolean(body.departmentId);
 }, {
 	message: "Only administrator and COD accounts can be created here; provide the matching account identifier.",
 	path: ["roles"],
@@ -58,6 +60,7 @@ export const updateUserBody = z.object({
 	email: z.string().trim().email().max(254).optional(),
 	password: z.string().min(8).max(128).optional(),
 	displayName: z.string().trim().min(1).max(200).optional(),
+	studentNumber: studentNumber.optional(),
 	isActive: z.boolean().optional(),
 	roles: z.array(roleNames).min(1).max(2).optional(),
 	departmentId: z.string().uuid("A valid department UUID is required.").optional(),

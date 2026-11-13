@@ -56,7 +56,6 @@ test("replacing a COD queues outstanding future and overdue reviews for the new 
 		},
 		appeal: { findMany: async () => [{ id: "appeal-1", reportId: "report-1", reviewDeadlineAt: deadline }] },
 		specialCase: { findMany: async () => [{ id: "case-1", reportId: "report-2", reviewDeadlineAt: deadline }] },
-		missingMarkReport: { findMany: async () => [{ id: "report-3", assignedLecturerProfileId: "lecturer-profile", assignments: [{ id: "assignment-1", deadlineAt: deadline, workStartedAt: new Date("2026-11-20T10:00:00Z"), newLecturerProfileId: "lecturer-profile" }] }] },
 		notificationOutbox: { create: async ({ data }) => { events.push(data); return data; } },
 		auditLog: { create: async ({ data }) => { audit.push(data); return {}; } },
 	};
@@ -65,12 +64,11 @@ test("replacing a COD queues outstanding future and overdue reviews for the new 
 	assert.deepEqual(events.map(({ eventType, recipientUserId }) => [eventType, recipientUserId]), [
 		["COD_APPEAL_OVERDUE", "cod-new"],
 		["COD_SPECIAL_CASE_OVERDUE", "cod-new"],
-		["COD_REPORT_OVERDUE", "cod-new"],
 	]);
 	assert.ok(events.every(({ availableAt }) => availableAt.valueOf() === deadline.valueOf() + 1));
 	assert.ok(events.every(({ dedupeKey }) => dedupeKey.endsWith(":cod-new")));
 	await designateDepartmentCod({ db, actorUserId: "admin-1", departmentId: "dept-1", codUserId: "cod-new" });
-	assert.equal(events.length, 3);
+	assert.equal(events.length, 2);
 	assert.deepEqual(roleChanges, [
 		["create", { userId: "cod-new", roleId: "cod-role" }],
 		["delete", { userId: "cod-old", role: { name: "cod" } }],

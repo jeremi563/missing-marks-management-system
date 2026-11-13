@@ -7,7 +7,7 @@ import {
 
 const publicRegistrationNumber = z.string().trim().min(1).max(100).refine(
 	(value) => isStudentRegistrationNumber(value) || isStaffRegistrationNumber(value),
-	{ message: "Use a student number (AB/01243/year) or staff number (AB/0123/staffnumber) with a year no later than the current year." },
+	{ message: "Use a student number (AB16/00111/26) or staff number (AB/0123/staffnumber); student admission years must be from 13 through the current year." },
 ).refine((value) => !isAdminRegistrationNumber(value), {
 	message: "Administrator accounts can only be created by an administrator.",
 });
@@ -31,8 +31,16 @@ export const lecturerDepartmentRegistrationSchema = z.object({
 	registrationNumber: z.string().trim().min(1).max(100).refine(isStaffRegistrationNumber, {
 		message: "Use the staff number format AB/0123/staffnumber.",
 	}),
-	departmentId: z.string().uuid(),
-}).strict();
+	departmentIds: z.array(z.string().uuid()).min(1).max(50),
+	primaryDepartmentId: z.string().uuid(),
+}).strict().superRefine(({ departmentIds, primaryDepartmentId }, context) => {
+	if (new Set(departmentIds).size !== departmentIds.length) {
+		context.addIssue({ code: "custom", path: ["departmentIds"], message: "Departments must be unique." });
+	}
+	if (!departmentIds.includes(primaryDepartmentId)) {
+		context.addIssue({ code: "custom", path: ["primaryDepartmentId"], message: "Choose the primary department from your selected departments." });
+	}
+});
 
 export const emailBodySchema = z.object({
 	email: z.string().trim().email().max(254),

@@ -5,11 +5,14 @@ import { env } from "../../config/env.js";
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../shared/utils/app-error.js";
 import { logger } from "../../shared/utils/logger.js";
+import { recordAuditEvent } from "../../shared/services/audit.service.js";
+import { isActiveCodDepartmentMember } from "../../shared/services/designated-cod-authorization.service.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../../shared/services/email.service.js";
 import {
 	isStaffRegistrationNumber,
 	isStudentRegistrationNumber,
 	normalizeRegistrationNumber,
+	parseStudentRegistrationNumber,
 } from "../../shared/utils/registration-number.js";
 
 const normalizeEmail = (value) => value.trim().toLowerCase();
@@ -85,6 +88,17 @@ export async function registerAccount({ email, password, displayName, registrati
 		}
 		if (isStudent && !isStudentRegistrationNumber(identifier)) {
 			throw new AppError(422, "Student registration number has an invalid format");
+		}
+		if (isStudent) {
+			const registration = parseStudentRegistrationNumber(identifier);
+			const course = await tx.course.findFirst({
+				where: {
+					code: registration.courseCode,
+					department: { initials: registration.departmentInitials },
+				},
+				select: { id: true },
+			});
+			if (!course) throw new AppError(422, "Student registration number does not identify a course in its department");
 		}
 		const role = isStudent ? "student" : "lecturer";
 		if (isStudent) {
@@ -172,7 +186,6 @@ export async function registerAccount({ email, password, displayName, registrati
 
 export async function listRegistrationDepartments(db = prisma) {
 	return db.department.findMany({
-		where: { designatedCodUserId: { not: null } },
 		select: { id: true, name: true, code: true },
 		orderBy: [{ name: "asc" }, { code: "asc" }],
 	});
@@ -183,7 +196,8 @@ export async function completeLecturerDepartmentRegistration({
 	password,
 	displayName,
 	registrationNumber,
-	departmentId,
+	departmentIds,
+	primaryDepartmentId,
 }, db = prisma) {
 	const normalizedEmail = normalizeEmail(email);
 	const normalizedIdentifier = normalizeRegistrationNumber(registrationNumber);
@@ -215,15 +229,54 @@ export async function completeLecturerDepartmentRegistration({
 		if (user.departmentMemberships.length) {
 			throw new AppError(409, "A department has already been selected for this lecturer account");
 		}
-		const department = await tx.department.findUnique({
-			where: { id: departmentId },
+		if (!departmentIds.length || new Set(departmentIds).size !== departmentIds.length
+			|| !departmentIds.includes(primaryDepartmentId)) {
+			throw new AppError(422, "Select a primary department from your unique department selections");
+		}
+		const departments = await tx.department.findMany({
+			where: { id: { in: departmentIds } },
 			select: { id: true, name: true, code: true, designatedCodUserId: true },
 		});
-		if (!department) throw new AppError(422, "Select a valid department");
-		if (!department.designatedCodUserId) throw new AppError(409, "This department does not yet have a designated COD");
-		await tx.departmentMembership.create({ data: { userId: user.id, departmentId } });
-		const { designatedCodUserId, ...registrationDepartment } = department;
-		return { status: "PENDING_COD_APPROVAL", department: registrationDepartment };
+		if (departments.length !== departmentIds.length) throw new AppError(422, "Select only existing departments");
+		for (const department of departments) {
+			if (!department.designatedCodUserId
+				|| !await isActiveCodDepartmentMember(tx, department.designatedCodUserId, department.id)) {
+				throw new AppError(409, `${department.name} does not have an active designated COD`);
+			}
+		}
+		const primaryDepartment = departments.find(({ id }) => id === primaryDepartmentId);
+		await tx.departmentMembership.create({ data: { userId: user.id, departmentId: primaryDepartmentId } });
+		const additionalDepartments = [];
+		for (const department of departments) {
+			if (department.id === primaryDepartmentId) continue;
+			const request = await tx.departmentMembershipRequest.create({
+				data: { lecturerUserId: user.id, departmentId: department.id },
+				select: { id: true, departmentId: true, status: true },
+			});
+			await tx.notification.create({
+				data: {
+					userId: department.designatedCodUserId,
+					title: "Lecturer department request",
+					message: `A lecturer requested membership in ${department.name} during registration.`,
+				},
+			});
+			await recordAuditEvent({
+				prismaClient: tx,
+				actorId: user.id,
+				action: "LECTURER_DEPARTMENT_MEMBERSHIP_REQUESTED",
+				entityType: "DepartmentMembershipRequest",
+				entityId: request.id,
+				metadata: { departmentId: department.id, source: "LECTURER_REGISTRATION" },
+			});
+			const { designatedCodUserId, ...registrationDepartment } = department;
+			additionalDepartments.push({ ...registrationDepartment, requestStatus: request.status });
+		}
+		const { designatedCodUserId, ...registrationDepartment } = primaryDepartment;
+		return {
+			status: "PENDING_COD_APPROVAL",
+			department: registrationDepartment,
+			additionalDepartments,
+		};
 	});
 }
 

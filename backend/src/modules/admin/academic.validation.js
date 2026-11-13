@@ -23,24 +23,46 @@ const departmentInitials = z.string().trim().regex(/^[A-Z]{2}$/, "Department ini
 export const departmentCreateBody = z.object({ name: z.string().trim().min(1).max(200), initials: departmentInitials, code: z.string().trim().min(1).max(50).optional() }).strict();
 export const departmentUpdateBody = z.object({ name: z.string().trim().min(1).max(200).optional(), initials: departmentInitials.optional(), code: z.string().trim().min(1).max(50).nullable().optional() }).strict().refine((body) => Object.keys(body).length > 0, "At least one department field must be provided.");
 
-export const courseUnitListQuery = pageQuery.extend({ departmentId: uuid.optional() }).strict();
+export const courseListQuery = pageQuery.extend({ departmentId: uuid.optional() }).strict();
+export const courseCreateBody = z.object({ departmentId: uuid, code: z.string().regex(/^\d{2}$/, "Course identifier must be two digits"), name: z.string().trim().min(1).max(200) }).strict();
+export const courseUnitListQuery = pageQuery.extend({ departmentId: uuid.optional(), courseId: uuid.optional() }).strict();
 export const courseUnitIdParams = idParams;
-export const courseUnitCreateBody = z.object({ departmentId: uuid, code: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(200) }).strict();
-export const courseUnitUpdateBody = z.object({ departmentId: uuid.optional(), code: z.string().trim().min(1).max(50).optional(), name: z.string().trim().min(1).max(200).optional() }).strict().refine((body) => Object.keys(body).length > 0, "At least one course-unit field must be provided.");
+export const courseUnitCreateBody = z.object({ courseId: uuid, code: z.string().trim().min(1).max(50), name: z.string().trim().min(1).max(200) }).strict();
+export const courseUnitUpdateBody = z.object({ courseId: uuid.optional(), code: z.string().trim().min(1).max(50).optional(), name: z.string().trim().min(1).max(200).optional() }).strict().refine((body) => Object.keys(body).length > 0, "At least one course-unit field must be provided.");
 
 export const academicPeriodListQuery = pageQuery;
 export const academicPeriodIdParams = idParams;
-export const academicPeriodCreateBody = dateRange(z.object({ code: z.string().trim().min(1).max(80).optional(), name: z.string().trim().min(1).max(200), startsAt: dateTime.optional(), endsAt: dateTime.optional() }).strict());
-export const academicPeriodUpdateBody = dateRange(z.object({ code: z.string().trim().min(1).max(80).optional(), name: z.string().trim().min(1).max(200).optional(), startsAt: dateTime.optional(), endsAt: dateTime.optional() }).strict().refine((body) => Object.keys(body).length > 0, "At least one academic-period field must be provided."));
+const enrollmentWindow = (schema) => schema.refine((value) =>
+	!value.enrollmentOpensAt || !value.enrollmentClosesAt || value.enrollmentClosesAt > value.enrollmentOpensAt, {
+		message: "The enrollment closing date must be later than its opening date.",
+		path: ["enrollmentClosesAt"],
+	});
+export const academicPeriodCreateBody = enrollmentWindow(dateRange(z.object({
+	code: z.string().trim().min(1).max(80).optional(),
+	name: z.string().trim().min(1).max(200),
+	startsAt: dateTime.optional(),
+	endsAt: dateTime.optional(),
+	enrollmentOpensAt: dateTime.optional(),
+	enrollmentClosesAt: dateTime.optional(),
+}).strict())).refine(({ enrollmentOpensAt, enrollmentClosesAt }) =>
+	Boolean(enrollmentOpensAt) === Boolean(enrollmentClosesAt), {
+	message: "Set both enrollment window dates, or leave both unset.",
+	path: ["enrollmentClosesAt"],
+});
+export const academicPeriodUpdateBody = enrollmentWindow(dateRange(z.object({
+	code: z.string().trim().min(1).max(80).nullable().optional(),
+	name: z.string().trim().min(1).max(200).optional(),
+	startsAt: dateTime.nullable().optional(),
+	endsAt: dateTime.nullable().optional(),
+	enrollmentOpensAt: dateTime.nullable().optional(),
+	enrollmentClosesAt: dateTime.nullable().optional(),
+}).strict().refine((body) => Object.keys(body).length > 0, "At least one academic-period field must be provided.")));
 
 export const enrollmentListQuery = pageQuery.extend({ studentProfileId: uuid.optional(), courseUnitId: uuid.optional(), academicPeriodId: uuid.optional() }).strict();
 export const enrollmentIdParams = idParams;
-export const enrollmentCreateBody = z.object({ studentProfileId: uuid, courseUnitId: uuid, academicPeriodId: uuid }).strict();
 
-export const mappingListQuery = pageQuery.extend({ courseUnitId: uuid.optional(), lecturerProfileId: uuid.optional() }).strict();
+export const mappingListQuery = pageQuery.extend({ courseUnitId: uuid.optional(), lecturerProfileId: uuid.optional(), academicYear: z.string().regex(/^20\d{2}\/\d{2}$/).optional() }).strict();
 export const mappingIdParams = idParams;
-export const mappingCreateBody = z.object({ courseUnitId: uuid, lecturerProfileId: uuid }).strict();
-
 export const classroomListQuery = pageQuery;
 export const classroomIdParams = idParams;
 export const classroomCreateBody = z.object({ name: z.string().trim().min(1).max(200), latitude: z.number().finite().min(-90).max(90), longitude: z.number().finite().min(-180).max(180), boundaryMeters: z.number().int().min(1).max(10000), isActive: z.boolean().optional() }).strict();

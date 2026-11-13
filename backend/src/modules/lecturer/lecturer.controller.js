@@ -10,9 +10,12 @@ import {
   getAttendanceSessions,
   getAttendanceSessionById,
   startAttendanceSession,
+  generateAttendanceLink,
+  extendAttendanceSession,
   endAttendanceSession,
   getAttendanceSessionRecords,
 } from './lecturer.service.js';
+import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
 
 export const getReports = async (req, res, next) => {
   try {
@@ -71,6 +74,7 @@ export const getAssignedCourseUnits = async (req, res, next) => {
       where: { userId: lecturerUserId },
       select: {
         unitAssignments: {
+          where: { academicYear: academicYearForDate(new Date()) },
           orderBy: { courseUnit: { code: 'asc' } },
           select: {
             id: true,
@@ -127,7 +131,7 @@ export const getAssignedCourseUnitAssessments = async (req, res, next) => {
     const courseUnit = await prisma.courseUnit.findFirst({
       where: {
         id: req.params.courseUnitId,
-        lecturerMappings: { some: { lecturerProfileId: lecturer.id } },
+        lecturerMappings: { some: { lecturerProfileId: lecturer.id, academicYear: academicYearForDate(new Date()) } },
       },
       select: { id: true },
     });
@@ -146,6 +150,24 @@ export const getAssignedCourseUnitAssessments = async (req, res, next) => {
       message: 'Course unit assessments retrieved successfully.',
       count: assessments.length,
       data: assessments,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getActiveClassrooms = async (req, res, next) => {
+  try {
+    const classrooms = await req.app.locals.prisma.classroom.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, boundaryMeters: true },
+    });
+    return res.status(200).json({
+      success: true,
+      message: 'Active classrooms retrieved successfully.',
+      count: classrooms.length,
+      data: classrooms,
     });
   } catch (error) {
     return next(error);
@@ -175,18 +197,32 @@ export const getAssignedStudents = async (req, res, next) => {
 
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 20;
+    const [assignments, periods] = await Promise.all([
+      prisma.courseUnitLecturer.findMany({
+        where: { lecturerProfileId: lecturer.id, academicYear: { not: null } },
+        select: { courseUnitId: true, academicYear: true },
+      }),
+      prisma.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true } }),
+    ]);
+    const years = [...new Set(assignments.map(({ academicYear }) => academicYear))];
+    const OR = years.flatMap((academicYear) => {
+      const academicPeriodIds = periods.filter((period) => academicYearForPeriod(period) === academicYear).map(({ id }) => id);
+      if (!academicPeriodIds.length) return [];
+      const courseUnitIds = assignments.filter((assignment) => assignment.academicYear === academicYear).map(({ courseUnitId }) => courseUnitId);
+      return [{ academicPeriodId: { in: academicPeriodIds }, courseUnitId: { in: courseUnitIds } }];
+    });
     const where = {
-      courseUnit: {
-        lecturerMappings: { some: { lecturerProfileId: lecturer.id } },
-      },
+      OR,
+      ...(req.query.departmentIds ? { courseUnit: { departmentId: { in: req.query.departmentIds } } } : {}),
     };
     const [total, enrollments] = await Promise.all([
       prisma.unitEnrollment.count({ where }),
       prisma.unitEnrollment.findMany({
         where,
         orderBy: [
-          { student: { user: { displayName: 'asc' } } },
+          { courseUnit: { department: { name: 'asc' } } },
           { courseUnit: { code: 'asc' } },
+          { student: { user: { displayName: 'asc' } } },
           { academicPeriod: { name: 'desc' } },
         ],
         skip: (page - 1) * limit,
@@ -207,7 +243,7 @@ export const getAssignedStudents = async (req, res, next) => {
               id: true,
               code: true,
               name: true,
-              department: { select: { name: true, code: true } },
+              department: { select: { id: true, name: true, code: true } },
             },
           },
           academicPeriod: { select: { id: true, code: true, name: true } },
@@ -628,6 +664,57 @@ export const startAttendanceSessionController = async (
     });
   } catch (error) {
     next(error);
+  }
+};
+
+export const generateAttendanceLinkController = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+    if (!lecturerUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const prisma = req.app.locals.prisma;
+    if (!prisma) {
+      return res.status(500).json({ success: false, message: 'Database service is not configured.' });
+    }
+
+    const result = await generateAttendanceLink(prisma, lecturerUserId, req.params.sessionId);
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance link generated successfully.',
+      data: result,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const extendAttendanceSessionController = async (req, res, next) => {
+  try {
+    const lecturerUserId = req.user?.id;
+    if (!lecturerUserId) {
+      return res.status(401).json({ success: false, message: 'Authentication required.' });
+    }
+
+    const prisma = req.app.locals.prisma;
+    if (!prisma) {
+      return res.status(500).json({ success: false, message: 'Database service is not configured.' });
+    }
+
+    const session = await extendAttendanceSession(
+      prisma,
+      lecturerUserId,
+      req.params.sessionId,
+      req.body.endsAt
+    );
+    return res.status(200).json({
+      success: true,
+      message: 'Attendance session end time extended successfully.',
+      data: session,
+    });
+  } catch (error) {
+    return next(error);
   }
 };
 

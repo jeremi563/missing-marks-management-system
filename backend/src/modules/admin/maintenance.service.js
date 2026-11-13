@@ -2,11 +2,19 @@ import { prisma } from "../../config/database.js";
 import { lockDepartmentForReview } from "../../shared/services/department-review-lock.service.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { AppError } from "../../shared/utils/app-error.js";
+import { academicYearForPeriod } from "../../shared/utils/academic-year.js";
 
 async function loadReport(tx, reportId) {
 	const report = await tx.missingMarkReport.findUnique({
 		where: { id: reportId },
-		select: { id: true, status: true, assignedLecturerProfileId: true, courseUnitId: true, courseUnit: { select: { departmentId: true } } },
+		select: {
+			id: true,
+			status: true,
+			assignedLecturerProfileId: true,
+			courseUnitId: true,
+			courseUnit: { select: { departmentId: true } },
+			academicPeriod: { select: { name: true, code: true, startsAt: true } },
+		},
 	});
 	if (!report) throw new AppError(404, "Missing-mark report not found");
 	return report;
@@ -20,9 +28,13 @@ async function rejectOpenReviews(tx, reportId) {
 	if (appeal || specialCase) throw new AppError(409, "Resolve the open appeal or special case before performing report maintenance");
 }
 
-async function eligibleLecturer(tx, courseUnitId, lecturerProfileId) {
+async function eligibleLecturer(tx, courseUnitId, lecturerProfileId, academicYear) {
 	return tx.lecturerProfile.findFirst({
-		where: { id: lecturerProfileId, user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } }, unitAssignments: { some: { courseUnitId } } },
+		where: {
+			id: lecturerProfileId,
+			user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } },
+			unitAssignments: { some: { courseUnitId, academicYear } },
+		},
 		select: { id: true },
 	});
 }
@@ -49,7 +61,10 @@ export async function reassignReport({ db = prisma, actorUserId, reportId, lectu
 		const report = await loadReport(tx, reportId);
 		if (["APPROVED", "REJECTED", "WITHDRAWN"].includes(report.status.toUpperCase())) throw new AppError(409, "Only unresolved reports may be reassigned");
 		await rejectOpenReviews(tx, reportId);
-		if (!await eligibleLecturer(tx, report.courseUnitId, lecturerProfileId)) throw new AppError(422, "Selected lecturer is not active, has the lecturer role, or is not assigned to this course unit");
+		const academicYear = academicYearForPeriod(report.academicPeriod);
+		if (!academicYear || !await eligibleLecturer(tx, report.courseUnitId, lecturerProfileId, academicYear)) {
+			throw new AppError(422, "Selected lecturer is not active, has the lecturer role, or is not assigned to this course unit for the report's academic year");
+		}
 		if (report.assignedLecturerProfileId === lecturerProfileId) throw new AppError(409, "Report is already assigned to this lecturer");
 		const updated = await tx.missingMarkReport.updateMany({ where: { id: reportId, status: report.status, assignedLecturerProfileId: report.assignedLecturerProfileId }, data: { assignedLecturerProfileId: lecturerProfileId, status: report.status.toUpperCase() === "SUBMITTED" ? "PENDING" : report.status } });
 		if (updated.count !== 1) throw new AppError(409, "Report assignment changed; reload before reassigning");

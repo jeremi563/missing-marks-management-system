@@ -6,6 +6,7 @@ process.env.DATABASE_URL ??= 'postgresql://test:test@localhost:5432/test?schema=
 process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
 
 const { default: router } = await import('../../src/modules/lecturer/lecturer.routes.js');
+const { lecturerStudentsQuerySchema } = await import('../../src/modules/lecturer/lecturer.validation.js');
 
 test('registers GET /reports', () => {
   const reportsRoute = router.stack.find(
@@ -14,6 +15,37 @@ test('registers GET /reports', () => {
 
   assert.ok(reportsRoute, 'GET /reports route should exist');
   assert.equal(reportsRoute.route.methods.get, true);
+});
+
+test('registers lecturer notification inbox and read actions behind lecturer authorization', () => {
+  const inbox = router.stack.find((layer) => layer.route?.path === '/notifications' && layer.route.methods.get);
+  const readAll = router.stack.find((layer) => layer.route?.path === '/notifications/read-all' && layer.route.methods.patch);
+  const readOne = router.stack.find((layer) => layer.route?.path === '/notifications/:notificationId/read' && layer.route.methods.patch);
+
+  assert.ok(inbox);
+  assert.equal(inbox.route.stack.length, 4);
+  assert.ok(readAll);
+  assert.equal(readAll.route.stack.length, 3);
+  assert.ok(readOne);
+  assert.equal(readOne.route.stack.length, 4);
+});
+
+test('registers an authenticated lecturer attendance-link generation endpoint', () => {
+  const route = router.stack.find(
+    (layer) => layer.route?.path === '/attendance/sessions/:sessionId/attendance-link'
+  );
+  assert.ok(route);
+  assert.equal(route.route.methods.post, true);
+  assert.equal(route.route.stack.length, 4);
+});
+
+test('registers an authenticated end-time extension endpoint with body validation', () => {
+  const route = router.stack.find(
+    (layer) => layer.route?.path === '/attendance/sessions/:sessionId/end-time'
+  );
+  assert.ok(route);
+  assert.equal(route.route.methods.patch, true);
+  assert.equal(route.route.stack.length, 5);
 });
 // Additional tests for GET /reports route
 
@@ -28,6 +60,39 @@ test('registers GET /reports/:reportId', () => {
   );
 
   assert.equal(reportDetailsRoute.route.methods.get, true);
+});
+
+test('registers lecturer enrollment-request inbox and bulk decisions', () => {
+  const inboxRoute = router.stack.find(
+    (layer) => layer.route?.path === '/enrollment-requests' && layer.route.methods.get
+  );
+  const decisionRoute = router.stack.find(
+    (layer) => layer.route?.path === '/enrollment-requests/decision' && layer.route.methods.post
+  );
+
+  assert.ok(inboxRoute);
+  assert.equal(inboxRoute.route.stack.length, 4);
+  assert.ok(decisionRoute);
+  assert.equal(decisionRoute.route.stack.length, 4);
+});
+
+test('exposes assigned departments for lecturer filters without a post-login membership request route', () => {
+  const optionsRoute = router.stack.find((layer) => layer.route?.path === '/departments' && layer.route.methods.get);
+  const requestRoute = router.stack.find((layer) => layer.route?.path === '/department-requests' && layer.route.methods.post);
+  const studentsRoute = router.stack.find((layer) => layer.route?.path === '/students' && layer.route.methods.get);
+
+  assert.ok(optionsRoute);
+  assert.equal(optionsRoute.route.stack.length, 3);
+  assert.equal(requestRoute, undefined);
+  assert.ok(studentsRoute);
+  assert.equal(studentsRoute.route.stack.length, 4);
+});
+
+test('validates lecturer student department filters as UUID lists', () => {
+  const departmentId = '00000000-0000-4000-8000-000000000001';
+  assert.deepEqual(lecturerStudentsQuerySchema.parse({ departmentIds: departmentId }).departmentIds, [departmentId]);
+  assert.deepEqual(lecturerStudentsQuerySchema.parse({ departmentIds: '' }).departmentIds, []);
+  assert.equal(lecturerStudentsQuerySchema.safeParse({ departmentIds: 'invalid' }).success, false);
 });
 
 test('applies authentication, authorization and UUID validation', () => {

@@ -26,15 +26,15 @@ export default function RegisterPage() {
       return
     }
     const normalizedNumber = registrationNumber.trim()
-    const studentNumberMatch = /^[A-Za-z]{2}\/\d{5}\/(\d{4})$/.exec(normalizedNumber)
+    const studentNumberMatch = /^[A-Za-z]{2}\d{2}\/\d{5}\/(\d{2})$/.exec(normalizedNumber)
     const isStaffNumber = /^[A-Za-z]{2}\/\d{4}\/[A-Za-z0-9-]+$/.test(normalizedNumber)
     if (!studentNumberMatch && !isStaffNumber) {
-      setError('Use a student number in the format AB/01243/year or a staff number in the format AB/0123/staffnumber.')
+      setError('Use a student number in the format AB16/00111/26 (admission year 13 through the current year) or a staff number in the format AB/0123/staffnumber.')
       setSubmitting(false)
       return
     }
-    if (studentNumberMatch && Number(studentNumberMatch[1]) > new Date().getFullYear()) {
-      setError('The year in a student registration number cannot be in the future.')
+    if (studentNumberMatch && (Number(studentNumberMatch[1]) < 13 || Number(studentNumberMatch[1]) > new Date().getFullYear() % 100)) {
+      setError('A student admission year must be from 13 through the current year.')
       setSubmitting(false)
       return
     }

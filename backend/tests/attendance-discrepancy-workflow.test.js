@@ -21,6 +21,7 @@ function workflowDb({ sourceStudentId = ids.student, sessionLecturerId = ids.lec
 		attendanceAttempt: { findUnique: async () => attemptSource },
 		courseUnitLecturer: {
 			findUnique: async () => assigned ? { id: "assignment-1" } : null,
+			findFirst: async () => assigned ? { id: "assignment-1" } : null,
 			findMany: async () => extraAssignments ?? (assigned ? [{ lecturerProfileId: callerLecturerId }] : []),
 		},
 		attendanceDiscrepancy: {

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Eye, EyeOff, GraduationCap, LockKeyhole, UserRound } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
+import './LoginPage.css'
 
 function getRole(user) {
   const roles = Array.isArray(user?.roles) ? user.roles : [user?.role]
@@ -37,7 +38,10 @@ export default function LoginPage() {
         navigate('/lecturer-department-registration', { replace: true })
         return
       }
-      const destination = location.state?.from?.pathname || `/${getRole(authenticatedUser) || 'student'}`
+      const returnPath = location.state?.from
+      const destination = returnPath?.pathname
+        ? `${returnPath.pathname}${returnPath.search || ''}${returnPath.hash || ''}`
+        : `/${getRole(authenticatedUser) || 'student'}`
       navigate(destination, { replace: true })
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to sign in. Check your credentials and try again.')
@@ -47,20 +51,31 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="auth-page">
-      <Link to="/" className="back-link"><ArrowLeft size={16} /> Back home</Link>
-      <section className="auth-card">
-        <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
-        <p className="eyebrow">WELCOME BACK</p><h1>Sign in to your account</h1>
-        <p className="auth-intro">Use your registration number and password. Lecturers can sign in after their department's COD approves the application; email verification is not required.</p>
-        {error && <div className="form-alert" role="alert">{error}</div>}
-        <form onSubmit={submit}>
-          <label htmlFor="login-identifier">Registration number</label>
-          <input id="login-identifier" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" maxLength={100} required />
-          <small className="field-hint">Student: AB/01243/year. Staff: AB/0123/staffnumber. Administrator: admin/12/year.</small>
-          <label htmlFor="login-password">Password</label>
-          <div className="auth-password-field">
-            <input id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+    <main className="auth-page login-page">
+      <div className="login-shell">
+        <Link to="/" className="back-link login-back"><ArrowLeft size={16} /> Back home</Link>
+        <aside className="login-visual" aria-hidden="true">
+          <div className="login-visual-orbit login-visual-orbit-outer" />
+          <div className="login-visual-orbit login-visual-orbit-inner" />
+          <div className="login-visual-mark"><GraduationCap size={54} strokeWidth={1.4} /></div>
+          <span className="login-visual-line login-visual-line-one" />
+          <span className="login-visual-line login-visual-line-two" />
+        </aside>
+        <section className="auth-card login-card">
+          <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
+          <p className="eyebrow">WELCOME BACK</p>
+          <h1>Sign in to your account</h1>
+          {error && <div className="form-alert" role="alert">{error}</div>}
+          <form onSubmit={submit}>
+            <label htmlFor="login-identifier">Registration number</label>
+            <div className="login-input-wrap">
+              <UserRound className="login-input-icon" size={18} aria-hidden="true" />
+              <input className="login-input" id="login-identifier" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" maxLength={100} required />
+            </div>
+            <label htmlFor="login-password">Password</label>
+            <div className="auth-password-field login-input-wrap">
+              <LockKeyhole className="login-input-icon" size={18} aria-hidden="true" />
+              <input className="login-input" id="login-password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
             <button
               className="auth-password-toggle"
               type="button"
@@ -70,11 +85,14 @@ export default function LoginPage() {
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
-          </div>
-          <button className="button button-primary button-full" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
-        </form>
-        <p className="auth-switch">New here? <Link to="/register">Create an account</Link></p>
-      </section>
+            </div>
+            <button className="button button-primary button-full login-submit" disabled={submitting}>
+              {submitting ? 'Signing in…' : <>Sign in <ArrowRight size={17} /></>}
+            </button>
+          </form>
+          <p className="auth-switch login-switch">New here? <Link to="/register">Create an account</Link></p>
+        </section>
+      </div>
     </main>
   )
 }

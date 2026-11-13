@@ -73,7 +73,10 @@ function makeFixture({ sourceType = "record", status = "PENDING_COD_REVIEW", sub
       ? { id: ids.lecturerProfile, user: { isActive: true, roles: [{ role: { name: "lecturer" } }] } }
       : { id: ids.lecturerProfile };
     } },
-    courseUnitLecturer: { findUnique: async () => ({ id: "assignment-1" }) },
+    courseUnitLecturer: {
+      findUnique: async () => ({ id: "assignment-1" }),
+      findFirst: async () => ({ id: "assignment-1" }),
+    },
     attendanceDiscrepancy: {
       findUnique: async () => structuredClone(item),
       findMany: async ({ where }) => { capturedWhere = where; return records; },

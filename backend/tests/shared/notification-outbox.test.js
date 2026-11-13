@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { processOutboxBatch } from "../../src/shared/services/notification-outbox.service.js";
 
-function makeOutboxDb({ resolved = false, resolveOnClaim = false, designatedCodOnClaim = null, notificationFailure = null, deadlineAt = null, databaseNow = null } = {}) {
+function makeOutboxDb({ resolved = false, resolveOnClaim = false, designatedCodOnClaim = null, notificationFailure = null, deadlineAt = null, databaseNow = null, eventType = "COD_APPEAL_OVERDUE" } = {}) {
 	const now = new Date("2026-11-05T10:00:00.000Z");
 	const calls = { claimSql: "", ownershipSql: "", timingSql: "", retrySql: "", delivered: 0, skipped: 0, rescheduledSql: "", retries: 0, inserted: 0, attempts: 0 };
-	const event = { id: "outbox-1", dedupeKey: "COD_APPEAL_OVERDUE:appeal-1:cod-1", eventType: "COD_APPEAL_OVERDUE", entityType: "Appeal", entityId: "appeal-1", recipientUserId: "cod-1", reportId: "report-1", title: "Appeal review overdue", message: "Review required", availableAt: new Date(now.valueOf() - 1), attempts: 0 };
+	const event = { id: "outbox-1", dedupeKey: `${eventType}:appeal-1:cod-1`, eventType, entityType: eventType === "COD_REPORT_OVERDUE" ? "MissingMarkReport" : "Appeal", entityId: "appeal-1", recipientUserId: "cod-1", reportId: "report-1", title: "Review overdue", message: "Review required", availableAt: new Date(now.valueOf() - 1), attempts: 0 };
 	let claimed = false;
 	let delivered = false;
 	let currentResolved = resolved;
@@ -81,6 +81,14 @@ test("an appeal resolved after claim is rechecked and skipped before notificatio
 
 test("an overdue event for a former COD is skipped after replacement", async () => {
 	const fixture = makeOutboxDb({ designatedCodOnClaim: "cod-new" });
+	const result = await processOutboxBatch({ db: fixture.db });
+	assert.equal(result.delivered, 0);
+	assert.equal(fixture.calls.inserted, 0);
+	assert.equal(fixture.calls.skipped, 1);
+});
+
+test("legacy COD report-overdue outbox events are skipped; COD receives reports only after lecturer escalation", async () => {
+	const fixture = makeOutboxDb({ eventType: "COD_REPORT_OVERDUE" });
 	const result = await processOutboxBatch({ db: fixture.db });
 	assert.equal(result.delivered, 0);
 	assert.equal(fixture.calls.inserted, 0);

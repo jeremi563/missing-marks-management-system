@@ -1,6 +1,7 @@
 import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/config/database.js";
+import { academicYearForDate } from "../src/shared/utils/academic-year.js";
 
 const demoPassword = process.env.DEMO_SEED_PASSWORD;
 if (!demoPassword || demoPassword.length < 8) {
@@ -15,27 +16,40 @@ const demoUsers = [
 ];
 
 async function ensureUser({ email, displayName, role, identifierType, identifier, passwordHash }) {
-	const roleRecord = await prisma.role.upsert({
-		where: { name: role },
-		update: {},
-		create: { name: role, description: `Synthetic demo ${role} role` },
+	return prisma.$transaction(async (tx) => {
+		if (role === "administrator") {
+			await tx.$queryRaw`SELECT pg_advisory_xact_lock(37037002) IS NULL AS locked`;
+			const [existingUser, administratorCount] = await Promise.all([
+				tx.user.findUnique({ where: { email }, select: { roles: { select: { role: { select: { name: true } } } } } }),
+				tx.user.count({ where: { roles: { some: { role: { name: "administrator" } } } } }),
+			]);
+			const alreadyAdministrator = existingUser?.roles.some(({ role: userRole }) => userRole.name === "administrator");
+			if (!alreadyAdministrator && administratorCount >= 2) {
+				throw new Error("The system can have at most two administrator accounts; demo administrator was not created.");
+			}
+		}
+		const roleRecord = await tx.role.upsert({
+			where: { name: role },
+			update: {},
+			create: { name: role, description: `Synthetic demo ${role} role` },
+		});
+		const user = await tx.user.upsert({
+			where: { email },
+			update: { displayName, isActive: true, approvalStatus: "APPROVED", emailVerifiedAt: new Date() },
+			create: { email, displayName, passwordHash, approvalStatus: "APPROVED", emailVerifiedAt: new Date() },
+		});
+		await tx.userRole.upsert({
+			where: { userId_roleId: { userId: user.id, roleId: roleRecord.id } },
+			update: {},
+			create: { userId: user.id, roleId: roleRecord.id },
+		});
+		const existingIdentifier = await tx.accountLoginIdentifier.findUnique({ where: { value: identifier } });
+		if (existingIdentifier && existingIdentifier.userId !== user.id) throw new Error(`Demo login identifier ${identifier} is already assigned`);
+		const userIdentifier = await tx.accountLoginIdentifier.findFirst({ where: { userId: user.id, type: identifierType } });
+		if (userIdentifier) await tx.accountLoginIdentifier.update({ where: { id: userIdentifier.id }, data: { value: identifier } });
+		else await tx.accountLoginIdentifier.create({ data: { userId: user.id, type: identifierType, value: identifier } });
+		return user;
 	});
-	const user = await prisma.user.upsert({
-		where: { email },
-		update: { displayName, isActive: true, approvalStatus: "APPROVED", emailVerifiedAt: new Date() },
-		create: { email, displayName, passwordHash, approvalStatus: "APPROVED", emailVerifiedAt: new Date() },
-	});
-	await prisma.userRole.upsert({
-		where: { userId_roleId: { userId: user.id, roleId: roleRecord.id } },
-		update: {},
-		create: { userId: user.id, roleId: roleRecord.id },
-	});
-	const existingIdentifier = await prisma.accountLoginIdentifier.findUnique({ where: { value: identifier } });
-	if (existingIdentifier && existingIdentifier.userId !== user.id) throw new Error(`Demo login identifier ${identifier} is already assigned`);
-	const userIdentifier = await prisma.accountLoginIdentifier.findFirst({ where: { userId: user.id, type: identifierType } });
-	if (userIdentifier) await prisma.accountLoginIdentifier.update({ where: { id: userIdentifier.id }, data: { value: identifier } });
-	else await prisma.accountLoginIdentifier.create({ data: { userId: user.id, type: identifierType, value: identifier } });
-	return user;
 }
 
 async function main() {
@@ -81,10 +95,11 @@ async function main() {
 		update: {},
 		create: { code: "DEMO-PERIOD-2026", name: "Demo Academic Period" },
 	});
+	const academicYear = academicYearForDate(new Date());
 	await prisma.courseUnitLecturer.upsert({
-		where: { courseUnitId_lecturerProfileId: { courseUnitId: courseUnit.id, lecturerProfileId: lecturer.id } },
+		where: { courseUnitId_academicYear: { courseUnitId: courseUnit.id, academicYear } },
 		update: {},
-		create: { courseUnitId: courseUnit.id, lecturerProfileId: lecturer.id },
+		create: { courseUnitId: courseUnit.id, lecturerProfileId: lecturer.id, academicYear },
 	});
 	await prisma.unitEnrollment.upsert({
 		where: {

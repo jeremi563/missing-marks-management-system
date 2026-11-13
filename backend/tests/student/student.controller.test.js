@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getProfile, getReports, getReportById, createReport, getAttendance, getNotifications } from "../../src/modules/student/student.controller.js";
+import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, getNotifications } from "../../src/modules/student/student.controller.js";
 
 function createResponse() {
 	return {
@@ -37,6 +37,25 @@ test("returns the authenticated user's student profile", async () => {
 	assert.equal(res.statusCode, 200);
 	assert.deepEqual(res.body.data, profile);
 });
+
+test("returns report options for the authenticated student", async () => {
+	const courseUnits = [{ id: "unit-1", code: "IN101", name: "Introduction to Computing", academicYears: buildExpectedAcademicYears() }];
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Introduction to Computing" }, academicPeriod: { id: "period-1", code: "2026-T1", name: "2026 Term 1" } }] },
+	};
+	const req = { user: { id: "user-1" }, app: { locals: { prisma } } };
+	const res = createResponse();
+
+	await getReportOptions(req, res, (error) => { throw error; });
+
+	assert.equal(res.statusCode, 200);
+	assert.deepEqual(res.body.data, courseUnits);
+});
+
+function buildExpectedAcademicYears() {
+	return [{ value: "2026/27", label: "2026/27", academicPeriodId: "period-1" }];
+}
 
 test("passes database errors to shared error handling", async () => {
 	const expectedError = new Error("Database failure");
@@ -125,9 +144,10 @@ test("creates a report using authenticated identity and returns 201", async () =
 	let receivedUserId;
 	const report = { id: "report-1", status: "Submitted" };
 	const prisma = {
-		studentProfile: { findUnique: async () => ({ id: "student-1" }) },
-		unitEnrollment: { findUnique: async () => ({ id: "enrollment-1" }) },
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Introduction to Computing" }, academicPeriod: { id: "period-1", code: "2026/27", name: "2026/27" } }] },
 		$transaction: async (callback) => callback({
+			courseUnitLecturer: { findUnique: async () => null },
 			missingMarkReport: { create: async () => report },
 			reportStatusHistory: { create: async () => ({}) },
 			auditLog: { create: async () => ({}) },
@@ -138,7 +158,7 @@ test("creates a report using authenticated identity and returns 201", async () =
 		app: { locals: { prisma } },
 		validatedBody: {
 			courseUnitId: "unit-1",
-			academicPeriodId: "period-1",
+			academicYear: "2026/27",
 			assessmentComponent: "CAT 1",
 			description: "My mark is missing.",
 		},

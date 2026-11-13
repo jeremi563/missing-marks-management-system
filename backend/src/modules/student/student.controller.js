@@ -1,4 +1,4 @@
-import { getStudentProfile, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead, createStudentAttendanceDiscrepancy, listStudentAttendanceDiscrepancies, getStudentAttendanceDiscrepancy, respondToStudentAttendanceDiscrepancy } from "./student.service.js";
+import { getStudentProfile, getStudentReportOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead, createStudentAttendanceDiscrepancy, listStudentAttendanceDiscrepancies, getStudentAttendanceDiscrepancy, respondToStudentAttendanceDiscrepancy } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {
@@ -17,6 +17,29 @@ export async function getProfile(req, res, next) {
 			success: true,
 			message: "Student profile retrieved successfully.",
 			data: profile,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function getReportOptions(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const courseUnits = await getStudentReportOptions(prisma, userId);
+		return res.status(200).json({
+			success: true,
+			message: "Student report options retrieved successfully.",
+			data: courseUnits,
 		});
 	} catch (error) {
 		return next(error);
@@ -113,6 +136,29 @@ export async function getAttendance(req, res, next) {
 			count: result.records.length,
 			data: result.records,
 			pagination: result.pagination,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function checkInToAttendance(req, res, next) {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			return res.status(401).json({ success: false, message: "Authentication required." });
+		}
+
+		const prisma = req.app.locals.prisma;
+		if (!prisma) {
+			return res.status(500).json({ success: false, message: "Database service is not configured." });
+		}
+
+		const result = await submitStudentAttendanceCheckIn(prisma, userId, req.validatedBody);
+		return res.status(201).json({
+			success: true,
+			message: "Attendance recorded successfully.",
+			data: result,
 		});
 	} catch (error) {
 		return next(error);

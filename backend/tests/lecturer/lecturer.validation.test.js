@@ -9,6 +9,7 @@ import {
   escalateReportSchema,
   submitCorrectionSchema,
   createAttendanceSessionSchema,
+  extendAttendanceSessionSchema,
   attendanceSessionIdSchema,
   courseUnitIdParamsSchema,
   courseUnitAssessmentsQuerySchema,
@@ -321,6 +322,7 @@ const validAttendanceSession = {
   courseUnitId: '550e8400-e29b-41d4-a716-446655440000',
   classroomId: '650e8400-e29b-41d4-a716-446655440000',
   startsAt: '2026-11-02T09:00:00+03:00',
+  endsAt: '2026-11-02T10:00:00+03:00',
 };
 
 test('accepts a valid CLASS attendance session', () => {
@@ -393,6 +395,18 @@ test('rejects a missing classroom ID', () => {
   const result = createAttendanceSessionSchema.safeParse(session);
 
   assert.equal(result.success, false);
+});
+
+test('requires an end time for every new attendance session', () => {
+  const { endsAt, ...session } = validAttendanceSession;
+  assert.equal(createAttendanceSessionSchema.safeParse(session).success, false);
+  assert.equal(createAttendanceSessionSchema.safeParse(validAttendanceSession).success, true);
+});
+
+test('validates that attendance end-time extensions contain a timestamp', () => {
+  assert.equal(extendAttendanceSessionSchema.safeParse({ endsAt: '2026-11-02T11:00:00+03:00' }).success, true);
+  assert.equal(extendAttendanceSessionSchema.safeParse({ endsAt: 'invalid' }).success, false);
+  assert.equal(extendAttendanceSessionSchema.safeParse({ endsAt: '2026-11-02T11:00:00+03:00', extra: true }).success, false);
 });
 
 test('rejects an invalid course unit UUID', () => {

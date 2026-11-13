@@ -35,7 +35,6 @@ export const decideCodAppeal = handle((req) => decideAppeal({ userId: req.user.i
 export const getCodCases = handle((req) => listCodSpecialCases({ userId: req.user.id, ...req.query }), "Departmental special cases retrieved successfully");
 export const getCodCaseById = handle((req) => getCodSpecialCase({ userId: req.user.id, caseId: req.params.caseId }), "Special case retrieved successfully");
 export const decideCodCase = handle((req) => decideSpecialCase({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Special-case decision recorded successfully");
-export const getOverdueReports = handle((req) => listOverdue({ userId: req.user.id, kind: "reports", ...req.query }), "Overdue reports retrieved successfully");
 export const getOverdueAppeals = handle((req) => listOverdue({ userId: req.user.id, kind: "appeals", ...req.query }), "Overdue appeals retrieved successfully");
 export const getOverdueCases = handle((req) => listOverdue({ userId: req.user.id, kind: "special-cases", ...req.query }), "Overdue special cases retrieved successfully");
 export const getHolidayCalendar = handle((req) => listPublicHolidays(req.query), "Public holiday calendar retrieved successfully");

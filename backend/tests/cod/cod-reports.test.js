@@ -122,7 +122,7 @@ test("COD dashboard returns only reports from authorized departments", async () 
     courseUnitId: courseA.id,
     academicPeriodId: academicPeriod.id,
     assessmentComponent: "CAT 1",
-    status: "submitted",
+    status: "ESCALATED",
     description: "Missing marks in CS101",
   });
 
@@ -131,7 +131,7 @@ test("COD dashboard returns only reports from authorized departments", async () 
     courseUnitId: courseB.id,
     academicPeriodId: academicPeriod.id,
     assessmentComponent: "Assignment",
-    status: "review",
+    status: "ESCALATED",
     description: "Should not be visible",
   });
 
@@ -173,7 +173,7 @@ test("COD dashboard allows access to all authorized departments for a multi-depa
     courseUnitId: courseA.id,
     academicPeriodId: academicPeriod.id,
     assessmentComponent: "CAT 1",
-    status: "submitted",
+    status: "ESCALATED",
     description: "Department A report",
   });
 
@@ -182,7 +182,7 @@ test("COD dashboard allows access to all authorized departments for a multi-depa
     courseUnitId: courseB.id,
     academicPeriodId: academicPeriod.id,
     assessmentComponent: "Final Exam",
-    status: "resubmitted",
+    status: "ESCALATED",
     description: "Department B report",
   });
 
@@ -296,7 +296,7 @@ test("COD dashboard rejects invalid page and limit values", async () => {
   }
 });
 
-test("COD dashboard filters reports by status", async () => {
+test("COD dashboard rejects status filters that would expose non-escalated reports", async () => {
   const departmentA = await createDepartment({ name: "Computer Science", code: "CS7" });
   const codUser = await createUser({ email: "cod6@dept.test", roles: ["cod"] });
   await createDepartmentMembership({ userId: codUser.id, departmentId: departmentA.id });
@@ -333,11 +333,7 @@ test("COD dashboard filters reports by status", async () => {
       headers: { Authorization: `Bearer ${token}` },
     });
 
-    assert.equal(response.status, 200);
-    const body = await response.json();
-    assert.equal(body.success, true);
-    assert.equal(body.data.items.length, 1);
-    assert.equal(body.data.items[0].status, "submitted");
+    assert.equal(response.status, 400);
   } finally {
     await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
   }
@@ -432,7 +428,7 @@ test("COD report detail returns linked application enrollment, assessment, CAT a
       assessmentId: assessment.id,
       assessmentComponent: "CAT 1",
       description: "Review linked academic information",
-      status: "submitted",
+      status: "ESCALATED",
     },
   });
   await prisma.unitEnrollment.create({
@@ -456,7 +452,7 @@ test("COD report detail returns linked application enrollment, assessment, CAT a
       assessmentId: otherAssessment.id,
       assessmentComponent: "CAT 1",
       description: "Report linked to an assessment from another unit",
-      status: "submitted",
+      status: "ESCALATED",
     },
   });
 

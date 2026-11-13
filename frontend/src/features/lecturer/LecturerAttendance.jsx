@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BookOpenCheck, CalendarClock, ClipboardList, GraduationCap, RefreshCw } from 'lucide-react'
+import { BookOpenCheck, CalendarClock, ClipboardList, Copy, GraduationCap, QrCode, RefreshCw, Share2 } from 'lucide-react'
 import {
   createLecturerAttendanceSession,
   endLecturerAttendanceSession,
+  extendLecturerAttendanceSession,
+  generateLecturerAttendanceLink,
+  getLecturerClassrooms,
   getLecturerCourseUnitAssessments,
   getLecturerCourseUnits,
   getLecturerAttendanceSessions,
@@ -14,6 +17,38 @@ import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import StatusChip from '../../components/ui/StatusChip'
 import '../../styles/LecturerAttendance.css'
+
+function AttendanceLinkCard({ url, onError, onCopy, onShare }) {
+  const [qrImage, setQrImage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    import('qrcode')
+      .then(({ default: QRCode }) => QRCode.toString(url, { type: 'svg', width: 240, margin: 2 }))
+      .then((svg) => {
+        if (active) setQrImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`)
+      })
+      .catch(() => {
+        if (active) onError('Unable to render the QR code. You can still copy or share the link.')
+      })
+    return () => { active = false }
+  }, [onError, url])
+
+  return (
+    <div className="lecturer-attendance-link">
+      <div className="lecturer-attendance-qr">
+        {qrImage ? <img src={qrImage} alt="QR code for student attendance check-in" /> : <QrCode size={34} aria-hidden="true" />}
+      </div>
+      <div className="lecturer-attendance-link-details">
+        <input aria-label="Attendance link" value={url} readOnly onFocus={(event) => event.target.select()} />
+        <div className="lecturer-attendance-link-actions">
+          <button className="button button-secondary" type="button" onClick={onCopy}><Copy size={15} /> Copy link</button>
+          <button className="button button-secondary" type="button" onClick={onShare}><Share2 size={15} /> Share link</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const sessionTypes = [
   { value: 'CAT', label: 'CAT', description: 'Continuous assessment tests', icon: ClipboardList },
@@ -27,8 +62,13 @@ const initialForm = {
   assessmentId: '',
   sessionDate: '',
   startsAt: '',
-  endDate: '',
   endsAt: '',
+}
+
+function toLocalDateTimeInput(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 
 function getCatNumber(assessment) {
@@ -40,16 +80,25 @@ function getCatNumber(assessment) {
 export default function LecturerAttendance() {
   const [sessions, setSessions] = useState([])
   const [courseUnits, setCourseUnits] = useState([])
+  const [classrooms, setClassrooms] = useState([])
   const [assessments, setAssessments] = useState([])
   const [form, setForm] = useState(initialForm)
   const [activeType, setActiveType] = useState('CAT')
   const [error, setError] = useState('')
   const [courseUnitsError, setCourseUnitsError] = useState('')
+  const [classroomsError, setClassroomsError] = useState('')
   const [assessmentsError, setAssessmentsError] = useState('')
   const [loading, setLoading] = useState(true)
   const [courseUnitsLoading, setCourseUnitsLoading] = useState(true)
+  const [classroomsLoading, setClassroomsLoading] = useState(true)
   const [assessmentsLoading, setAssessmentsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [linkingSessionId, setLinkingSessionId] = useState('')
+  const [extendingSessionId, setExtendingSessionId] = useState('')
+  const [editingEndTimeSessionId, setEditingEndTimeSessionId] = useState('')
+  const [extensionValues, setExtensionValues] = useState({})
+  const [attendanceTokens, setAttendanceTokens] = useState({})
+  const [linkNotice, setLinkNotice] = useState('')
   const [refresh, setRefresh] = useState(0)
   const load = useCallback(async () => {
     const result = await getLecturerAttendanceSessions({ page: 1, limit: 100 })
@@ -67,6 +116,22 @@ export default function LecturerAttendance() {
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [load, refresh])
+
+  useEffect(() => {
+    if (!sessions.some((session) => ['SCHEDULED', 'ACTIVE'].includes(String(session.status).toUpperCase()))) {
+      return undefined
+    }
+
+    const timer = window.setInterval(() => {
+      load()
+        .then((items) => {
+          setSessions(items)
+          setError('')
+        })
+        .catch((requestError) => setError(requestError.userMessage || 'Unable to refresh attendance sessions.'))
+    }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [load, sessions])
 
   useEffect(() => {
     let active = true
@@ -87,6 +152,23 @@ export default function LecturerAttendance() {
 
     return () => { active = false }
   }, [])
+
+  useEffect(() => {
+    let active = true
+    getLecturerClassrooms()
+      .then((response) => {
+        if (!active) return
+        setClassrooms(extractRecords(response, ['classrooms']))
+        setClassroomsError('')
+      })
+      .catch((requestError) => {
+        if (active) setClassroomsError(requestError.userMessage || 'Unable to load active classrooms.')
+      })
+      .finally(() => {
+        if (active) setClassroomsLoading(false)
+      })
+    return () => { active = false }
+  }, [refresh])
 
   useEffect(() => {
     if (!form.courseUnitId || activeType === 'CLASS') return undefined
@@ -111,12 +193,12 @@ export default function LecturerAttendance() {
   const submit = async (event) => {
     event.preventDefault()
     setError('')
-    if (Boolean(form.endDate) !== Boolean(form.endsAt)) {
-      setError('Choose both an end date and end time, or leave both blank.')
+    if (!form.endsAt) {
+      setError('Choose an end time so the session can close automatically.')
       return
     }
-    if (form.endDate && form.endsAt && new Date(`${form.endDate}T${form.endsAt}`) <= new Date(`${form.sessionDate}T${form.startsAt}`)) {
-      setError('End date and time must be after the start date and time.')
+    if (form.endsAt && new Date(`${form.sessionDate}T${form.endsAt}`) <= new Date(`${form.sessionDate}T${form.startsAt}`)) {
+      setError('End time must be after the start time.')
       return
     }
     if (activeType === 'EXAM' && assessments.length !== 1) {
@@ -133,12 +215,16 @@ export default function LecturerAttendance() {
       courseUnitId: form.courseUnitId.trim(),
       classroomId: form.classroomId.trim(),
       startsAt: new Date(`${form.sessionDate}T${form.startsAt}`).toISOString(),
-      ...(form.endsAt && form.endDate ? { endsAt: new Date(`${form.endDate}T${form.endsAt}`).toISOString() } : {}),
+      endsAt: new Date(`${form.sessionDate}T${form.endsAt}`).toISOString(),
       ...(activeType === 'CAT' ? { assessmentId: form.assessmentId } : {}),
       ...(activeType === 'EXAM' ? { assessmentId: assessments[0].id } : {}),
     }
     try {
-      await createLecturerAttendanceSession(payload)
+      const response = await createLecturerAttendanceSession(payload)
+      const created = response?.data ?? response
+      if (created.session?.id && created.qrToken) {
+        setAttendanceTokens((current) => ({ ...current, [created.session.id]: created.qrToken }))
+      }
       setForm(initialForm)
       setAssessments([])
       setRefresh((value) => value + 1)
@@ -151,12 +237,103 @@ export default function LecturerAttendance() {
 
   const updateSession = async (session, action) => {
     setError('')
+    setLinkNotice('')
     try {
-      if (action === 'start') await startLecturerAttendanceSession(session.id)
-      else await endLecturerAttendanceSession(session.id)
-      setRefresh((value) => value + 1)
+      if (action === 'start') {
+        await startLecturerAttendanceSession(session.id)
+        const response = await generateLecturerAttendanceLink(session.id)
+        const result = response?.data ?? response
+        setAttendanceTokens((current) => ({ ...current, [session.id]: result.qrToken }))
+      } else {
+        await endLecturerAttendanceSession(session.id)
+        setAttendanceTokens((current) => {
+          const next = { ...current }
+          delete next[session.id]
+          return next
+        })
+      }
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to update the attendance session.')
+    } finally {
+      setRefresh((value) => value + 1)
+    }
+  }
+
+  const generateLink = async (session) => {
+    setError('')
+    setLinkNotice('')
+    setLinkingSessionId(session.id)
+    try {
+      const response = await generateLecturerAttendanceLink(session.id)
+      const result = response?.data ?? response
+      setAttendanceTokens((current) => ({ ...current, [session.id]: result.qrToken }))
+    } catch (requestError) {
+      setError(requestError.userMessage || 'Unable to generate an attendance link.')
+    } finally {
+      setLinkingSessionId('')
+    }
+  }
+
+  const extendSession = async (event, session) => {
+    event.preventDefault()
+    setError('')
+    setLinkNotice('')
+    const newEndTime = extensionValues[session.id] ?? toLocalDateTimeInput(session.endsAt)
+    if (!newEndTime) {
+      setError('Choose a new end time for this attendance session.')
+      return
+    }
+
+    setExtendingSessionId(session.id)
+    try {
+      await extendLecturerAttendanceSession(session.id, new Date(newEndTime).toISOString())
+      setExtensionValues((current) => {
+        const next = { ...current }
+        delete next[session.id]
+        return next
+      })
+      setEditingEndTimeSessionId('')
+      setLinkNotice('Session end time extended.')
+    } catch (requestError) {
+      setError(requestError.userMessage || 'Unable to extend the attendance session.')
+    } finally {
+      setExtendingSessionId('')
+      setRefresh((value) => value + 1)
+    }
+  }
+
+  const getAttendanceUrl = (token) => {
+    const url = new URL('/student/attendance/check-in', window.location.origin)
+    url.searchParams.set('token', token)
+    return url.toString()
+  }
+
+  const copyAttendanceLink = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setError('')
+      setLinkNotice('Attendance link copied to clipboard.')
+    } catch (requestError) {
+      setError(requestError.userMessage || 'Unable to copy the attendance link. Select and copy it from the field instead.')
+    }
+  }
+
+  const shareAttendanceLink = async (url) => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Attendance check-in', text: 'Open this link to check in to attendance.', url })
+        setLinkNotice('Attendance link shared.')
+      } else {
+        await navigator.clipboard.writeText(url)
+        setLinkNotice('Attendance link copied to clipboard.')
+      }
+      setError('')
+    } catch (requestError) {
+      if (requestError.name !== 'AbortError') {
+        setError(requestError.userMessage || 'Unable to share the attendance link. Copy it and send it to students.')
+      } else {
+        setLinkNotice('')
+      }
     }
   }
 
@@ -211,6 +388,7 @@ export default function LecturerAttendance() {
           </div>
 
           {error && <div className="form-alert" role="alert">{error}</div>}
+          {linkNotice && <p className="lecturer-attendance-action-notice" role="status">{linkNotice}</p>}
 
           <form className="panel lecturer-attendance-form" onSubmit={submit}>
             <div className="lecturer-attendance-form-title"><CalendarClock size={18} /><h3>Create {activeSession?.label.toLowerCase()} session</h3></div>
@@ -241,8 +419,14 @@ export default function LecturerAttendance() {
                 <input id="session-course-code" value={selectedCourseUnit?.code || ''} placeholder="Auto-filled when you select a course unit" readOnly />
               </div>
               <div className="form-field">
-                <label htmlFor="session-classroom">Classroom UUID</label>
-                <input id="session-classroom" value={form.classroomId} onChange={(event) => setForm({ ...form, classroomId: event.target.value })} required />
+                <label htmlFor="session-classroom">Classroom</label>
+                <select id="session-classroom" value={form.classroomId} onChange={(event) => setForm({ ...form, classroomId: event.target.value })} required disabled={classroomsLoading || classrooms.length === 0}>
+                  <option value="">{classroomsLoading ? 'Loading classrooms…' : classrooms.length ? 'Select a classroom' : 'No active classrooms available'}</option>
+                  {classrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name} · GPS boundary {classroom.boundaryMeters} m</option>)}
+                </select>
+                <small className={classroomsError ? 'lecturer-attendance-field-error' : 'lecturer-attendance-field-hint'}>
+                  {classroomsError || (!classroomsLoading && !classrooms.length ? 'Ask an administrator to configure a classroom and its GPS boundary.' : 'Classrooms and GPS boundaries are configured by an administrator.')}
+                </small>
               </div>
               {activeType === 'CAT' && (
                 <div className="form-field">
@@ -286,7 +470,7 @@ export default function LecturerAttendance() {
               <div className="lecturer-attendance-schedule">
                 <div className="lecturer-attendance-schedule-heading">
                   <CalendarClock size={17} />
-                  <div><strong>Schedule</strong><small>Choose the session date and attendance window.</small></div>
+                  <div><strong>Schedule</strong><small>Choose one session date and its attendance time window.</small></div>
                 </div>
                 <div className="lecturer-attendance-schedule-grid">
                   <div className="form-field">
@@ -298,17 +482,13 @@ export default function LecturerAttendance() {
                     <input id="session-start" type="time" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} required />
                   </div>
                   <div className="form-field">
-                    <label htmlFor="session-end-date">End date <span className="lecturer-attendance-optional">(optional)</span></label>
-                    <input id="session-end-date" type="date" value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} />
-                  </div>
-                  <div className="form-field">
-                    <label htmlFor="session-end">End time <span className="lecturer-attendance-optional">(optional)</span></label>
-                    <input id="session-end" type="time" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} />
+                    <label htmlFor="session-end">End time</label>
+                      <input id="session-end" type="time" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} required />
                   </div>
                 </div>
               </div>
             </div>
-            <button className="button button-primary" disabled={saving || courseUnitsLoading || !courseUnits.length || (activeType === 'CAT' && (assessmentsLoading || !catAssessments.some(({ assessment }) => assessment))) || (activeType === 'EXAM' && (assessmentsLoading || assessments.length !== 1))}>
+            <button className="button button-primary" disabled={saving || courseUnitsLoading || !courseUnits.length || classroomsLoading || !classrooms.length || (activeType === 'CAT' && (assessmentsLoading || !catAssessments.some(({ assessment }) => assessment))) || (activeType === 'EXAM' && (assessmentsLoading || assessments.length !== 1))}>
               <CalendarClock size={16} />{saving ? 'Creating…' : `Create ${activeSession?.label.toLowerCase()} session`}
             </button>
           </form>
@@ -317,8 +497,51 @@ export default function LecturerAttendance() {
             <div className="lecturer-attendance-list-heading"><div><h3>{activeSession?.label} sessions</h3><p>Start or end an attendance window when needed.</p></div></div>
             {loading ? <LoadingState message={`Loading ${activeSession?.label.toLowerCase()} sessions…`} /> : error && sessions.length === 0 ? <ErrorState title="Unable to load sessions" message={error} onRetry={() => setRefresh((value) => value + 1)} /> : filteredSessions.length === 0 ? <EmptyState title={`No ${activeSession?.label.toLowerCase()} sessions yet`} message={`Create a ${activeSession?.label.toLowerCase()} attendance session to get started.`} /> : filteredSessions.map((session) => (
               <article className="record-card lecturer-attendance-session" key={session.id}>
-                <div className="lecturer-attendance-session-info"><span className="lecturer-attendance-session-icon"><CalendarClock size={18} /></span><div><h3>{session.courseUnit?.code || session.courseUnit?.name || `${activeSession?.label} session`}</h3><p>{session.startsAt ? new Date(session.startsAt).toLocaleString() : 'Start time unavailable'}</p><small>{session.classroom?.name || session.classroomName || session.id}</small></div></div>
-                <div className="record-actions"><StatusChip status={session.status || 'scheduled'} />{String(session.status).toUpperCase() === 'SCHEDULED' && <button className="button button-secondary" type="button" onClick={() => updateSession(session, 'start')}>Start</button>}{String(session.status).toUpperCase() === 'ACTIVE' && <button className="button button-secondary" type="button" onClick={() => updateSession(session, 'end')}>End</button>}</div>
+                <div className="lecturer-attendance-session-info"><span className="lecturer-attendance-session-icon"><CalendarClock size={18} /></span><div><h3>{session.courseUnit?.code || session.courseUnit?.name || `${activeSession?.label} session`}</h3><p>{session.startsAt ? new Date(session.startsAt).toLocaleString() : 'Start time unavailable'}</p><small>{session.classroom?.name || session.classroomName || session.id}</small>{session.endsAt && <small>Ends {new Date(session.endsAt).toLocaleString()}</small>}</div></div>
+                <div className="record-actions"><StatusChip status={session.status || 'scheduled'} />{String(session.status).toUpperCase() === 'SCHEDULED' && <button className="button button-secondary" type="button" onClick={() => updateSession(session, 'start')}>Start</button>}{String(session.status).toUpperCase() === 'ACTIVE' && <button className="button button-secondary" type="button" onClick={() => updateSession(session, 'end')}>End now</button>}</div>
+                {String(session.status).toUpperCase() === 'ACTIVE' && (
+                  <>
+                    <div className="lecturer-attendance-extend">
+                      <button
+                        className="lecturer-attendance-extend-toggle"
+                        type="button"
+                        aria-expanded={editingEndTimeSessionId === session.id}
+                        aria-controls={`session-end-extension-panel-${session.id}`}
+                        onClick={() => setEditingEndTimeSessionId((current) => current === session.id ? '' : session.id)}
+                      >
+                        <CalendarClock size={15} /> Adjust end time
+                      </button>
+                      {editingEndTimeSessionId === session.id && (
+                      <form id={`session-end-extension-panel-${session.id}`} className="lecturer-attendance-extend-form" onSubmit={(event) => extendSession(event, session)}>
+                        <div className="form-field">
+                          <label htmlFor={`session-end-extension-${session.id}`}>New end time</label>
+                          <input
+                            id={`session-end-extension-${session.id}`}
+                            type="datetime-local"
+                            value={extensionValues[session.id] ?? toLocalDateTimeInput(session.endsAt)}
+                            onChange={(event) => setExtensionValues((current) => ({ ...current, [session.id]: event.target.value }))}
+                            required
+                          />
+                        </div>
+                        <button className="button button-secondary" type="submit" disabled={extendingSessionId === session.id}>
+                          {extendingSessionId === session.id ? 'Extending…' : 'Save new end time'}
+                        </button>
+                      </form>
+                      )}
+                    </div>
+                    {attendanceTokens[session.id]
+                    ? <AttendanceLinkCard
+                      key={attendanceTokens[session.id]}
+                      url={getAttendanceUrl(attendanceTokens[session.id])}
+                      onError={setError}
+                      onCopy={() => copyAttendanceLink(getAttendanceUrl(attendanceTokens[session.id]))}
+                      onShare={() => shareAttendanceLink(getAttendanceUrl(attendanceTokens[session.id]))}
+                    />
+                    : <button className="button button-secondary lecturer-attendance-generate-link" type="button" disabled={linkingSessionId === session.id} onClick={() => generateLink(session)}>
+                      <QrCode size={16} />{linkingSessionId === session.id ? 'Generating link…' : 'Generate attendance link'}
+                    </button>}
+                  </>
+                )}
               </article>
             ))}
           </div>

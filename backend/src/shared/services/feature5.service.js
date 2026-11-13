@@ -147,12 +147,8 @@ export async function startAssignedReportWork({ db = prisma, userId, reportId })
 		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: "LECTURER_REPORT_WORK_STARTED", entityType: "MissingMarkReport", entityId: reportId, metadata: { assignmentId: assignment.id, workStartedAt: startedAt, deadlineAt } });
 		const profile = await tx.lecturerProfile.findUnique({ where: { id: lecturer.id }, select: { userId: true } });
 		const key = `REPORT_OVERDUE:${assignment.id}`;
-		const codUserId = await validDesignatedCod(tx, report.courseUnit.department.id, report.courseUnit.department.designatedCodUserId)
-			? report.courseUnit.department.designatedCodUserId
-			: null;
 		const overdueAt = new Date(deadlineAt.valueOf() + 1);
 		await enqueueNotificationOnce(tx, { dedupeKey: `LECTURER_${key}:${profile.userId}`, eventType: "LECTURER_REPORT_OVERDUE", entityType: "MissingMarkReport", entityId: reportId, recipientUserId: profile.userId, reportId, title: "Assigned report overdue", message: `Report ${reportId} has passed its lecturer decision deadline.`, availableAt: overdueAt });
-		if (codUserId) await enqueueNotificationOnce(tx, { dedupeKey: `COD_${key}:${codUserId}`, eventType: "COD_REPORT_OVERDUE", entityType: "MissingMarkReport", entityId: reportId, recipientUserId: codUserId, reportId, title: "Lecturer report overdue", message: `Report ${reportId} has passed its lecturer decision deadline.`, availableAt: overdueAt });
 		return { reportId, assignmentId: assignment.id, workStartedAt: startedAt, deadlineAt };
 	});
 }
@@ -240,21 +236,6 @@ async function enqueueOutstandingCodReviews(tx, departmentId, codUserId) {
 			entityType: "SpecialCase", entityId: item.id, reportId: item.reportId, recipientUserId: codUserId,
 			deadlineAt: item.reviewDeadlineAt, title: "Special case review overdue", message: `Special case ${item.id} is awaiting a departmental decision.`,
 		});
-	}
-	const reports = await tx.missingMarkReport.findMany({
-		where: { status: "PENDING", courseUnit: { departmentId } },
-		select: { id: true, reference: true, assignedLecturerProfileId: true, assignments: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, deadlineAt: true, workStartedAt: true, newLecturerProfileId: true } } },
-	});
-	for (const report of reports) {
-		const assignment = report.assignments[0];
-		if (assignment?.workStartedAt && assignment.deadlineAt && assignment.newLecturerProfileId === report.assignedLecturerProfileId) {
-			await enqueueNotificationOnce(tx, {
-				eventType: "COD_REPORT_OVERDUE", entityType: "MissingMarkReport", entityId: report.id, reportId: report.id, recipientUserId: codUserId,
-				dedupeKey: `COD_REPORT_OVERDUE:${assignment.id}:${codUserId}`,
-				deadlineAt: assignment.deadlineAt, title: "Lecturer report overdue", message: `Report ${report.id} has passed its lecturer decision deadline.`,
-				availableAt: new Date(assignment.deadlineAt.valueOf() + 1),
-			});
-		}
 	}
 }
 
@@ -460,15 +441,6 @@ export async function listOverdue({ db = prisma, userId, kind, page, limit }) {
 	const p = pageArgs(page, limit);
 	const now = new Date();
 	const departmentIds = await validDesignatedDepartmentIds(db, userId);
-	if (kind === "reports") {
-		const all = await db.missingMarkReport.findMany({ where: { status: "PENDING", assignedLecturerProfileId: { not: null }, courseUnit: { departmentId: { in: departmentIds } } }, orderBy: { createdAt: "desc" }, select: { id: true, reference: true, status: true, assignedLecturerProfileId: true, courseUnit: { select: { departmentId: true } }, assignments: { orderBy: { createdAt: "desc" }, take: 1, select: { newLecturerProfileId: true, workStartedAt: true, deadlineAt: true } } } });
-		const overdue = all.filter((item) => {
-			const assignment = item.assignments[0];
-			return assignment?.newLecturerProfileId === item.assignedLecturerProfileId && assignment.workStartedAt && assignment.deadlineAt < now;
-		});
-		const items = overdue.slice(p.skip, p.skip + p.limit);
-		return { items, pagination: { page: p.page, limit: p.limit, total: overdue.length, totalPages: Math.ceil(overdue.length / p.limit) } };
-	}
 	const where = { status: "Submitted", reviewDeadlineAt: { lt: now }, report: { courseUnit: { departmentId: { in: departmentIds } } } };
 	const model = kind === "appeals" ? db.appeal : db.specialCase;
 	const [items, total] = await Promise.all([

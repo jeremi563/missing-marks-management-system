@@ -107,8 +107,8 @@ async function validateReporterAndReview(db, item, context) {
         select: { id: true, user: { select: { isActive: true, roles: { select: { role: { select: { name: true } } } } } } },
       });
       const reviewerIsLecturer = reviewer?.user?.isActive && reviewer.user.roles.some(({ role }) => role.name === "lecturer");
-      const assignedToUnit = await db.courseUnitLecturer.findUnique({
-        where: { courseUnitId_lecturerProfileId: { courseUnitId: context.courseUnit.id, lecturerProfileId: item.lecturerReviewedByProfileId } },
+      const assignedToUnit = await db.courseUnitLecturer.findFirst({
+        where: { courseUnitId: context.courseUnit.id, lecturerProfileId: item.lecturerReviewedByProfileId, academicYear: context.academicYear },
         select: { id: true },
       });
       if (!reviewerIsLecturer || !assignedToUnit) throw new AppError(409, "Recorded lecturer review is not valid for this course unit");
@@ -117,8 +117,8 @@ async function validateReporterAndReview(db, item, context) {
     const lecturer = await db.lecturerProfile.findUnique({ where: { userId: reporter.id }, select: { id: true } });
     if (!lecturer) throw new AppError(409, "Lecturer reporter has no lecturer profile");
     if (item.assignedLecturerProfileId !== lecturer.id) throw new AppError(409, "Lecturer discrepancy assignment does not match its reporter");
-    const assignedToUnit = await db.courseUnitLecturer.findUnique({
-      where: { courseUnitId_lecturerProfileId: { courseUnitId: context.courseUnit.id, lecturerProfileId: lecturer.id } },
+    const assignedToUnit = await db.courseUnitLecturer.findFirst({
+      where: { courseUnitId: context.courseUnit.id, lecturerProfileId: lecturer.id, academicYear: context.academicYear },
       select: { id: true },
     });
     if (!assignedToUnit) throw new AppError(409, "Lecturer reporter is not assigned to this course unit");

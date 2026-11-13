@@ -18,6 +18,9 @@ const {
   getAttendanceSessions,
   getAttendanceSessionById,
   startAttendanceSession,
+  generateAttendanceLink,
+  extendAttendanceSession,
+  completeExpiredAttendanceSessions,
   endAttendanceSession,
   getAttendanceSessionRecords,
 } = await import('../../src/modules/lecturer/lecturer.service.js');
@@ -58,12 +61,17 @@ const createReportDetailsPrisma = ({
   report = {
     id: 'report-1',
     reference: 'MM-001',
+    studentProfileId: 'student-1',
+    courseUnitId: 'unit-1',
     status: 'PENDING',
     student: { studentNumber: 'STU-001' },
     courseUnit: { code: 'CSC101', name: 'Programming' },
-    academicPeriod: { name: '2026 Semester 1' },
+    academicPeriod: { name: '2026 Semester 1', startsAt: new Date('2026-08-01') },
     assessment: { name: 'CAT 1', type: 'CAT' },
   },
+  assessments = [],
+  classSessions = [],
+  attendanceMinimum = 80,
 } = {}) => {
   const calls = {};
 
@@ -77,6 +85,21 @@ const createReportDetailsPrisma = ({
         calls.findFirstArgs = args;
         return report;
       },
+    },
+    assessment: {
+      findMany: async (args) => {
+        calls.assessmentArgs = args;
+        return assessments;
+      },
+    },
+    attendanceSession: {
+      findMany: async (args) => {
+        calls.classSessionArgs = args;
+        return classSessions;
+      },
+    },
+    systemSetting: {
+      findUnique: async () => ({ value: attendanceMinimum }),
     },
   };
 
@@ -164,10 +187,41 @@ test('retrieves details of a report assigned to the lecturer', async () => {
   assert.equal(result.courseUnit.code, 'CSC101');
   assert.equal(result.academicPeriod.name, '2026 Semester 1');
   assert.equal(result.assessment.name, 'CAT 1');
+  assert.equal(result.attendanceReview.academicYear, '2026/27');
+  assert.equal(result.attendanceReview.assessments.CAT.status, 'unknown');
+  assert.equal(result.attendanceReview.assessments.EXAM.status, 'unknown');
+  assert.equal(result.attendanceReview.classAttendance.percentage, null);
 
   assert.deepEqual(calls.findFirstArgs.where, {
     id: 'report-1',
     assignedLecturerProfileId: 'lecturer-1',
+  });
+});
+
+test('summarizes CAT, exam, and class attendance against the report academic year', async () => {
+    const { prisma } = createReportDetailsPrisma({
+      assessments: [
+        { id: 'cat-1', type: 'CAT', code: 'CAT1', name: 'CAT 1', attendanceRecords: [], sessions: [{ id: 'cat-session', records: [] }] },
+        { id: 'exam-1', type: 'EXAM', code: 'EXAM', name: 'Final Exam', attendanceRecords: [{ status: 'PRESENT' }], sessions: [{ id: 'exam-session', records: [] }] },
+      ],
+      classSessions: [
+        { id: 'class-1', records: [{ status: 'PRESENT' }] },
+        { id: 'class-2', records: [{ status: 'PRESENT' }] },
+        { id: 'class-3', records: [{ status: 'PRESENT' }] },
+        { id: 'class-4', records: [] },
+      ],
+    });
+
+    const result = await getAssignedReportById(prisma, 'user-1', 'report-1');
+
+    assert.equal(result.attendanceReview.assessments.CAT.status, 'absent');
+    assert.equal(result.attendanceReview.assessments.EXAM.status, 'present');
+    assert.deepEqual(result.attendanceReview.classAttendance, {
+      attendedSessions: 3,
+      applicableSessions: 4,
+      percentage: 75,
+      meetsRequirement: false,
+      minimumPercentage: 80,
   });
 });
 
@@ -203,7 +257,7 @@ test('rejects users without lecturer profiles when retrieving report details', a
 
 const createCommentPrisma = ({
   lecturer = { id: 'lecturer-1' },
-  report = { id: 'report-1' },
+  report = { id: 'report-1', reference: 'MM-001', student: { userId: 'student-user-1' } },
   comments = [],
   createdComment = {
     id: 'comment-1',
@@ -243,6 +297,13 @@ const createCommentPrisma = ({
         return createdComment;
       },
     },
+
+    notification: {
+      createMany: async (args) => { calls.notificationCreateManyArgs = args; },
+      findUnique: async () => ({ id: 'notification-1' }),
+    },
+
+    $transaction: async (callback) => callback(prisma),
   };
 
   return { prisma, calls };
@@ -318,7 +379,7 @@ test('rejects unassigned reports when retrieving comments', async () => {
   );
 });
 
-test('creates a comment using the authenticated lecturer ID', async () => {
+test('creates student-visible feedback using the authenticated lecturer ID', async () => {
   const { prisma, calls } = createCommentPrisma();
 
   const result = await createReportComment(
@@ -336,8 +397,10 @@ test('creates a comment using the authenticated lecturer ID', async () => {
     reportId: 'report-1',
     authorUserId: 'user-1',
     body: 'Please clarify the missing mark.',
-    isStudentVisible: false,
+    isStudentVisible: true,
   });
+  assert.equal(calls.notificationCreateManyArgs.data[0].userId, 'student-user-1');
+  assert.equal(calls.notificationCreateManyArgs.data[0].reportId, 'report-1');
 });
 
 test('rejects comment creation for unassigned reports', async () => {
@@ -633,7 +696,12 @@ test('does not complete the transaction when audit history creation fails', asyn
 // Feature 4: Lecturer escalation tests
 const createEscalationPrisma = ({
   lecturer = { id: 'lecturer-1' },
-  report = { id: 'report-1', reference: 'MM-001', status: 'APPROVED' },
+  report = {
+    id: 'report-1',
+    reference: 'MM-001',
+    status: 'APPROVED',
+    courseUnit: { code: 'IN101', department: { id: 'dept-1', designatedCodUserId: 'cod-user-1' } },
+  },
   updateCount = 1,
   historyFailure = null,
   auditFailure = null,
@@ -642,6 +710,10 @@ const createEscalationPrisma = ({
   const calls = {};
   let persistedStatus = report?.status ?? null;
   const transaction = {
+    user: { findFirst: async ({ where }) => where.id === 'cod-user-1' ? { id: 'cod-user-1' } : null },
+    notification: {
+      create: async (args) => { calls.notificationArgs = args; return { id: 'notification-1', ...args.data }; },
+    },
     missingMarkReport: {
       updateMany: async (args) => {
         calls.updateArgs = args;
@@ -666,7 +738,13 @@ const createEscalationPrisma = ({
   };
   const prisma = {
     lecturerProfile: { findUnique: async () => lecturer },
-    missingMarkReport: { findFirst: async (args) => { calls.findFirstArgs = args; return report; } },
+    missingMarkReport: { findFirst: async (args) => {
+      calls.findFirstArgs = args;
+      return report ? {
+        ...report,
+        courseUnit: report.courseUnit ?? { code: 'IN101', department: { id: 'dept-1', designatedCodUserId: 'cod-user-1' } },
+      } : null;
+    } },
     reportStatusHistory: { findFirst: async (args) => { calls.priorEscalationArgs = args; return priorEscalation; } },
     $transaction: async (callback) => {
       calls.transactionStarted = true;
@@ -703,6 +781,13 @@ for (const decision of ['APPROVED', 'REJECTED']) {
     });
     assert.equal(calls.auditArgs.data.actorId, 'user-1');
     assert.equal(calls.auditArgs.data.action, 'REPORT_ESCALATED');
+    assert.deepEqual(calls.notificationArgs.data, {
+      userId: 'cod-user-1',
+      reportId: 'report-1',
+      title: 'Missing-mark report escalated',
+      message: 'Report MM-001 for IN101 requires your review.',
+      dedupeKey: 'REPORT_ESCALATED:report-1:cod-user-1',
+    });
   });
 }
 
@@ -1036,6 +1121,10 @@ const createAttendancePrisma = ({
         calls.assignmentArgs = args;
         return assignment;
       },
+      findFirst: async (args) => {
+        calls.assignmentArgs = args;
+        return assignment;
+      },
     },
 
     classroom: {
@@ -1069,6 +1158,7 @@ const validClassSession = {
   courseUnitId: '550e8400-e29b-41d4-a716-446655440000',
   classroomId: '650e8400-e29b-41d4-a716-446655440000',
   startsAt: '2026-11-02T09:00:00+03:00',
+  endsAt: '2026-11-02T10:00:00+03:00',
 };
 
 test('creates a CLASS attendance session without an assessment', async () => {
@@ -1094,6 +1184,43 @@ test('creates a CLASS attendance session without an assessment', async () => {
     result.qrToken
   );
   assert.equal(calls.assessmentArgs, undefined);
+});
+
+test('generates a fresh hashed attendance token only for the owning lecturer active session', async () => {
+  let update;
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-1' }) },
+    attendanceSession: {
+      findFirst: async ({ where }) => {
+        assert.deepEqual(where, { id: 'session-1', lecturerProfileId: 'lecturer-1' });
+        return { id: 'session-1', status: 'active' };
+      },
+      updateMany: async (args) => { update = args; return { count: 1 }; },
+    },
+  };
+  const result = await generateAttendanceLink(prisma, 'user-1', 'session-1');
+
+  assert.equal(result.sessionId, 'session-1');
+  assert.match(result.qrToken, /^[a-f0-9]{64}$/);
+  assert.notEqual(update.data.accessTokenHash, result.qrToken);
+  assert.deepEqual(update.where, { id: 'session-1', lecturerProfileId: 'lecturer-1', status: 'active' });
+});
+
+test('does not generate attendance links for scheduled sessions', async () => {
+  let updated = false;
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-1' }) },
+    attendanceSession: {
+      findFirst: async () => ({ id: 'session-1', status: 'scheduled' }),
+      updateMany: async () => { updated = true; return { count: 1 }; },
+    },
+  };
+
+  await assert.rejects(generateAttendanceLink(prisma, 'user-1', 'session-1'), {
+    statusCode: 409,
+    message: 'Attendance links can only be generated for active sessions.',
+  });
+  assert.equal(updated, false);
 });
 
 test('creates a CAT attendance session using a registered CAT assessment', async () => {
@@ -1585,7 +1712,64 @@ test('ends only the authenticated lecturer active session', async () => {
   assert.equal(result.status, 'completed');
   assert.deepEqual(calls.updateArgs, {
     where: { id: 'session-1', lecturerProfileId: 'lecturer-1', status: 'active' },
-    data: { status: 'completed' },
+    data: { status: 'completed', accessTokenHash: null },
+  });
+});
+
+test('extends only the owned active session to a later future end time', async () => {
+  const now = new Date('2026-11-13T07:00:00.000Z');
+  let updateArgs;
+  const sessionEnd = new Date('2026-11-13T08:00:00.000Z');
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-1' }) },
+    attendanceSession: {
+      findFirst: async () => ({ id: 'session-1', status: 'active', endsAt: sessionEnd }),
+      updateMany: async (args) => { updateArgs = args; return { count: 1 }; },
+      findUnique: async () => ({ id: 'session-1', status: 'active', endsAt: updateArgs.data.endsAt }),
+    },
+  };
+
+  const result = await extendAttendanceSession(prisma, 'user-1', 'session-1', '2026-11-13T09:00:00.000Z', now);
+  assert.equal(result.endsAt.toISOString(), '2026-11-13T09:00:00.000Z');
+  assert.deepEqual(updateArgs.where, {
+    id: 'session-1',
+    lecturerProfileId: 'lecturer-1',
+    status: 'active',
+    endsAt: sessionEnd,
+  });
+});
+
+test('rejects an extension that does not move the session end time later', async () => {
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-1' }) },
+    attendanceSession: {
+      findFirst: async () => ({ id: 'session-1', status: 'active', endsAt: new Date('2026-11-13T08:00:00.000Z') }),
+      updateMany: async () => { throw new Error('Must not update'); },
+    },
+  };
+
+  await assert.rejects(
+    extendAttendanceSession(prisma, 'user-1', 'session-1', '2026-11-13T08:00:00.000Z', new Date('2026-11-13T07:00:00.000Z')),
+    { statusCode: 400, message: 'The extended end time must be later than the current end time.' },
+  );
+});
+
+test('automatically completes active sessions whose end time has passed and invalidates their links', async () => {
+  const now = new Date('2026-11-13T10:00:00.000Z');
+  let updateArgs;
+  const prisma = {
+    attendanceSession: {
+      updateMany: async (args) => {
+        updateArgs = args;
+        return { count: 2 };
+      },
+    },
+  };
+
+  assert.equal(await completeExpiredAttendanceSessions(prisma, now), 2);
+  assert.deepEqual(updateArgs, {
+    where: { status: { in: ['scheduled', 'active'] }, endsAt: { lte: now } },
+    data: { status: 'completed', accessTokenHash: null },
   });
 });
 

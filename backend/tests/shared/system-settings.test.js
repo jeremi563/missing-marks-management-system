@@ -6,7 +6,7 @@ import { updateSetting } from "../../src/modules/admin/operations.service.js";
 
 test("configured attendance eligibility uses the administrator threshold", async () => {
 	const db = { systemSetting: { findUnique: async () => ({ value: 85 }) } };
-	assert.deepEqual(await evaluateConfiguredAttendanceEligibility({ db, attendedSessions: 17, applicableSessions: 20 }), { percentage: 85, meetsRequirement: true });
+	assert.deepEqual(await evaluateConfiguredAttendanceEligibility({ db, attendedSessions: 17, applicableSessions: 20 }), { percentage: 85, meetsRequirement: true, minimumPercentage: 85 });
 });
 
 test("system setting reads use the fallback when the setting is unavailable", async () => {
