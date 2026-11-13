@@ -1,14 +1,18 @@
 :root {
   font-family: Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #17233c;
-  background: #f5f7fb;
+  color: #171717;
+  background: #ffffff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --ink: #17233c;
-  --muted: #64748b;
-  --line: #e4e9f1;
-  --blue: #315fe8;
-  --blue-dark: #234ac3;
-  --surface: #ffffff;
+  --primary: #6E26FF;
+  --primary-strong: #561de6;
+  --secondary: #A679FF;
+  --secondary-soft: #F2EBFF;
+  --background: #FFFFFF;
+  --surface: #FFFFFF;
+  --card: #F8F8FA;
+  --ink: #171717;
+  --muted: #5f636a;
+  --line: #E5E5E5;
   --radius: 16px;
 }

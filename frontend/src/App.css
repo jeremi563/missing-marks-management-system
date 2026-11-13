@@ -13,7 +13,7 @@
 
 .dashboard-home > div:first-child p,
 .dashboard-welcome-card p {
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.7;
 }
 
@@ -21,8 +21,8 @@
   margin-top: 28px;
   padding: 24px;
   max-width: 550px;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: 12px;
 }
 
@@ -35,7 +35,7 @@
   align-items: center;
   gap: 8px;
   margin-top: 18px;
-  color: #2563eb;
+  color: var(--primary);
   font-weight: 600;
 }
 
@@ -55,7 +55,7 @@
 }
 
 .login-placeholder p {
-  color: #64748b;
+  color: var(--muted);
 }
 
 .login-note {
@@ -63,6 +63,6 @@
 }
 
 .login-placeholder a {
-  color: #2563eb;
+  color: var(--primary);
   font-weight: 600;
 }
