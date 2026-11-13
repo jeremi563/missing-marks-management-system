@@ -50,14 +50,23 @@ export async function loginWithCredentials(identifier, password, db = prisma) {
 	const user = identifierRecord?.user;
 	const roles = user?.roles.map(({ role }) => role.name) ?? [];
 	const isStaff = roles.some((role) => role === "lecturer" || role === "cod");
+	const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
+	const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
 
-	if (!user || !user.isActive || user.approvalStatus !== "APPROVED" || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(password, user.passwordHash))) {
+	if (!user || !(isApprovedUser || isPendingLecturer) || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(password, user.passwordHash))) {
 		throw new AppError(401, "Invalid identifier or password");
 	}
 
 	return {
 		...createSessionToken(user.id, roles),
-		user: { id: user.id, email: user.email, displayName: user.displayName, roles },
+		user: {
+			id: user.id,
+			email: user.email,
+			displayName: user.displayName,
+			approvalStatus: user.approvalStatus,
+			isActive: user.isActive,
+			roles,
+		},
 	};
 }
 

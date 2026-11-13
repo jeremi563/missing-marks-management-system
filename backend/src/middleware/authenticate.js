@@ -27,14 +27,19 @@ export async function authenticate(req, res, next) {
 				roles: { select: { role: { select: { name: true } } } },
 			},
 		});
-		if (!user?.isActive || user.approvalStatus !== "APPROVED") throw new AppError(401, "Invalid authentication credentials");
+		const roles = user?.roles.map(({ role }) => role.name) ?? [];
+		const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
+		const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
+		if (!user || !(isApprovedUser || isPendingLecturer)) throw new AppError(401, "Invalid authentication credentials");
 
 		req.user = {
 			id: user.id,
 			email: user.email,
 			pendingEmail: user.pendingEmail,
 			displayName: user.displayName,
-			roles: user.roles.map(({ role }) => role.name),
+			approvalStatus: user.approvalStatus,
+			isActive: user.isActive,
+			roles,
 		};
 		req.sessionExpiresAt = claims.exp ? new Date(claims.exp * 1000) : null;
 		return next();

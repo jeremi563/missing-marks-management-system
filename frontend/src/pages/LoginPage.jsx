@@ -20,7 +20,12 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  if (isAuthenticated) return <Navigate to={`/${getRole(user) || 'student'}`} replace />
+  if (isAuthenticated) {
+    if (user?.approvalStatus === 'PENDING' && user?.roles?.includes('lecturer')) {
+      return <Navigate to="/lecturer-department-registration" replace />
+    }
+    return <Navigate to={`/${getRole(user) || 'student'}`} replace />
+  }
 
   const submit = async (event) => {
     event.preventDefault()
@@ -28,6 +33,10 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       const authenticatedUser = await login({ identifier: identifier.trim(), password })
+      if (authenticatedUser?.approvalStatus === 'PENDING' && authenticatedUser?.roles?.includes('lecturer')) {
+        navigate('/lecturer-department-registration', { replace: true })
+        return
+      }
       const destination = location.state?.from?.pathname || `/${getRole(authenticatedUser) || 'student'}`
       navigate(destination, { replace: true })
     } catch (requestError) {
@@ -65,7 +74,6 @@ export default function LoginPage() {
           <button className="button button-primary button-full" disabled={submitting}>{submitting ? 'Signing in…' : 'Sign in'}</button>
         </form>
         <p className="auth-switch">New here? <Link to="/register">Create an account</Link></p>
-        <p className="auth-switch">Lecturer account created but department form not completed? <Link to="/lecturer-department-registration">Complete lecturer registration</Link></p>
       </section>
     </main>
   )

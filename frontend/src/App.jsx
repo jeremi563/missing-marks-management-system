@@ -47,7 +47,9 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/lecturer-department-registration" element={<LecturerDepartmentRegistration />} />
+        <Route element={<RequireRole allowedRoles={['lecturer']} allowPendingRegistration />}>
+          <Route path="/lecturer-department-registration" element={<LecturerDepartmentRegistration />} />
+        </Route>
         <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/403" element={<AccessDenied />} />
         <Route element={<RequireRole allowedRoles={['student']} />}>

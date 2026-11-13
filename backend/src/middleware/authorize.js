@@ -9,6 +9,9 @@ export function authorize(...allowedRoles) {
 		if (hasInvalidRoleCombination || !roles.some((role) => allowedRoles.includes(role))) {
 			return next(new AppError(403, "You do not have permission to access this resource"));
 		}
+		if (roles.some((role) => ["student", "lecturer", "cod", "administrator"].includes(role)) && req.user.approvalStatus !== "APPROVED") {
+			return next(new AppError(403, "Your account is not yet approved for this area."));
+		}
 		return next();
 	};
 }

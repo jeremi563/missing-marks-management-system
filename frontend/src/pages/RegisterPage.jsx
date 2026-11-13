@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
-import { registerUser } from '../api/auth'
+import { loginUser, registerUser } from '../api/auth'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ displayName: '', email: '', registrationNumber: '', password: '', confirmPassword: '' })
@@ -48,6 +48,11 @@ export default function RegisterPage() {
       const result = await registerUser(registration)
       if (!result.data.requiresEmailVerification) {
         if (result.data.requiresDepartmentRegistration) {
+          try {
+            await loginUser({ identifier: normalizedNumber, password })
+          } catch (error) {
+            // The user should still be able to complete the pending registration flow manually.
+          }
           navigate('/lecturer-department-registration', { replace: true })
           return
         }
