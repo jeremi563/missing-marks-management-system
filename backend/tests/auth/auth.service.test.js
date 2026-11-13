@@ -7,7 +7,7 @@ process.env.NODE_ENV = "test";
 process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test?schema=public";
 process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
-const { changePassword, completeLecturerDepartmentRegistration, extendSession, listRegistrationDepartments, loginWithCredentials, registerAccount, requestEmailChange, updateAvatar, verifyEmailAddress } = await import("../../src/modules/auth/auth.service.js");
+const { changePassword, completeLecturerDepartmentRegistration, extendSession, listRegistrationDepartments, loginWithCredentials, registerAccount, requestEmailChange, resetPassword, updateAvatar, verifyEmailAddress } = await import("../../src/modules/auth/auth.service.js");
 
 const makeUser = async (overrides = {}) => ({
 	id: "00000000-0000-4000-8000-000000000001",
@@ -35,10 +35,11 @@ test("logs in by normalized student registration number", async () => {
 });
 
 test("extends an authenticated session for 15 minutes", () => {
-	const result = extendSession({ id: "user-1", roles: ["student"] });
+	const result = extendSession({ id: "user-1", roles: ["student"], sessionVersion: 4 });
 	const claims = jwt.verify(result.token, process.env.JWT_SECRET);
 	assert.equal(claims.sub, "user-1");
 	assert.deepEqual(claims.roles, ["student"]);
+	assert.equal(claims.sessionVersion, 4);
 	assert.ok(claims.exp - claims.iat >= 14 * 60);
 	assert.ok(claims.exp - claims.iat <= 15 * 60);
 	assert.equal(Date.parse(result.sessionExpiresAt), claims.exp * 1000);
@@ -219,6 +220,30 @@ function registrationHarness(eligibility, existingUser = null, course = { id: "c
 	};
 	return { calls, db: { $transaction: async (callback) => callback(tx) } };
 }
+
+test("resets a password, consumes the token, and increments the session version", async () => {
+	const now = new Date();
+	let updatedUser;
+	const tokenUpdates = [];
+	await resetPassword("valid-reset-token", "new-password-123", {
+		$transaction: async (callback) => callback({
+			accountSecurityToken: {
+				findUnique: async () => ({ id: "reset-token-id", userId: "user-1", type: "PASSWORD_RESET", usedAt: null, expiresAt: new Date(now.getTime() + 60_000) }),
+				updateMany: async ({ where, data }) => {
+					tokenUpdates.push({ where, data });
+					return { count: 1 };
+				},
+			},
+			user: { update: async ({ where, data }) => { updatedUser = { where, data }; } },
+		}),
+	});
+	assert.equal(updatedUser.where.id, "user-1");
+	assert.equal(await bcrypt.compare("new-password-123", updatedUser.data.passwordHash), true);
+	assert.deepEqual(updatedUser.data.sessionVersion, { increment: 1 });
+	assert.equal(tokenUpdates.length, 2);
+	assert.equal(tokenUpdates[0].where.id, "reset-token-id");
+	assert.equal(tokenUpdates[1].where.type, "PASSWORD_RESET");
+});
 
 test("registers a roster-matched student as verified with a hashed password", async () => {
 	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
