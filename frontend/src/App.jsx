@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import FirstLoginPasswordChange from './pages/FirstLoginPasswordChange'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import LecturerDepartmentRegistration from './pages/LecturerDepartmentRegistration'
@@ -53,6 +54,9 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route element={<RequireRole allowedRoles={['student', 'lecturer', 'cod', 'administrator']} />}>
+          <Route path="/change-password" element={<FirstLoginPasswordChange />} />
+        </Route>
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<RequireRole allowedRoles={['lecturer']} allowPendingRegistration />}>

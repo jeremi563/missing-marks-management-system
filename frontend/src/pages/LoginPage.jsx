@@ -22,6 +22,7 @@ export default function LoginPage() {
   const location = useLocation()
 
   if (isAuthenticated) {
+    if (user?.mustChangePassword) return <Navigate to="/change-password" replace />
     if (user?.approvalStatus === 'PENDING' && user?.roles?.includes('lecturer')) {
       return <Navigate to="/lecturer-department-registration" replace />
     }
@@ -34,6 +35,10 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       const authenticatedUser = await login({ identifier: identifier.trim(), password })
+      if (authenticatedUser?.mustChangePassword) {
+        navigate('/change-password', { replace: true })
+        return
+      }
       if (authenticatedUser?.approvalStatus === 'PENDING' && authenticatedUser?.roles?.includes('lecturer')) {
         navigate('/lecturer-department-registration', { replace: true })
         return
@@ -67,7 +72,7 @@ export default function LoginPage() {
           <h1>Sign in to your account</h1>
           {error && <div className="form-alert" role="alert">{error}</div>}
           <form onSubmit={submit}>
-            <label htmlFor="login-identifier">Registration number</label>
+            <label htmlFor="login-identifier">Registration or staff number</label>
             <div className="login-input-wrap">
               <UserRound className="login-input-icon" size={18} aria-hidden="true" />
               <input className="login-input" id="login-identifier" value={identifier} onChange={(event) => setIdentifier(event.target.value)} autoComplete="username" maxLength={100} required />
@@ -93,7 +98,8 @@ export default function LoginPage() {
               {submitting ? 'Signing in…' : <>Sign in <ArrowRight size={17} /></>}
             </button>
           </form>
-          <p className="auth-switch login-switch">New here? <Link to="/register">Create an account</Link></p>
+          <p className="field-hint">Students: use your registration number as both your login number and temporary password on first sign-in.</p>
+          <p className="auth-switch login-switch">Lecturer? <Link to="/register">Register your account</Link></p>
         </section>
       </div>
     </main>

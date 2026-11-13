@@ -21,6 +21,10 @@ export default function RequireRole({ allowedRoles, allowPendingRegistration = f
   const roles = Array.isArray(user.roles) ? user.roles : [user.role].filter(Boolean)
   const isPendingLecturer = user?.approvalStatus === 'PENDING' && roles.includes('lecturer')
 
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" state={{ from: location }} replace />
+  }
+
   if (allowPendingRegistration) {
     if (!roles.includes('lecturer')) return <Navigate to="/403" replace />
     if (user?.approvalStatus === 'APPROVED') return <Navigate to="/lecturer" replace />

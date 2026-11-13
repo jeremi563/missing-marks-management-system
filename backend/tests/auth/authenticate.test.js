@@ -11,6 +11,7 @@ const { authenticate } = await import("../../src/middleware/authenticate.js");
 function makeRequest(sessionVersion, userSessionVersion) {
 	const token = jwt.sign({ roles: ["student"], sessionVersion }, process.env.JWT_SECRET, { subject: "user-1", expiresIn: "15m" });
 	const req = {
+		originalUrl: "/api/v1/auth/me",
 		get: (name) => name.toLowerCase() === "authorization" ? `Bearer ${token}` : undefined,
 		app: {
 			locals: {

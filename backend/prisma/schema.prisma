@@ -43,6 +43,7 @@ model User {
   avatarData   String?  @map("avatar_data") @db.Text
   displayName  String?  @map("display_name")
   passwordHash String   @map("password_hash")
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   sessionVersion Int    @default(0) @map("session_version")
   isActive     Boolean  @default(true) @map("is_active")
   approvalStatus AccountApprovalStatus @default(APPROVED) @map("approval_status")

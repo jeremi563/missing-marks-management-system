@@ -50,13 +50,19 @@ export async function loginWithCredentials(identifier, password, db = prisma) {
 		where: { value: normalizeRegistrationNumber(normalizedIdentifier) },
 		include: { user: { include: { roles: { include: { role: true } } } } },
 	});
-	const user = identifierRecord?.user;
+	let user = identifierRecord?.user;
+	let provisionedFromRoster = false;
+	if (!user && isStudentRegistrationNumber(normalizedIdentifier)) {
+		user = await provisionStudentFromRoster(normalizeRegistrationNumber(normalizedIdentifier), password, db);
+		provisionedFromRoster = Boolean(user);
+	}
 	const roles = user?.roles.map(({ role }) => role.name) ?? [];
 	const isStaff = roles.some((role) => role === "lecturer" || role === "cod");
 	const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
 	const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
 
-	if (!user || !(isApprovedUser || isPendingLecturer) || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(password, user.passwordHash))) {
+	const passwordToVerify = provisionedFromRoster ? normalizeRegistrationNumber(password) : password;
+	if (!user || !(isApprovedUser || isPendingLecturer) || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(passwordToVerify, user.passwordHash))) {
 		throw new AppError(401, "Invalid identifier or password");
 	}
 
@@ -68,9 +74,75 @@ export async function loginWithCredentials(identifier, password, db = prisma) {
 			displayName: user.displayName,
 			approvalStatus: user.approvalStatus,
 			isActive: user.isActive,
+			mustChangePassword: user.mustChangePassword,
 			roles,
 		},
 	};
+}
+
+async function provisionStudentFromRoster(identifier, password, db) {
+	if (normalizeRegistrationNumber(password) !== identifier) return null;
+	const registration = parseStudentRegistrationNumber(identifier);
+	if (!registration) return null;
+
+	return db.$transaction(async (tx) => {
+		const eligibility = await tx.studentRegistrationEligibility.findUnique({
+			where: { studentNumber: identifier },
+		});
+		if (!eligibility || eligibility.linkedUserId) return null;
+		const course = await tx.course.findFirst({
+			where: {
+				code: registration.courseCode,
+				department: { initials: registration.departmentInitials },
+			},
+			select: { id: true },
+		});
+		if (!course) throw new AppError(422, "Your registration record is incomplete. Contact the administrator.");
+		const existingEmail = await tx.user.findUnique({
+			where: { email: normalizeEmail(eligibility.email) },
+			select: { id: true },
+		});
+		if (existingEmail) return null;
+
+		const passwordHash = await bcrypt.hash(identifier, 12);
+		const role = await tx.role.upsert({
+			where: { name: "student" },
+			update: {},
+			create: { name: "student" },
+		});
+		const now = new Date();
+		const user = await tx.user.create({
+			data: {
+				email: normalizeEmail(eligibility.email),
+				passwordHash,
+				displayName: null,
+				mustChangePassword: true,
+				isActive: true,
+				approvalStatus: "APPROVED",
+				emailVerifiedAt: now,
+			},
+		});
+		await tx.userRole.create({ data: { userId: user.id, roleId: role.id } });
+		await tx.accountLoginIdentifier.create({
+			data: { userId: user.id, type: "STUDENT_NUMBER", value: identifier },
+		});
+		await tx.studentProfile.create({
+			data: {
+				userId: user.id,
+				studentNumber: identifier,
+				officialEmail: eligibility.email,
+			},
+		});
+		const linkResult = await tx.studentRegistrationEligibility.updateMany({
+			where: { id: eligibility.id, linkedUserId: null },
+			data: { linkedUserId: user.id },
+		});
+		if (linkResult.count !== 1) throw new AppError(409, "This student account was created by another sign-in. Please try again.");
+		return {
+			...user,
+			roles: [{ role }],
+		};
+	});
 }
 
 export function extendSession(user) {
@@ -80,61 +152,11 @@ export function extendSession(user) {
 export async function registerAccount({ email, password, displayName, registrationNumber }, db = prisma) {
 	const normalizedEmail = normalizeEmail(email);
 	const identifier = normalizeRegistrationNumber(registrationNumber);
-	const registration = await db.$transaction(async (tx) => {
-		const eligibility = await tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: identifier } });
-		const isStudent = Boolean(eligibility);
-		if (!isStudent && !isStaffRegistrationNumber(identifier)) {
-			throw new AppError(422, "Registration details could not be verified");
-		}
-		if (isStudent && !isStudentRegistrationNumber(identifier)) {
-			throw new AppError(422, "Student registration number has an invalid format");
-		}
-		if (isStudent) {
-			const registration = parseStudentRegistrationNumber(identifier);
-			const course = await tx.course.findFirst({
-				where: {
-					code: registration.courseCode,
-					department: { initials: registration.departmentInitials },
-				},
-				select: { id: true },
-			});
-			if (!course) throw new AppError(422, "Student registration number does not identify a course in its department");
-		}
-		const role = isStudent ? "student" : "lecturer";
-		if (isStudent) {
-			if (eligibility.email.toLowerCase() !== normalizedEmail) {
-				throw new AppError(422, "Registration details could not be verified");
-			}
-			if (eligibility.linkedUserId) {
-				const linkedUser = await tx.user.findUnique({
-					where: { id: eligibility.linkedUserId },
-					include: { roles: { include: { role: true } }, studentProfile: true },
-				});
-				const isMatchingStudent = linkedUser
-					&& linkedUser.email === normalizedEmail
-					&& linkedUser.studentProfile?.studentNumber === identifier
-					&& linkedUser.roles.some(({ role: linkedRole }) => linkedRole.name === "student")
-					&& linkedUser.approvalStatus === "APPROVED";
-				if (!isMatchingStudent || linkedUser.emailVerifiedAt) {
-					throw new AppError(409, "An account with these details already exists");
-				}
-				const now = new Date();
-				await tx.user.update({
-					where: { id: linkedUser.id },
-					data: {
-						passwordHash: await bcrypt.hash(password, 12),
-						displayName,
-						emailVerifiedAt: now,
-						isActive: true,
-					},
-				});
-				await tx.accountSecurityToken.updateMany({
-					where: { userId: linkedUser.id, type: "EMAIL_VERIFICATION", usedAt: null },
-					data: { usedAt: now },
-				});
-				return { isStudent: true };
-			}
-		}
+	if (isStudentRegistrationNumber(identifier)) {
+		throw new AppError(403, "Students sign in with their roster registration number and temporary password; account registration is disabled.");
+	}
+	if (!isStaffRegistrationNumber(identifier)) throw new AppError(422, "Registration details could not be verified");
+	await db.$transaction(async (tx) => {
 		if (await tx.user.findUnique({ where: { email: normalizedEmail }, select: { id: true } })) {
 			throw new AppError(409, "An account with these details already exists");
 		}
@@ -145,37 +167,23 @@ export async function registerAccount({ email, password, displayName, registrati
 			throw new AppError(409, "An account with these details already exists");
 		}
 
-		const roleRecord = await tx.role.upsert({ where: { name: role }, update: {}, create: { name: role } });
+		const roleRecord = await tx.role.upsert({ where: { name: "lecturer" }, update: {}, create: { name: "lecturer" } });
 		const user = await tx.user.create({ data: {
 			email: normalizedEmail,
 			passwordHash: await bcrypt.hash(password, 12),
 			displayName,
-			isActive: role === "student",
-			approvalStatus: role === "student" ? "APPROVED" : "PENDING",
-			...(isStudent ? { emailVerifiedAt: new Date() } : {}),
+			isActive: false,
+			approvalStatus: "PENDING",
 		} });
 		await tx.userRole.create({ data: { userId: user.id, roleId: roleRecord.id } });
 		await tx.accountLoginIdentifier.create({ data: {
 			userId: user.id,
-			type: isStudent ? "STUDENT_NUMBER" : "STAFF_NUMBER",
+			type: "STAFF_NUMBER",
 			value: identifier,
 		} });
-		if (isStudent) {
-			await tx.studentProfile.create({ data: { userId: user.id, studentNumber: identifier } });
-			await tx.studentRegistrationEligibility.update({ where: { studentNumber: identifier }, data: { linkedUserId: user.id } });
-		} else {
-			await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber: identifier } });
-		}
-		return { isStudent };
+		await tx.lecturerProfile.create({ data: { userId: user.id, staffNumber: identifier } });
 	});
 
-	if (registration.isStudent) {
-		return {
-			status: "REGISTERED",
-			verificationEmailSent: false,
-			requiresEmailVerification: false,
-		};
-	}
 	return {
 		status: "PENDING_DEPARTMENT_REGISTRATION",
 		verificationEmailSent: false,
@@ -369,7 +377,7 @@ export async function resetPassword(token, password, db = prisma) {
 		}
 		const claimed = await tx.accountSecurityToken.updateMany({ where: { id: record.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
 		if (claimed.count !== 1) throw new AppError(400, "Password reset link is invalid or expired");
-		await tx.user.update({ where: { id: record.userId }, data: { passwordHash, sessionVersion: { increment: 1 } } });
+		await tx.user.update({ where: { id: record.userId }, data: { passwordHash, mustChangePassword: false, sessionVersion: { increment: 1 } } });
 		await tx.accountSecurityToken.updateMany({ where: { userId: record.userId, type: "PASSWORD_RESET", usedAt: null }, data: { usedAt: now } });
 	});
 }
@@ -380,7 +388,7 @@ export async function changePassword(userId, currentPassword, newPassword, db = 
 		throw new AppError(401, "Current password is incorrect");
 	}
 	const passwordHash = await bcrypt.hash(newPassword, 12);
-	await db.user.update({ where: { id: userId }, data: { passwordHash } });
+	await db.user.update({ where: { id: userId }, data: { passwordHash, mustChangePassword: false } });
 }
 
 export async function updateAvatar(userId, avatarData, db = prisma) {

@@ -2,12 +2,11 @@ import { z } from "zod";
 import {
 	isAdminRegistrationNumber,
 	isStaffRegistrationNumber,
-	isStudentRegistrationNumber,
 } from "../../shared/utils/registration-number.js";
 
 const publicRegistrationNumber = z.string().trim().min(1).max(100).refine(
-	(value) => isStudentRegistrationNumber(value) || isStaffRegistrationNumber(value),
-	{ message: "Use a student number (AB16/00111/26) or staff number (AB/0123/staffnumber); student admission years must be from 13 through the current year." },
+	isStaffRegistrationNumber,
+	{ message: "Public registration is for lecturers using a staff number in the format AB/0123/staffnumber." },
 ).refine((value) => !isAdminRegistrationNumber(value), {
 	message: "Administrator accounts can only be created by an administrator.",
 });

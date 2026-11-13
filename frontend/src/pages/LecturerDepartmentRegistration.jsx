@@ -24,11 +24,6 @@ export default function LecturerDepartmentRegistration() {
   const [complete, setComplete] = useState(false)
   const [error, setError] = useState('')
 
-  if (isLoading) return null
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!user?.roles?.includes('lecturer')) return <Navigate to="/403" replace />
-  if (user?.approvalStatus === 'APPROVED') return <Navigate to="/lecturer" replace />
-
   useEffect(() => {
     let active = true
     getRegistrationDepartments().then((response) => {
@@ -40,6 +35,11 @@ export default function LecturerDepartmentRegistration() {
     })
     return () => { active = false }
   }, [])
+
+  if (isLoading) return null
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!user?.roles?.includes('lecturer')) return <Navigate to="/403" replace />
+  if (user?.approvalStatus === 'APPROVED') return <Navigate to="/lecturer" replace />
 
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
 

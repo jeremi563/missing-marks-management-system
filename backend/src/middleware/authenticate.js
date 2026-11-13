@@ -24,6 +24,7 @@ export async function authenticate(req, res, next) {
 				sessionVersion: true,
 				pendingEmail: true,
 				displayName: true,
+				mustChangePassword: true,
 				isActive: true,
 				approvalStatus: true,
 				roles: { select: { role: { select: { name: true } } } },
@@ -36,6 +37,12 @@ export async function authenticate(req, res, next) {
 			|| (claims.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
 			throw new AppError(401, "Invalid authentication credentials");
 		}
+		const authPath = req.originalUrl.split("?")[0];
+		if (user.mustChangePassword
+			&& authPath !== "/api/v1/auth/me"
+			&& authPath !== "/api/v1/auth/change-password") {
+			throw new AppError(403, "Change your temporary password before continuing");
+		}
 
 		req.user = {
 			id: user.id,
@@ -43,6 +50,7 @@ export async function authenticate(req, res, next) {
 			sessionVersion: user.sessionVersion ?? 0,
 			pendingEmail: user.pendingEmail,
 			displayName: user.displayName,
+			mustChangePassword: user.mustChangePassword,
 			approvalStatus: user.approvalStatus,
 			isActive: user.isActive,
 			roles,

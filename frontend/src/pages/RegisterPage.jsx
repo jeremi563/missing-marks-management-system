@@ -26,15 +26,9 @@ export default function RegisterPage() {
       return
     }
     const normalizedNumber = registrationNumber.trim()
-    const studentNumberMatch = /^[A-Za-z]{2}\d{2}\/\d{5}\/(\d{2})$/.exec(normalizedNumber)
     const isStaffNumber = /^[A-Za-z]{2}\/\d{4}\/[A-Za-z0-9-]+$/.test(normalizedNumber)
-    if (!studentNumberMatch && !isStaffNumber) {
-      setError('Use a student number in the format AB16/00111/26 (admission year 13 through the current year) or a staff number in the format AB/0123/staffnumber.')
-      setSubmitting(false)
-      return
-    }
-    if (studentNumberMatch && (Number(studentNumberMatch[1]) < 13 || Number(studentNumberMatch[1]) > new Date().getFullYear() % 100)) {
-      setError('A student admission year must be from 13 through the current year.')
+    if (!isStaffNumber) {
+      setError('Lecturer registration requires a staff number in the format AB/0123/staffnumber.')
       setSubmitting(false)
       return
     }
@@ -46,24 +40,17 @@ export default function RegisterPage() {
     }
     try {
       const result = await registerUser(registration)
-      if (!result.data.requiresEmailVerification) {
-        if (result.data.requiresDepartmentRegistration) {
-          try {
-            await loginUser({ identifier: normalizedNumber, password })
-          } catch (error) {
-            // The user should still be able to complete the pending registration flow manually.
-          }
-          navigate('/lecturer-department-registration', { replace: true })
-          return
+      if (result.data.requiresDepartmentRegistration) {
+        try {
+          await loginUser({ identifier: normalizedNumber, password })
+        } catch {
+          // The lecturer can still continue the pending registration flow manually.
         }
-        setSuccess('Registration successful. You can now sign in with your registration number and password.')
-        window.setTimeout(() => navigate('/login'), 1600)
-      } else if (result.data.verificationEmailSent) {
-        setSuccess('Registration successful. Check your email and verify your address before signing in with your registration number and password.')
-        window.setTimeout(() => navigate('/login'), 1600)
-      } else {
-        setSuccess('Your registration was saved, but the verification email could not be sent. Contact an administrator before trying to register again.')
+        navigate('/lecturer-department-registration', { replace: true })
+        return
       }
+      setSuccess('Registration received. Sign in to choose your department and continue.')
+      window.setTimeout(() => navigate('/login'), 1600)
     } catch (requestError) {
       const validationDetails = requestError.response?.data?.details
       const validationMessage = Array.isArray(validationDetails)
@@ -80,7 +67,7 @@ export default function RegisterPage() {
       <Link to="/" className="back-link"><ArrowLeft size={16} /> Back home</Link>
       <section className="auth-card auth-card-wide">
         <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
-        <p className="eyebrow">JOIN THE PORTAL</p><h1>Create your account</h1>
+        <p className="eyebrow">LECTURER ACCESS</p><h1>Register as a lecturer</h1>
         {error && <div className="form-alert" role="alert">{error}</div>}
         {success && <div className="form-success" role="status">{success}</div>}
         <form onSubmit={submit}>
@@ -88,7 +75,7 @@ export default function RegisterPage() {
           <input id="register-name" name="displayName" value={form.displayName} onChange={update} autoComplete="name" required maxLength={200} />
           <label htmlFor="register-email">Institutional email</label>
           <input id="register-email" name="email" type="email" value={form.email} onChange={update} autoComplete="email" required />
-          <label htmlFor="registration-number">Registration or staff number</label>
+          <label htmlFor="registration-number">Staff number</label>
           <input id="registration-number" name="registrationNumber" value={form.registrationNumber} onChange={update} autoComplete="off" required maxLength={100} />
           <label htmlFor="register-password">Password</label>
           <div className="auth-password-field">
@@ -117,9 +104,9 @@ export default function RegisterPage() {
               {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          <button className="button button-primary button-full" disabled={submitting}>{submitting ? 'Creating account…' : 'Create account'}</button>
+          <button className="button button-primary button-full" disabled={submitting}>{submitting ? 'Submitting…' : 'Continue lecturer registration'}</button>
         </form>
-        <p className="auth-switch">Already registered? <Link to="/login">Sign in</Link></p>
+        <p className="auth-switch">Student? Sign in with your roster registration number. <Link to="/login">Sign in</Link></p>
       </section>
     </main>
   )

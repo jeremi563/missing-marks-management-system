@@ -121,10 +121,10 @@ This inventory documents the current schema, not a claim that every business rul
 
 | Table | Columns (Prisma field: type) | Purpose |
 |---|---|---|
-| `users` | `id: UUID`, `email: String`, `displayName: String?`, `passwordHash: String`, `isActive: Boolean`, `approvalStatus`, `emailVerifiedAt: DateTime?`, timestamps | Shared login identity. Email is unique. Password hashes only; never store raw passwords. Pending staff remain inactive until approved and email-verified. |
+| `users` | `id: UUID`, `email: String`, `displayName: String?`, `passwordHash: String`, `mustChangePassword: Boolean`, `isActive: Boolean`, `approvalStatus`, `emailVerifiedAt: DateTime?`, timestamps | Shared login identity. Email is unique. Password hashes only; never store raw passwords. Roster-provisioned students must replace their temporary password before using authenticated features. Pending staff remain inactive until approved. |
 | `account_login_identifiers` | `id/userId: UUID`, `type`, `value: String`, `createdAt: DateTime` | Globally unique student, staff, or administrator login identifier. |
 | `account_security_tokens` | `id/userId: UUID`, `type`, `tokenHash: String`, `expiresAt/usedAt/createdAt` | Hashed, expiring, single-use email-verification and password-reset tokens. |
-| `student_registration_eligibility` | `id: UUID`, `studentNumber/email: String`, `linkedUserId: UUID?`, `createdAt: DateTime` | Administrator-imported authoritative roster entries; a student number can be linked to only one account. |
+| `student_registration_eligibility` | `id: UUID`, `studentNumber/email: String`, `linkedUserId: UUID?`, `createdAt: DateTime` | Administrator-imported authoritative roster entries; a student number can be linked to only one account. A roster entry provisions a student account at first sign-in using the registration number as the temporary password. |
 | `roles` | `id: UUID`, `name: String`, `description: String?`, `createdAt: DateTime` | Configurable role names; role name is unique. |
 | `user_roles` | `id: UUID`, `userId/roleId: UUID`, `createdAt: DateTime` | Many-to-many user-role assignments; `(userId, roleId)` unique. |
 | `student_profiles` | `id: UUID`, `userId: UUID`, `studentNumber: String`, `officialEmail/notificationEmail: String?`, timestamps | Student identity and institutional number. `userId` and `studentNumber` are unique. |
