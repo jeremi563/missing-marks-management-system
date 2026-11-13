@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowRight, BellRing, Check, ClipboardCheck, FileSearch, GraduationCap, ShieldCheck,
 } from 'lucide-react'
@@ -22,6 +23,30 @@ const benefits = [
 ]
 
 export default function LandingPage() {
+  const benefitsSectionRef = useRef(null)
+  const [revealedBenefits, setRevealedBenefits] = useState([])
+  const [benefitRevealReady, setBenefitRevealReady] = useState(false)
+
+  useEffect(() => {
+    const section = benefitsSectionRef.current
+    if (!section || !('IntersectionObserver' in window)
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
+
+    const observer = new IntersectionObserver((entries) => {
+      const visibleIndexes = entries
+        .filter((entry) => entry.isIntersecting)
+        .map((entry) => entry.target.dataset.benefitIndex)
+
+      if (!visibleIndexes.length) return
+      setBenefitRevealReady(true)
+      setRevealedBenefits((current) => [...new Set([...current, ...visibleIndexes])])
+      entries.filter((entry) => entry.isIntersecting).forEach((entry) => observer.unobserve(entry.target))
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.15 })
+
+    section.querySelectorAll('.benefit-card').forEach((card) => observer.observe(card))
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <main className="landing-page">
       <header className="public-nav">
@@ -72,15 +97,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="landing-benefits" id="overview">
+      <section className="landing-benefits" id="overview" ref={benefitsSectionRef}>
         <div className="landing-section-heading">
           <p className="eyebrow">A BETTER WAY TO FOLLOW UP</p>
           <h2>Clarity for every step.</h2>
           <p>Designed to make academic mark enquiries easier to submit, review, and resolve.</p>
         </div>
-        <div className="benefit-grid">
+        <div className={`benefit-grid${benefitRevealReady ? ' benefit-grid-enhanced' : ''}`}>
           {benefits.map(({ icon: Icon, title, description }, index) => (
-            <article className="benefit-card" key={title}>
+            <article
+              className={`benefit-card${revealedBenefits.includes(String(index)) ? ' benefit-card-visible' : ''}`}
+              data-benefit-index={index}
+              key={title}
+              style={{ transitionDelay: `${index * 120}ms` }}
+            >
               <span className="benefit-icon"><Icon size={20} /></span>
               <span className="benefit-index">0{index + 1}</span>
               <h3>{title}</h3>
