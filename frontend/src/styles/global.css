@@ -12,7 +12,3 @@ a { color: inherit; text-decoration: none; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .58; }
 ::selection { color: #fff; background: var(--primary); }
-
-@media (max-width: 320px) {
-  body { min-width: 0; }
-}
