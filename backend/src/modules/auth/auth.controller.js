@@ -85,7 +85,11 @@ export async function forgotPassword(req, res, next) {
 }
 
 export async function resetPasswordController(req, res, next) {
-	try { await resetPassword(req.body.token, req.body.password); return sendSuccess(res, "Password reset successfully", null); } catch (error) { return next(error); }
+	try {
+		await resetPassword(req.body.token, req.body.password, req.app.locals.prisma);
+		res.clearCookie("access_token", cookieOptions);
+		return sendSuccess(res, "Password reset successfully", null);
+	} catch (error) { return next(error); }
 }
 
 export async function changePasswordController(req, res, next) {

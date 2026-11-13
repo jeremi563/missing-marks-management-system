@@ -15,11 +15,13 @@ export async function authenticate(req, res, next) {
 	}
 
 	try {
-		const user = await prisma.user.findUnique({
+		const database = req.app?.locals?.prisma ?? prisma;
+		const user = await database.user.findUnique({
 			where: { id: claims.sub },
 			select: {
 				id: true,
 				email: true,
+				sessionVersion: true,
 				pendingEmail: true,
 				displayName: true,
 				mustChangePassword: true,
@@ -31,7 +33,10 @@ export async function authenticate(req, res, next) {
 		const roles = user?.roles.map(({ role }) => role.name) ?? [];
 		const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
 		const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
-		if (!user || !(isApprovedUser || isPendingLecturer)) throw new AppError(401, "Invalid authentication credentials");
+		if (!user || !(isApprovedUser || isPendingLecturer)
+			|| (claims.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
+			throw new AppError(401, "Invalid authentication credentials");
+		}
 		const authPath = req.originalUrl.split("?")[0];
 		if (user.mustChangePassword
 			&& authPath !== "/api/v1/auth/me"
@@ -42,6 +47,7 @@ export async function authenticate(req, res, next) {
 		req.user = {
 			id: user.id,
 			email: user.email,
+			sessionVersion: user.sessionVersion ?? 0,
 			pendingEmail: user.pendingEmail,
 			displayName: user.displayName,
 			mustChangePassword: user.mustChangePassword,

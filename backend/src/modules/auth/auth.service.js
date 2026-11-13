@@ -19,8 +19,8 @@ const normalizeEmail = (value) => value.trim().toLowerCase();
 const hashToken = (token) => createHash("sha256").update(token).digest("hex");
 const SESSION_DURATION = "15m";
 
-function createSessionToken(userId, roles) {
-	const token = jwt.sign({ roles }, env.JWT_SECRET, { subject: userId, expiresIn: SESSION_DURATION });
+function createSessionToken(userId, roles, sessionVersion = 0) {
+	const token = jwt.sign({ roles, sessionVersion }, env.JWT_SECRET, { subject: userId, expiresIn: SESSION_DURATION });
 	const { exp } = jwt.decode(token);
 	return { token, sessionExpiresAt: new Date(exp * 1000).toISOString() };
 }
@@ -67,7 +67,7 @@ export async function loginWithCredentials(identifier, password, db = prisma) {
 	}
 
 	return {
-		...createSessionToken(user.id, roles),
+		...createSessionToken(user.id, roles, user.sessionVersion ?? 0),
 		user: {
 			id: user.id,
 			email: user.email,
@@ -146,7 +146,7 @@ async function provisionStudentFromRoster(identifier, password, db) {
 }
 
 export function extendSession(user) {
-	return createSessionToken(user.id, user.roles);
+	return createSessionToken(user.id, user.roles, user.sessionVersion ?? 0);
 }
 
 export async function registerAccount({ email, password, displayName, registrationNumber }, db = prisma) {
@@ -377,7 +377,7 @@ export async function resetPassword(token, password, db = prisma) {
 		}
 		const claimed = await tx.accountSecurityToken.updateMany({ where: { id: record.id, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } });
 		if (claimed.count !== 1) throw new AppError(400, "Password reset link is invalid or expired");
-		await tx.user.update({ where: { id: record.userId }, data: { passwordHash, mustChangePassword: false } });
+		await tx.user.update({ where: { id: record.userId }, data: { passwordHash, mustChangePassword: false, sessionVersion: { increment: 1 } } });
 		await tx.accountSecurityToken.updateMany({ where: { userId: record.userId, type: "PASSWORD_RESET", usedAt: null }, data: { usedAt: now } });
 	});
 }

@@ -35,10 +35,11 @@ test("logs in by normalized student registration number", async () => {
 });
 
 test("extends an authenticated session for 15 minutes", () => {
-	const result = extendSession({ id: "user-1", roles: ["student"] });
+	const result = extendSession({ id: "user-1", roles: ["student"], sessionVersion: 4 });
 	const claims = jwt.verify(result.token, process.env.JWT_SECRET);
 	assert.equal(claims.sub, "user-1");
 	assert.deepEqual(claims.roles, ["student"]);
+	assert.equal(claims.sessionVersion, 4);
 	assert.ok(claims.exp - claims.iat >= 14 * 60);
 	assert.ok(claims.exp - claims.iat <= 15 * 60);
 	assert.equal(Date.parse(result.sessionExpiresAt), claims.exp * 1000);
@@ -183,27 +184,6 @@ test("confirms a pending email change with its verification token", async () => 
 	assert.deepEqual(result, { status: "APPROVED", email: pendingEmail });
 });
 
-test("password reset also clears the temporary-password requirement", async () => {
-	let updatedUser;
-	await resetPassword("reset-token", "new-private-password", {
-		$transaction: async (callback) => callback({
-			accountSecurityToken: {
-				findUnique: async () => ({
-					id: "token-id",
-					userId: "user-id",
-					type: "PASSWORD_RESET",
-					usedAt: null,
-					expiresAt: new Date(Date.now() + 60_000),
-				}),
-				updateMany: async () => ({ count: 1 }),
-			},
-			user: { update: async ({ data }) => { updatedUser = data; } },
-		}),
-	});
-	assert.equal(await bcrypt.compare("new-private-password", updatedUser.passwordHash), true);
-	assert.equal(updatedUser.mustChangePassword, false);
-});
-
 test("validates uploaded avatar image signatures and supports removal", async () => {
 	const userId = "00000000-0000-4000-8000-000000000001";
 	const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
@@ -241,6 +221,31 @@ function registrationHarness(eligibility, existingUser = null, course = { id: "c
 	};
 	return { calls, db: { $transaction: async (callback) => callback(tx) } };
 }
+
+test("resets a password, consumes the token, and increments the session version", async () => {
+	const now = new Date();
+	let updatedUser;
+	const tokenUpdates = [];
+	await resetPassword("valid-reset-token", "new-password-123", {
+		$transaction: async (callback) => callback({
+			accountSecurityToken: {
+				findUnique: async () => ({ id: "reset-token-id", userId: "user-1", type: "PASSWORD_RESET", usedAt: null, expiresAt: new Date(now.getTime() + 60_000) }),
+				updateMany: async ({ where, data }) => {
+					tokenUpdates.push({ where, data });
+					return { count: 1 };
+				},
+			},
+			user: { update: async ({ where, data }) => { updatedUser = { where, data }; } },
+		}),
+	});
+	assert.equal(updatedUser.where.id, "user-1");
+	assert.equal(await bcrypt.compare("new-password-123", updatedUser.data.passwordHash), true);
+	assert.equal(updatedUser.data.mustChangePassword, false);
+	assert.deepEqual(updatedUser.data.sessionVersion, { increment: 1 });
+	assert.equal(tokenUpdates.length, 2);
+	assert.equal(tokenUpdates[0].where.id, "reset-token-id");
+	assert.equal(tokenUpdates[1].where.type, "PASSWORD_RESET");
+});
 
 test("first roster sign-in provisions a student and requires a private password", async () => {
 	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
