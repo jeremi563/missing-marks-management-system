@@ -45,7 +45,11 @@ async function storeSecurityToken(tx, userId, type, expiresInMs) {
 }
 
 export async function loginWithCredentials(identifier, password, db = prisma) {
-	const normalizedIdentifier = identifier.trim();
+	const normalizedIdentifier = typeof identifier === "string" ? identifier.trim() : "";
+	const normalizedPassword = typeof password === "string" ? password : "";
+	if (!normalizedIdentifier || !normalizedPassword) {
+		throw new AppError(401, "Invalid identifier or password");
+	}
 	const identifierRecord = await db.accountLoginIdentifier.findUnique({
 		where: { value: normalizeRegistrationNumber(normalizedIdentifier) },
 		include: { user: { include: { roles: { include: { role: true } } } } },

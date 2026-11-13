@@ -1,3 +1,19 @@
+@keyframes revealUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(110, 38, 255, 0.2); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(110, 38, 255, 0); }
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -10,6 +26,80 @@
   font-weight: 650;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
   will-change: transform;
+}
+
+.portal-home,
+.auth-page,
+.student-dashboard,
+.student-reports-page,
+.student-profile,
+.student-attendance,
+.student-appeals,
+.student-notifications,
+.student-report-details,
+.student-report-create-page {
+  animation: revealUp 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.portal-shortcut-card,
+.student-summary-card,
+.record-card,
+.panel,
+.state-card,
+.dashboard-welcome-card,
+.settings-card,
+.auth-card,
+.student-report-card,
+.notification-card,
+.details-card,
+.attendance-card,
+.appeal-card {
+  position: relative;
+  overflow: hidden;
+  animation: revealUp 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.portal-shortcut-card::before,
+.student-summary-card::before,
+.record-card::before,
+.panel::before,
+.state-card::before,
+.dashboard-welcome-card::before,
+.settings-card::before,
+.auth-card::before,
+.student-report-card::before,
+.notification-card::before,
+.details-card::before,
+.attendance-card::before,
+.appeal-card::before {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), rgba(110, 38, 255, 0));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  content: "";
+}
+
+.portal-shortcut-card:hover::before,
+.student-summary-card:hover::before,
+.record-card:hover::before,
+.panel:hover::before,
+.state-card:hover::before,
+.dashboard-welcome-card:hover::before,
+.settings-card:hover::before,
+.auth-card:hover::before,
+.student-report-card:hover::before,
+.notification-card:hover::before,
+.details-card:hover::before,
+.attendance-card:hover::before,
+.appeal-card:hover::before {
+  opacity: 1;
+}
+
+.portal-role-badge {
+  animation: badgePulse 2.6s ease-in-out infinite;
 }
 .button:hover {
   transform: translateY(-2px) scale(1.01);

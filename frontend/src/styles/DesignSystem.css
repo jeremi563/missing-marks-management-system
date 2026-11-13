@@ -166,9 +166,20 @@ tr:hover td { background: #f8fbfa; }
 .portal-home-heading h3 { margin: 0 0 5px; font-size: 17px; letter-spacing: -.01em; }
 .portal-home-heading p { margin: 0; color: var(--muted); font-size: 13px; }
 .portal-home-heading a { display: inline-flex; align-items: center; gap: 7px; color: var(--teal-dark); font-size: 12px; font-weight: 700; }
-.portal-shortcut-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.portal-shortcut-grid { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
 .portal-shortcut-card { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 14px; min-height: 142px; padding: 21px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 4px 16px #163c4007; transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease; }
 .portal-shortcut-card:hover { border-color: var(--secondary); box-shadow: 0 11px 26px rgba(110, 38, 255, .12); transform: translateY(-2px); }
+@media (min-width: 900px) {
+  .portal-shortcut-grid::before {
+    position: absolute;
+    top: 46px;
+    right: 16%;
+    left: 16%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(110, 38, 255, 0), rgba(110, 38, 255, .18), rgba(110, 38, 255, 0));
+    content: "";
+  }
+}
 .shortcut-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; }
 .shortcut-teal { color: var(--primary); background: var(--secondary-soft); }
 .shortcut-blue { color: #466aa2; background: #edf2f8; }

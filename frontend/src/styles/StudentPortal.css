@@ -224,8 +224,21 @@
 }
 
 .student-portal .student-summary-grid {
+  position: relative;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 15px;
+}
+
+@media (min-width: 760px) {
+  .student-portal .student-summary-grid::before {
+    position: absolute;
+    top: 46px;
+    right: 14%;
+    left: 14%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(110, 38, 255, 0), rgba(110, 38, 255, .16), rgba(110, 38, 255, 0));
+    content: "";
+  }
 }
 
 .student-portal .student-summary-card {
@@ -235,12 +248,13 @@
   border: 1px solid var(--student-line);
   border-radius: 13px;
   box-shadow: 0 4px 14px #18384008;
-  transition: transform .16s ease, box-shadow .16s ease;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }
 
 .student-portal .student-summary-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px #18384012;
+  transform: translateY(-3px);
+  border-color: rgba(110, 38, 255, .3);
+  box-shadow: 0 12px 24px rgba(110, 38, 255, .08);
 }
 
 .student-portal .student-summary-card p {
