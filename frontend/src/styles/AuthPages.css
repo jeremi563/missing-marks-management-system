@@ -1,0 +1,59 @@
+.auth-page { min-height: 100vh; padding: 28px 20px 50px; background: #98cbe456; }
+.auth-card { width: min(100%, 440px); margin: 0 auto; padding: 32px; border: 1px solid var(--line); border-radius: 18px; background: #fff; box-shadow: 0 16px 55px rgba(23,23,23,0.06); }
+.auth-card-wide { width: min(100%, 520px); }
+.auth-card > .public-brand { margin-bottom: 26px; }
+.auth-card h1 { margin: 7px 0; font-size: 27px; letter-spacing: -.03em; }
+.auth-intro { margin: 0 0 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.auth-card form { display: grid; gap: 9px; }
+.auth-card form label:not(:first-child) { margin-top: 7px; }
+.lecturer-registration-departments { display: grid; gap: 9px; margin: 4px 0; padding: 0; border: 0; }
+.lecturer-registration-departments legend { margin-bottom: 4px; color: #38455e; font-size: 13px; font-weight: 650; }
+.lecturer-registration-department { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px solid #dce2ec; border-radius: 9px; }
+.lecturer-registration-department label { display: inline-flex; align-items: center; gap: 8px; margin: 0 !important; }
+.lecturer-registration-department input { width: auto; min-height: 0; margin: 0; padding: 0; }
+.auth-password-field { position: relative; }
+.auth-password-field input { padding-right: 46px; }
+.auth-password-toggle { position: absolute; top: 50%; right: 7px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: #5d5d5d; background: transparent; border: 0; border-radius: 7px; transform: translateY(-50%); }
+.auth-password-toggle:hover { color: var(--primary); background: var(--secondary-soft); }
+.auth-password-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.auth-switch { margin: 22px 0 0; color: var(--muted); text-align: center; font-size: 13px; }
+.auth-switch a { color: var(--primary); font-weight: 700; }
+@media (max-width: 680px) {
+  .auth-card { padding: 24px; }
+}
+.auth-card { border-color: rgba(var(--primary-rgb), .22); border-radius: 17px; }
+.auth-page .auth-card {
+  padding: 24px clamp(22px, 4vw, 32px);
+  background: rgba(255, 255, 255, .66);
+  box-shadow: 0 34px 88px rgba(25, 55, 60, .3), 0 8px 26px rgba(25, 55, 60, .16);
+  backdrop-filter: blur(14px);
+}
+.auth-page .auth-card > .public-brand { margin-bottom: 16px; }
+.auth-page .auth-card h1 { margin: 4px 0 6px; }
+.auth-page .auth-card .auth-intro { margin-bottom: 12px; }
+.auth-page .auth-card form { gap: 6px; }
+.auth-page .auth-card form label:not(:first-child) { margin-top: 4px; }
+.auth-page .auth-card form input:not([type="checkbox"]):not([type="radio"]) { min-height: 40px; padding: 8px 11px; }
+.auth-page .auth-card form input.login-input { padding: 0 45px; }
+.auth-page .auth-card form .auth-password-field input { padding-right: 46px; }
+.auth-page .auth-card form .auth-password-field input.login-input { padding-right: 48px; }
+.auth-page .auth-card form .recovery-password-icon + input { padding-left: 42px; }
+.auth-page .auth-card form > .button { min-height: 42px; }
+.auth-page .auth-card form button.button-primary { min-height: 42px; margin-top: 8px; }
+.auth-page .auth-card .auth-switch { margin-top: 14px; }
+.auth-page .auth-card > .form-alert,
+.auth-page .auth-card > .form-success { margin: 0 0 8px; }
+.auth-page input:focus,
+.auth-page select:focus,
+.auth-page textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .16); }
+.auth-page .button-primary { box-shadow: 0 8px 20px rgba(var(--primary-rgb), .2); }
+.auth-page .button-primary:hover { box-shadow: 0 12px 25px rgba(var(--primary-rgb), .25); }
+.auth-card h1 { color: var(--navy); letter-spacing: -.035em; }
+.auth-card form button.button-primary { margin-top: 16px; }
+.auth-switch a { color: var(--teal-dark); }
+.auth-page .auth-card form button.button-primary { margin-top: 8px; }
+.auth-page .lecturer-registration-departments { gap: 6px; }
+.auth-page .lecturer-registration-department { padding: 8px 10px; }
+@media (max-width: 420px) {
+  .auth-page .auth-card { padding: 20px; }
+}

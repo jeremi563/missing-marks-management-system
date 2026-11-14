@@ -1,0 +1,74 @@
+.student-enrollment-page { display: grid; gap: 20px; }
+.student-enrollment-heading { align-items: center; margin-bottom: 0; }
+.student-enrollment-heading h2 { margin: 4px 0 7px; color: var(--ink); }
+.student-enrollment-heading p:last-child { max-width: 720px; margin: 0; color: var(--muted); line-height: 1.55; }
+.student-enrollment-tabs { display: flex; gap: 6px; padding: 5px; width: fit-content; background: var(--secondary-soft); border: 1px solid var(--line); border-radius: 12px; }
+.student-enrollment-tabs button { display: inline-flex; align-items: center; gap: 9px; min-height: 39px; padding: 0 14px; color: #60777b; background: transparent; border: 0; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+.student-enrollment-tabs button.active { color: var(--primary); background: #fff; box-shadow: 0 2px 6px rgba(var(--primary-rgb), .12); }
+.student-enrollment-tabs button span { color: #66807e; font-size: 11px; font-weight: 600; }
+.student-enrollment-content { padding: clamp(18px, 2.4vw, 26px); background: var(--surface); border: 1px solid var(--line); border-radius: 15px; box-shadow: 0 5px 20px #163c4008; }
+.student-enrollment-toolbar { display: grid; grid-template-columns: minmax(210px, .75fr) minmax(220px, 1fr); align-items: end; gap: 15px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.student-enrollment-period { display: grid; gap: 7px; }
+.student-enrollment-period label { color: #35525a; font-size: 12px; font-weight: 700; }
+.student-enrollment-period select { min-height: 44px; }
+.student-enrollment-search { position: relative; }
+.student-enrollment-search svg { position: absolute; top: 50%; left: 13px; color: #839a9b; transform: translateY(-50%); pointer-events: none; }
+.student-enrollment-search input { padding-left: 40px; }
+.student-enrollment-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 21px 0 15px; }
+.student-enrollment-list-heading h3 { margin: 0 0 5px; color: var(--ink); font-size: 15px; }
+.student-enrollment-list-heading p { margin: 0; color: var(--muted); font-size: 12px; }
+.student-enrollment-list-heading button { flex: 0 0 auto; padding: 6px 0; font-size: 12px; font-weight: 700; }
+.student-course-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.student-course-card { position: relative; display: grid; grid-template-columns: 19px minmax(0, 1fr) auto; align-items: start; gap: 12px; min-height: 110px; padding: 16px; color: var(--ink); background: #fff; border: 1px solid #dce8e7; border-radius: 12px; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, background .16s ease; }
+.student-course-card:hover:not(.disabled) { border-color: var(--secondary); box-shadow: 0 5px 16px rgba(var(--primary-rgb), .08); }
+.student-course-card.selected { border-color: var(--primary); background: var(--secondary-soft); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), .12); }
+.student-course-card.disabled { cursor: default; background: #f8faf9; }
+.student-course-card > input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.student-course-card > input:focus-visible + .student-course-check { outline: 3px solid rgba(var(--primary-rgb), .25); outline-offset: 2px; }
+.student-course-check { display: grid; place-items: center; width: 19px; height: 19px; color: #fff; background: #fff; border: 1.5px solid #b8c9c7; border-radius: 6px; }
+.selected .student-course-check { background: var(--primary); border-color: var(--primary); }
+.disabled .student-course-check { background: #f2f5f4; border-color: #d3dddb; }
+.student-course-info { display: grid; gap: 4px; min-width: 0; }
+.student-course-info strong { color: #1b4245; font-size: 13px; letter-spacing: .01em; }
+.student-course-info > span { color: #4a6467; font-size: 12px; line-height: 1.4; }
+.student-course-info small { overflow: hidden; color: #829393; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.student-course-status { display: inline-flex; align-items: center; gap: 4px; align-self: start; padding: 5px 7px; border-radius: 999px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.student-course-status.enrolled { color: #21684c; background: #e8f5ee; }
+.student-course-status.pending { color: #8b641c; background: #fff5dd; }
+.student-course-status.rejected { color: #9b4540; background: #fff0ed; }
+.student-course-status.unavailable { color: #708282; background: #edf2f1; }
+.student-enrollment-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 20px; padding-top: 17px; border-top: 1px solid var(--line); }
+.student-enrollment-footer > span { color: var(--muted); font-size: 12px; font-weight: 650; }
+.student-enrollment-footer .button { min-height: 43px; }
+.student-enrollment-request-list { display: grid; gap: 10px; }
+.student-enrollment-request-card { display: grid; grid-template-columns: 38px minmax(150px, 1.2fr) minmax(130px, 1fr) auto auto; align-items: center; gap: 14px; padding: 15px 17px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.student-request-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; }
+.student-request-icon.pending { color: #946a1a; background: #fff5dd; }
+.student-request-icon.approved { color: #21684c; background: #e8f5ee; }
+.student-request-icon.rejected { color: #9b4540; background: #fff0ed; }
+.student-request-course, .student-request-period { display: grid; gap: 4px; min-width: 0; }
+.student-request-course strong { color: #1b4245; font-size: 12px; }
+.student-request-course span, .student-request-period span { overflow: hidden; color: #617779; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.student-request-period small { color: #829393; font-size: 10px; }
+.student-request-status { padding: 5px 8px; border-radius: 999px; font-size: 10px; font-weight: 750; text-transform: capitalize; }
+.student-request-status.pending { color: #8b641c; background: #fff5dd; }
+.student-request-status.approved { color: #21684c; background: #e8f5ee; }
+.student-request-status.rejected { color: #9b4540; background: #fff0ed; }
+.student-enrollment-request-card time { color: #829393; font-size: 10px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .student-enrollment-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .student-course-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-enrollment-request-card { grid-template-columns: 38px minmax(0, 1fr) auto; }
+  .student-request-period { grid-column: 2; }
+  .student-enrollment-request-card time { grid-column: 3; grid-row: 2; }
+  .student-request-status { grid-column: 3; grid-row: 1; }
+}
+@media (max-width: 480px) {
+  .student-enrollment-heading { align-items: flex-start; }
+  .student-enrollment-heading > button { padding: 0 10px; }
+  .student-enrollment-list-heading { align-items: flex-start; }
+  .student-course-card { grid-template-columns: 19px minmax(0, 1fr); }
+  .student-course-status { grid-column: 2; }
+  .student-enrollment-footer { align-items: flex-start; flex-direction: column; }
+  .student-enrollment-footer .button { width: 100%; }
+}

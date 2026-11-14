@@ -1,0 +1,228 @@
+.staff-notifications {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  color: #172033;
+}
+
+.staff-notifications__header,
+.staff-notifications__toolbar,
+.staff-notifications__title,
+.staff-notifications__meta,
+.staff-notifications__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.staff-notifications__header {
+  margin-bottom: 1.5rem;
+}
+
+.staff-notifications__header h1 {
+  margin: 0.2rem 0;
+  font-size: clamp(1.7rem, 4vw, 2.2rem);
+}
+
+.staff-notifications__header p {
+  margin: 0;
+  color: #667085;
+}
+
+.staff-notifications__eyebrow {
+  color: #475467 !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.staff-notifications__count,
+.staff-notifications__mark-all,
+.staff-notifications__mark-one,
+.staff-notifications__filters button,
+.staff-notifications__pagination button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid #d0d5dd;
+  border-radius: 0.65rem;
+  background: #fff;
+  color: #344054;
+  padding: 0.65rem 0.85rem;
+  font: inherit;
+}
+
+.staff-notifications__count {
+  white-space: nowrap;
+  background: #f8fafc;
+}
+
+.staff-notifications__toolbar {
+  margin-bottom: 1rem;
+}
+
+.staff-notifications__filters {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.staff-notifications__filters button {
+  border-color: transparent;
+  background: transparent;
+  color: #667085;
+}
+
+.staff-notifications__filters button.is-active {
+  border-color: #d0d5dd;
+  background: #fff;
+  color: #172033;
+  font-weight: 700;
+}
+
+.staff-notifications__mark-all {
+  border-color: #344054;
+  background: #344054;
+  color: #fff;
+  cursor: pointer;
+}
+
+.staff-notifications__mark-one,
+.staff-notifications__pagination button {
+  cursor: pointer;
+}
+
+.staff-notifications__mark-all:disabled,
+.staff-notifications__mark-one:disabled,
+.staff-notifications__pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.staff-notifications__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.staff-notifications__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  border: 1px solid #e4e7ec;
+  border-radius: 0.85rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.staff-notifications__item.is-unread {
+  border-left: 4px solid #2563eb;
+  background: #f8fbff;
+}
+
+.staff-notifications__icon {
+  display: grid;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.staff-notifications__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.staff-notifications__title {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.staff-notifications__title h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.staff-notifications__title span {
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.staff-notifications__body > p {
+  margin: 0.45rem 0 0.8rem;
+  color: #475467;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.staff-notifications__meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  color: #667085;
+  font-size: 0.8rem;
+}
+
+.staff-notifications__empty {
+  display: grid;
+  min-height: 220px;
+  place-content: center;
+  justify-items: center;
+  gap: 0.5rem;
+  border: 1px dashed #d0d5dd;
+  border-radius: 0.85rem;
+  color: #667085;
+  text-align: center;
+}
+
+.staff-notifications__empty h2,
+.staff-notifications__empty p {
+  margin: 0;
+}
+
+.staff-notifications__error {
+  margin-bottom: 1rem;
+  border: 1px solid #fda29b;
+  border-radius: 0.65rem;
+  background: #fef3f2;
+  color: #b42318;
+  padding: 0.75rem 1rem;
+}
+
+.staff-notifications__pagination {
+  justify-content: center;
+  margin-top: 1.25rem;
+  color: #667085;
+}
+
+@media (max-width: 640px) {
+  .staff-notifications__header,
+  .staff-notifications__toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .staff-notifications__toolbar {
+    gap: 0.75rem;
+  }
+
+  .staff-notifications__item {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .staff-notifications__body {
+    flex-basis: calc(100% - 3.25rem);
+  }
+
+  .staff-notifications__mark-one {
+    margin-left: 3.25rem;
+  }
+}

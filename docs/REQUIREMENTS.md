@@ -137,3 +137,12 @@ Record decisions here as the team confirms them.
 | What are the deadlines and escalation periods? |  | Open |
 | What evidence can be attached, and who can view it? |  | Open |
 | What is the exact appeal policy and one-appeal rule? |  | Open |
+
+Approved administrator policy settings for the current release:
+
+- Attendance eligibility minimum is administrator-configurable, with a default of 80%.
+- Appeal eligibility window is administrator-configurable in calendar days, with a default of 14 days.
+- Overdue notifications may be enabled or disabled by an administrator; the default is enabled.
+- Notification retry attempts are administrator-configurable, with a default of 5 attempts.
+- Existing deadline snapshots are not recalculated when settings change.
+- Lecturer, COD, and special-case review deadline settings remain deferred until their policy is approved.

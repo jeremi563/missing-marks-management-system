@@ -15,18 +15,47 @@ export async function authenticate(req, res, next) {
 	}
 
 	try {
-		const user = await prisma.user.findUnique({
+		const database = req.app?.locals?.prisma ?? prisma;
+		const user = await database.user.findUnique({
 			where: { id: claims.sub },
-			include: { roles: { include: { role: true } } },
+			select: {
+				id: true,
+				email: true,
+				sessionVersion: true,
+				pendingEmail: true,
+				displayName: true,
+				mustChangePassword: true,
+				isActive: true,
+				approvalStatus: true,
+				roles: { select: { role: { select: { name: true } } } },
+			},
 		});
-		if (!user?.isActive) throw new AppError(401, "Invalid authentication credentials");
+		const roles = user?.roles.map(({ role }) => role.name) ?? [];
+		const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
+		const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
+		if (!user || !(isApprovedUser || isPendingLecturer)
+			|| (claims.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
+			throw new AppError(401, "Invalid authentication credentials");
+		}
+		const authPath = req.originalUrl.split("?")[0];
+		if (user.mustChangePassword
+			&& authPath !== "/api/v1/auth/me"
+			&& authPath !== "/api/v1/auth/change-password") {
+			throw new AppError(403, "Change your temporary password before continuing");
+		}
 
 		req.user = {
 			id: user.id,
 			email: user.email,
+			sessionVersion: user.sessionVersion ?? 0,
+			pendingEmail: user.pendingEmail,
 			displayName: user.displayName,
-			roles: user.roles.map(({ role }) => role.name),
+			mustChangePassword: user.mustChangePassword,
+			approvalStatus: user.approvalStatus,
+			isActive: user.isActive,
+			roles,
 		};
+		req.sessionExpiresAt = claims.exp ? new Date(claims.exp * 1000) : null;
 		return next();
 	} catch (error) {
 		return next(error);
