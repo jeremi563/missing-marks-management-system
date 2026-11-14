@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Check, GraduationCap, ShieldCheck } from 'lucide-react'
 import { verifyEmail } from '../api/auth'
 import { useAuth } from '../auth/useAuth'
+import '../styles/AuthPages.css'
 
 function getSettingsPath(user) {
   const roles = Array.isArray(user?.roles) ? user.roles : [user?.role]

@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
+import { Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { loginUser, registerUser } from '../api/auth'
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../auth/password-policy'
+import '../styles/AuthPages.css'
+import './RegisterPage.css'
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ displayName: '', email: '', registrationNumber: '', password: '', confirmPassword: '' })
@@ -20,6 +23,11 @@ export default function RegisterPage() {
     setSuccess('')
     setSubmitting(true)
     const { displayName, email, registrationNumber, password, confirmPassword } = form
+    if (!meetsPasswordPolicy(password)) {
+      setError(PASSWORD_POLICY_MESSAGE)
+      setSubmitting(false)
+      return
+    }
     if (password !== confirmPassword) {
       setError('The passwords do not match. Enter the same password in both fields.')
       setSubmitting(false)
@@ -42,7 +50,7 @@ export default function RegisterPage() {
       const result = await registerUser(registration)
       if (result.data.requiresDepartmentRegistration) {
         try {
-          await loginUser({ identifier: normalizedNumber, password })
+          await loginUser({ identifier: normalizedNumber, password, accountType: 'staff' })
         } catch {
           // The lecturer can still continue the pending registration flow manually.
         }
@@ -63,9 +71,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="auth-page">
-      <Link to="/" className="back-link"><ArrowLeft size={16} /> Back home</Link>
-      <section className="auth-card auth-card-wide">
+    <main className="auth-page register-page">
+      <section className="auth-card auth-card-wide register-card">
         <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
         <p className="eyebrow">LECTURER ACCESS</p><h1>Register as a lecturer</h1>
         {error && <div className="form-alert" role="alert">{error}</div>}
@@ -79,7 +86,7 @@ export default function RegisterPage() {
           <input id="registration-number" name="registrationNumber" value={form.registrationNumber} onChange={update} autoComplete="off" required maxLength={100} />
           <label htmlFor="register-password">Password</label>
           <div className="auth-password-field">
-            <input id="register-password" name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={update} autoComplete="new-password" minLength={8} required />
+            <input id="register-password" name="password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={update} autoComplete="new-password" minLength={8} maxLength={128} required />
             <button
               className="auth-password-toggle"
               type="button"
@@ -90,10 +97,10 @@ export default function RegisterPage() {
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
-          <small className="field-hint">Use at least 8 characters.</small>
+          <small className="field-hint">{PASSWORD_POLICY_MESSAGE}</small>
           <label htmlFor="register-confirm-password">Confirm password</label>
           <div className="auth-password-field">
-            <input id="register-confirm-password" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} value={form.confirmPassword} onChange={update} autoComplete="new-password" minLength={8} required />
+            <input id="register-confirm-password" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} value={form.confirmPassword} onChange={update} autoComplete="new-password" minLength={8} maxLength={128} required />
             <button
               className="auth-password-toggle"
               type="button"

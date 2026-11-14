@@ -12,7 +12,7 @@ test("student accounts cannot combine student and staff or administrator access"
 
 test("staff may hold both lecturer and COD roles", () => {
 	let calledNext = false;
-	authorize("cod")({ user: { roles: ["lecturer", "cod"] } }, {}, (error) => {
+	authorize("cod")({ user: { roles: ["lecturer", "cod"], approvalStatus: "APPROVED" } }, {}, (error) => {
 		assert.equal(error, undefined);
 		calledNext = true;
 	});

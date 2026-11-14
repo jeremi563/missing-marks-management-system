@@ -9,6 +9,7 @@ import {
   updateAdminUser,
 } from '../../api/admin'
 import { useAuth } from '../../auth/useAuth'
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../../auth/password-policy'
 import { extractRecords } from '../shared/recordUtils'
 import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
@@ -88,6 +89,10 @@ export default function AdminUsers({ roleFilter = null }) {
   const createUser = async (event) => {
     event.preventDefault()
     setError('')
+    if (!meetsPasswordPolicy(form.password)) {
+      setError(PASSWORD_POLICY_MESSAGE)
+      return
+    }
     if (form.role === 'administrator' && (loadedRequest !== requestKey || administratorCount === null || administratorCount >= 2)) {
       setError('The system can have at most two administrator accounts.')
       return
@@ -227,7 +232,7 @@ export default function AdminUsers({ roleFilter = null }) {
           <div className="form-field"><label htmlFor="new-user-email">Email</label><input id="new-user-email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></div>
           <div className="form-field"><label htmlFor="new-user-identity">{form.role === 'administrator' ? 'Administrator number' : 'Staff number'}</label><input id="new-user-identity" value={form.identity} onChange={(event) => setForm({ ...form, identity: event.target.value })} placeholder={form.role === 'administrator' ? 'admin/12/2026' : 'AB/0123/staffnumber'} pattern={form.role === 'administrator' ? 'admin/[0-9]{2}/[0-9]{4}' : '[A-Za-z]{2}/[0-9]{4}/(?:[A-Za-z0-9]|-)+'} title={form.role === 'administrator' ? 'Format: admin/12/year; year cannot be in the future.' : 'Format: AB/0123/staffnumber.'} required /><small className="field-hint">{form.role === 'administrator' ? 'Format: admin/12/year.' : 'Format: AB/0123/staffnumber.'}</small></div>
           {form.role === 'cod' && <div className="form-field"><label htmlFor="new-user-department">Department</label><select id="new-user-department" value={form.departmentId} onChange={(event) => setForm({ ...form, departmentId: event.target.value })} required><option value="">Select a department</option>{departments.filter(({ designatedCodUserId }) => !designatedCodUserId).map((department) => <option value={department.id} key={department.id}>{department.name}{department.code ? ` (${department.code})` : ''}</option>)}</select><small className="field-hint">Only departments without a designated COD are available.</small></div>}
-          <div className="form-field"><label htmlFor="new-user-password">Temporary password</label><input id="new-user-password" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={8} required /><small className="field-hint">At least 8 characters.</small></div>
+          <div className="form-field"><label htmlFor="new-user-password">Temporary password</label><input id="new-user-password" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={8} maxLength={128} required /><small className="field-hint">{PASSWORD_POLICY_MESSAGE}</small></div>
         </div>
         <button className="button button-primary" disabled={creating || (form.role === 'administrator' && (loadedRequest !== requestKey || administratorCount === null || administratorCount >= 2))}>{creating ? 'Creating…' : 'Create account'}</button>
       </form>}

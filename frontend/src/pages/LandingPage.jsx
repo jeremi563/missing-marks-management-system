@@ -3,6 +3,7 @@ import {
   ArrowRight, BellRing, Check, ClipboardCheck, FileSearch, GraduationCap, ShieldCheck,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import './LandingPage.css'
 
 const benefits = [
   {
@@ -56,7 +57,7 @@ export default function LandingPage() {
         </Link>
         <nav aria-label="Main navigation">
           <Link className="public-login-link" to="/login">Sign in</Link>
-          <Link className="button button-primary" to="/login">Student sign in <ArrowRight size={16} /></Link>
+          <Link className="button button-primary" to="/register">Register <ArrowRight size={16} /></Link>
         </nav>
       </header>
 
@@ -68,8 +69,8 @@ export default function LandingPage() {
             A calm, transparent way to report missing assessment marks and follow each case from submission to resolution.
           </p>
           <div className="hero-actions">
-            <Link className="button button-primary" to="/login">Student sign in <ArrowRight size={17} /></Link>
-            <Link className="button button-secondary" to="/register">Lecturer registration</Link>
+            <Link className="button button-primary" to="/register">Register <ArrowRight size={17} /></Link>
+            <Link className="button button-secondary" to="/login">Sign in</Link>
           </div>
           <div className="hero-assurance">
             <span><ShieldCheck size={17} /> Private by role</span>

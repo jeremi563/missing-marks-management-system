@@ -5,18 +5,11 @@
 .student-attendance-checkin .eyebrow { margin: 0; color: #648084; font-size: 10px; font-weight: 750; letter-spacing: .13em; }
 .student-attendance-checkin h1 { margin: 0; color: #193b42; font-size: clamp(22px, 4vw, 30px); letter-spacing: -.03em; }
 .student-attendance-checkin > header > p:last-child { max-width: 52ch; margin: 0; color: #708589; font-size: 13px; line-height: 1.6; }
-.student-attendance-checkin-actions { display: grid; justify-items: start; gap: 14px; padding: 18px; background: #f5faf8; border: 1px solid #deebe8; border-radius: 12px; }
+.student-attendance-checkin-actions { display: grid; justify-items: start; gap: 14px; padding: 18px; background: var(--secondary-soft); border: 1px solid rgba(var(--primary-rgb), .14); border-radius: 12px; }
 .student-attendance-checkin-actions > p { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #526f73; font-size: 12px; line-height: 1.55; }
-.student-attendance-checkin-actions > p svg { flex: 0 0 auto; margin-top: 1px; color: #087e83; }
 .student-attendance-checkin-actions > small { color: #71878a; font-size: 11px; }
 .student-attendance-checkin-success { display: flex; align-items: flex-start; gap: 12px; padding: 16px; color: #17684d; background: #eaf7f0; border: 1px solid #ccebd9; border-radius: 12px; }
 .student-attendance-checkin-success > svg { flex: 0 0 auto; }
 .student-attendance-checkin-success strong { font-size: 14px; }
 .student-attendance-checkin-success p { margin: 5px 0; font-size: 12px; }
 .student-attendance-checkin-success small { color: #4a7967; font-size: 11px; }
-[data-theme="dark"] .student-attendance-checkin { background: #172a2e; border-color: #30494c; }
-[data-theme="dark"] .student-attendance-checkin h1 { color: #d6e5e3; }
-[data-theme="dark"] .student-attendance-checkin > header > p:last-child { color: #9aafb1; }
-[data-theme="dark"] .student-attendance-checkin-actions { background: #1a3034; border-color: #30494c; }
-[data-theme="dark"] .student-attendance-checkin-actions > p,
-[data-theme="dark"] .student-attendance-checkin-actions > small { color: #9aafb1; }

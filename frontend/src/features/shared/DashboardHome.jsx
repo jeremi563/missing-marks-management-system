@@ -3,6 +3,7 @@ import {
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../auth/useAuth'
+import './DashboardHome.css'
 
 const dashboards = {
   Student: {

@@ -181,7 +181,7 @@ test("student-role middleware allows the student role", () => {
 	const authorizeStudent = profileRoute.route.stack[1].handle;
 	let calledNext = false;
 
-	authorizeStudent({ user: { roles: ["student"] } }, {}, (error) => {
+	authorizeStudent({ user: { roles: ["student"], approvalStatus: "APPROVED" } }, {}, (error) => {
 		assert.equal(error, undefined);
 		calledNext = true;
 	});

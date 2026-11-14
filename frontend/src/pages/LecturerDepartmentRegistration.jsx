@@ -4,6 +4,7 @@ import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { getRegistrationDepartments, registerLecturerDepartment } from '../api/auth'
 import { extractRecords } from '../features/shared/recordUtils'
 import { useAuth } from '../auth/useAuth'
+import '../styles/AuthPages.css'
 
 const initialForm = {
   displayName: '',

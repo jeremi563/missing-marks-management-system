@@ -117,6 +117,7 @@ model StudentRegistrationEligibility {
   id           String   @id @default(uuid()) @db.Uuid
   studentNumber String  @unique @map("student_number")
   email        String
+  fullName     String?  @map("full_name")
   linkedUserId String?  @unique @map("linked_user_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at")
 

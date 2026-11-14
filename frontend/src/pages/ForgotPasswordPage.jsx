@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ArrowLeft, ArrowRight, GraduationCap, Mail } from 'lucide-react'
+import { ArrowRight, GraduationCap, Mail } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { requestPasswordReset } from '../api/auth'
+import '../styles/AuthPages.css'
 import './PasswordRecovery.css'
 
 export default function ForgotPasswordPage() {
@@ -26,7 +27,6 @@ export default function ForgotPasswordPage() {
 
   return (
     <main className="auth-page password-recovery-page">
-      <Link to="/login" className="back-link"><ArrowLeft size={16} /> Back to sign in</Link>
       <section className="auth-card password-recovery-card">
         <Link to="/" className="public-brand"><span className="brand-icon"><GraduationCap size={21} /></span>Missing Marks</Link>
         {requestSent ? (

@@ -2,12 +2,13 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/config/database.js";
 import { isAdminRegistrationNumber } from "../src/shared/utils/registration-number.js";
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from "../src/shared/utils/password-policy.js";
 
 const { BOOTSTRAP_ADMIN_NUMBER, BOOTSTRAP_ADMIN_EMAIL, BOOTSTRAP_ADMIN_PASSWORD, BOOTSTRAP_ADMIN_NAME } = process.env;
 
 async function main() {
-	if (!BOOTSTRAP_ADMIN_NUMBER || !BOOTSTRAP_ADMIN_EMAIL || !BOOTSTRAP_ADMIN_PASSWORD || BOOTSTRAP_ADMIN_PASSWORD.length < 8) {
-		throw new Error("Set BOOTSTRAP_ADMIN_NUMBER, BOOTSTRAP_ADMIN_EMAIL, and a BOOTSTRAP_ADMIN_PASSWORD of at least 8 characters.");
+	if (!BOOTSTRAP_ADMIN_NUMBER || !BOOTSTRAP_ADMIN_EMAIL || !meetsPasswordPolicy(BOOTSTRAP_ADMIN_PASSWORD)) {
+		throw new Error(`Set BOOTSTRAP_ADMIN_NUMBER, BOOTSTRAP_ADMIN_EMAIL, and a strong BOOTSTRAP_ADMIN_PASSWORD. ${PASSWORD_POLICY_MESSAGE}`);
 	}
 	const email = BOOTSTRAP_ADMIN_EMAIL.trim().toLowerCase();
 	const adminNumber = BOOTSTRAP_ADMIN_NUMBER.trim().toUpperCase();

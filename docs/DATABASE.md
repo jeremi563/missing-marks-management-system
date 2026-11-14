@@ -81,6 +81,8 @@ Do not have several contributors independently generate migrations from differen
 
 The current academic structure models a department as owning multiple courses, with each course containing course units. Student numbers use `LLCC/DDDDD/YY`: two department-initial letters, a two-digit course code, a five-digit unique number, and an admission year between `13` and the current year. Student roster imports and new student registrations require the encoded department and course to exist. The course-unit `course_id` is nullable for existing records so administrators can classify legacy units without deleting academic history; CODs cannot assign unclassified units.
 
+Student roster eligibility records store the imported full name, which is copied to the user display name when the student first signs in. Re-importing a linked student updates that display name.
+
 ## 7. Seed data
 
 Use synthetic, clearly labelled records for development:

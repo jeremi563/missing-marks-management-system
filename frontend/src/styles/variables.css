@@ -5,6 +5,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --primary: #6E26FF;
+  --primary-rgb: 110, 38, 255;
   --primary-strong: #561de6;
   --secondary: #A679FF;
   --secondary-soft: #F2EBFF;

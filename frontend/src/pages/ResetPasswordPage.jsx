@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { ArrowLeft, Check, Eye, EyeOff, GraduationCap, LockKeyhole } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { resetPassword } from '../api/auth'
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../auth/password-policy'
+import '../styles/AuthPages.css'
 import './PasswordRecovery.css'
 
 export default function ResetPasswordPage() {
@@ -18,6 +20,10 @@ export default function ResetPasswordPage() {
   const submit = async (event) => {
     event.preventDefault()
     setError('')
+    if (!meetsPasswordPolicy(password)) {
+      setError(PASSWORD_POLICY_MESSAGE)
+      return
+    }
     if (password !== confirmPassword) {
       setError('The passwords do not match. Enter the same password in both fields.')
       return
@@ -57,12 +63,12 @@ export default function ResetPasswordPage() {
               </>
             ) : (
               <>
-                <p className="auth-intro">Choose a new password with at least 8 characters. Your other active sessions will be signed out.</p>
+                <p className="auth-intro">Choose a password that meets the complexity requirements. Your other active sessions will be signed out.</p>
                 {error && <div className="form-alert" role="alert">{error}</div>}
                 <form onSubmit={submit}>
                   <label htmlFor="reset-password">New password</label>
-                  <div className="auth-password-field">
-                    <LockKeyhole className="recovery-password-icon" size={17} aria-hidden="true" />
+                  <div className={`auth-password-field${password ? ' has-value' : ''}`}>
+                    {!password && <LockKeyhole className="recovery-password-icon" size={17} aria-hidden="true" />}
                     <input
                       id="reset-password"
                       type={showPassword ? 'text' : 'password'}
@@ -78,8 +84,8 @@ export default function ResetPasswordPage() {
                     </button>
                   </div>
                   <label htmlFor="reset-confirm-password">Confirm new password</label>
-                  <div className="auth-password-field">
-                    <LockKeyhole className="recovery-password-icon" size={17} aria-hidden="true" />
+                  <div className={`auth-password-field${confirmPassword ? ' has-value' : ''}`}>
+                    {!confirmPassword && <LockKeyhole className="recovery-password-icon" size={17} aria-hidden="true" />}
                     <input
                       id="reset-confirm-password"
                       type={showConfirmPassword ? 'text' : 'password'}
@@ -94,7 +100,7 @@ export default function ResetPasswordPage() {
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
-                  <small className="field-hint">Use at least 8 characters.</small>
+                  <small className="field-hint">{PASSWORD_POLICY_MESSAGE}</small>
                   <button className="button button-primary button-full" type="submit" disabled={isSubmitting}>
                     {isSubmitting ? 'Updating password…' : 'Update password'}
                   </button>

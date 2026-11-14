@@ -180,15 +180,16 @@ test("updating a student number adopts an imported eligibility row without retai
 	]);
 });
 
-test("roster imports require the registration number's department and course to exist", async () => {
+test("roster imports store student names and require the registration number's department and course", async () => {
 	let createdEligibility = false;
 	let courseQuery;
+	let eligibilityCreated;
 	const tx = {
 		course: { findFirst: async (args) => { courseQuery = args; return { id: "course-1" }; } },
 		studentRegistrationEligibility: {
 			findUnique: async () => null,
 			findFirst: async () => null,
-			create: async () => { createdEligibility = true; },
+			create: async ({ data }) => { createdEligibility = true; eligibilityCreated = data; },
 		},
 		user: { findUnique: async () => null },
 		auditLog: { create: async () => {} },
@@ -196,18 +197,49 @@ test("roster imports require the registration number's department and course to 
 	const result = await importStudentRoster({
 		db: { $transaction: (callback) => callback(tx) },
 		actorUserId: "admin",
-		students: [{ studentNumber: "in16/00111/26", email: "Student@Example.Test" }],
+		students: [{ studentNumber: "in16/00111/26", fullName: "  Taylor Student  ", email: "Student@Example.Test" }],
 	});
 	assert.deepEqual(result, { imported: 1 });
 	assert.deepEqual(courseQuery.where, { code: "16", department: { initials: "IN" } });
 	assert.equal(createdEligibility, true);
+	assert.deepEqual(eligibilityCreated, {
+		studentNumber: "IN16/00111/26",
+		fullName: "Taylor Student",
+		email: "student@example.test",
+	});
 
 	const missingCourseTx = { ...tx, course: { findFirst: async () => null } };
 	await assert.rejects(importStudentRoster({
 		db: { $transaction: (callback) => callback(missingCourseTx) },
 		actorUserId: "admin",
-		students: [{ studentNumber: "IN16/00112/26", email: "other@example.test" }],
+		students: [{ studentNumber: "IN16/00112/26", fullName: "Alex Student", email: "other@example.test" }],
 	}), { statusCode: 422 });
+});
+
+test("roster re-import updates names for already linked students", async () => {
+	const calls = [];
+	const tx = {
+		course: { findFirst: async () => ({ id: "course-1" }) },
+		studentRegistrationEligibility: {
+			findUnique: async () => ({ id: "eligibility-1", linkedUserId: "student-1" }),
+			findFirst: async () => null,
+			update: async ({ data }) => calls.push(["eligibility.update", data]),
+		},
+		user: {
+			findUnique: async () => ({ studentProfile: { studentNumber: "IN16/00111/26" } }),
+			update: async ({ where, data }) => calls.push(["user.update", where, data]),
+		},
+		auditLog: { create: async () => {} },
+	};
+	await importStudentRoster({
+		db: { $transaction: (callback) => callback(tx) },
+		actorUserId: "admin",
+		students: [{ studentNumber: "IN16/00111/26", fullName: "Taylor Student", email: "student@example.test" }],
+	});
+	assert.deepEqual(calls, [
+		["eligibility.update", { fullName: "Taylor Student" }],
+		["user.update", { id: "student-1" }, { displayName: "Taylor Student" }],
+	]);
 });
 
 test("administrator can permanently delete a student account without academic history", async () => {

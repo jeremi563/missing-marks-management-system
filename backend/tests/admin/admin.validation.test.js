@@ -26,16 +26,19 @@ test("administrator user validation rejects duplicate and unknown roles", () => 
 
 test("administrator user validation requires update fields and normalizes list filters", () => {
 	assert.equal(updateUserBody.safeParse({}).success, false);
+	assert.equal(updateUserBody.safeParse({ password: "Password123" }).success, false);
+	assert.equal(updateUserBody.safeParse({ password: "Password123!" }).success, true);
 	const year = `${new Date().getFullYear() % 100}`.padStart(2, "0");
 	assert.equal(updateUserBody.safeParse({ studentNumber: `IN16/01243/${year}` }).success, true);
 	assert.equal(updateUserBody.safeParse({ staffNumber: "IN/0123/STAFF9" }).success, false);
 	assert.equal(updateUserBody.safeParse({ adminNumber: "admin/12/2026" }).success, false);
 	assert.deepEqual(userListQuery.parse({ page: "2", limit: "25", isActive: "false", approvalStatus: "APPROVED" }), { page: 2, limit: 25, isActive: false, approvalStatus: "APPROVED" });
 	assert.equal(userListQuery.safeParse({ approvalStatus: "UNKNOWN" }).success, false);
-	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, email: "student@example.test" }] }).success, true);
-	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, email: "student@example.test" }, { studentNumber: `ab16/01243/${year}`, email: "other@example.test" }] }).success, false);
-	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: "AB16/01243/12", email: "old-year@example.test" }] }).success, false);
-	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${String(Number(year) + 1).padStart(2, "0")}`, email: "future@example.test" }] }).success, false);
+	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: "Taylor Student", email: "student@example.test" }] }).success, true);
+	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: " ", email: "student@example.test" }] }).success, false);
+	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: "Taylor Student", email: "student@example.test" }, { studentNumber: `ab16/01243/${year}`, fullName: "Alex Student", email: "other@example.test" }] }).success, false);
+	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: "AB16/01243/12", fullName: "Taylor Student", email: "old-year@example.test" }] }).success, false);
+	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${String(Number(year) + 1).padStart(2, "0")}`, fullName: "Taylor Student", email: "future@example.test" }] }).success, false);
 	assert.equal(accountApprovalBody.safeParse({ status: "APPROVED" }).success, true);
 	assert.equal(accountApprovalBody.safeParse({ status: "REJECTED" }).success, true);
 	assert.equal(accountApprovalBody.safeParse({ status: "APPROVED", roles: ["lecturer", "cod"] }).success, false);

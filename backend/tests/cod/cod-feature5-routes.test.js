@@ -72,15 +72,15 @@ test("COD and unauthenticated requests cannot execute the Admin attendance corre
 	await codRoutes.stack[0].handle({ get: () => undefined, cookies: {} }, {}, (error) => { authenticationError = error; });
 	assert.equal(authenticationError.statusCode, 401);
 	let roleError;
-	codRoutes.stack[1].handle({ user: { roles: ["student"] } }, {}, (error) => { roleError = error; });
+	codRoutes.stack[1].handle({ user: { roles: ["student"], approvalStatus: "APPROVED" } }, {}, (error) => { roleError = error; });
 	assert.equal(roleError.statusCode, 403);
 	const authIndex = adminRoutes.stack.findIndex((layer) => layer.handle === authenticate);
 	assert.ok(authIndex >= 0);
 	const administratorGate = adminRoutes.stack[authIndex + 1].handle;
 	let administratorError;
-	administratorGate({ user: { roles: ["administrator"] } }, {}, (error) => { administratorError = error; });
+	administratorGate({ user: { roles: ["administrator"], approvalStatus: "APPROVED" } }, {}, (error) => { administratorError = error; });
 	assert.equal(administratorError, undefined);
 	let nonAdministratorError;
-	administratorGate({ user: { roles: ["cod"] } }, {}, (error) => { nonAdministratorError = error; });
+	administratorGate({ user: { roles: ["cod"], approvalStatus: "APPROVED" } }, {}, (error) => { nonAdministratorError = error; });
 	assert.equal(nonAdministratorError.statusCode, 403);
 });

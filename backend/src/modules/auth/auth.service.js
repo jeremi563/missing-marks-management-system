@@ -44,7 +44,7 @@ async function storeSecurityToken(tx, userId, type, expiresInMs) {
 	return token;
 }
 
-export async function loginWithCredentials(identifier, password, db = prisma) {
+export async function loginWithCredentials(identifier, password, db = prisma, { accountType = null } = {}) {
 	const normalizedIdentifier = typeof identifier === "string" ? identifier.trim() : "";
 	const normalizedPassword = typeof password === "string" ? password : "";
 	if (!normalizedIdentifier || !normalizedPassword) {
@@ -56,17 +56,20 @@ export async function loginWithCredentials(identifier, password, db = prisma) {
 	});
 	let user = identifierRecord?.user;
 	let provisionedFromRoster = false;
-	if (!user && isStudentRegistrationNumber(normalizedIdentifier)) {
+	if (!user && accountType !== "staff" && isStudentRegistrationNumber(normalizedIdentifier)) {
 		user = await provisionStudentFromRoster(normalizeRegistrationNumber(normalizedIdentifier), password, db);
 		provisionedFromRoster = Boolean(user);
 	}
 	const roles = user?.roles.map(({ role }) => role.name) ?? [];
+	const matchesAccountType = accountType === null
+		|| (accountType === "student" && roles.includes("student"))
+		|| (accountType === "staff" && roles.some((role) => ["lecturer", "cod", "administrator"].includes(role)));
 	const isStaff = roles.some((role) => role === "lecturer" || role === "cod");
 	const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
 	const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
 
 	const passwordToVerify = provisionedFromRoster ? normalizeRegistrationNumber(password) : password;
-	if (!user || !(isApprovedUser || isPendingLecturer) || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(passwordToVerify, user.passwordHash))) {
+	if (!user || !(isApprovedUser || isPendingLecturer) || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(passwordToVerify, user.passwordHash)) || !matchesAccountType) {
 		throw new AppError(401, "Invalid identifier or password");
 	}
 
@@ -119,7 +122,7 @@ async function provisionStudentFromRoster(identifier, password, db) {
 			data: {
 				email: normalizeEmail(eligibility.email),
 				passwordHash,
-				displayName: null,
+				displayName: eligibility.fullName,
 				mustChangePassword: true,
 				isActive: true,
 				approvalStatus: "APPROVED",
