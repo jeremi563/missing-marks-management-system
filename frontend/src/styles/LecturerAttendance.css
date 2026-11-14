@@ -83,34 +83,6 @@
 .lecturer-attendance-panel > .form-alert { margin-top: 0; }
 .lecturer-attendance-action-notice { margin: 0 0 12px; color: #17684d; font-size: 12px; font-weight: 650; }
 
-[data-theme="dark"] .lecturer-attendance-form { background: #172a2e; border-color: #30494c; }
-[data-theme="dark"] .lecturer-attendance-form-title h3,
-[data-theme="dark"] .lecturer-attendance-schedule-heading strong { color: #d6e5e3; }
-[data-theme="dark"] .lecturer-attendance-schedule { background: #1a3034; border-color: #30494c; }
-[data-theme="dark"] .lecturer-attendance-schedule-heading small,
-[data-theme="dark"] .lecturer-attendance-field-hint,
-[data-theme="dark"] .lecturer-attendance-optional { color: #9aafb1; }
-[data-theme="dark"] .lecturer-attendance-form .form-field input[readonly],
-[data-theme="dark"] .lecturer-attendance-assessment-status { color: #d3e2e1; background: #203a3d; border-color: #30494c; }
-[data-theme="dark"] .lecturer-attendance-assessment-status strong,
-[data-theme="dark"] .lecturer-attendance-field-label { color: #d3e2e1; }
-[data-theme="dark"] .lecturer-attendance-form input[type="date"],
-[data-theme="dark"] .lecturer-attendance-form input[type="time"] { color: #e0eceb; background: #142a2d; border-color: #40595c; }
-[data-theme="dark"] .lecturer-attendance-link { background: #172a2e; border-color: #30494c; }
-[data-theme="dark"] .lecturer-attendance-action-notice { color: #8ed3b2; }
-[data-theme="dark"] .lecturer-attendance-link-details > input { color: #d3e2e1; background: #142a2d; border-color: #40595c; }
-[data-theme="dark"] .report-attendance-check { background: #172a2e; border-color: #30494c; }
-[data-theme="dark"] .report-attendance-check strong { color: #dce9e8; }
-[data-theme="dark"] .report-attendance-check span { color: #a9c2c1; }
-[data-theme="dark"] .report-attendance-check-present span { color: #8ed3b2; }
-[data-theme="dark"] .report-attendance-check-absent span { color: #ffaaa3; }
-[data-theme="dark"] .lecturer-attendance-extend-toggle,
-[data-theme="dark"] .lecturer-attendance-extend-form { background: #172a2e; border-color: #30494c; }
-[data-theme="dark"] .lecturer-attendance-extend-toggle { color: #d3e2e1; }
-[data-theme="dark"] .lecturer-attendance-extend-toggle:hover { color: #a2ddd2; border-color: #527b78; }
-[data-theme="dark"] .lecturer-attendance-extend-form label { color: #d3e2e1; }
-[data-theme="dark"] .lecturer-attendance-extend-form input { color: #e0eceb; background: #142a2d; border-color: #40595c; }
-
 @media (max-width: 820px) {
   .lecturer-attendance-workspace { grid-template-columns: 1fr; }
   .lecturer-attendance-schedule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

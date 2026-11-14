@@ -45,10 +45,10 @@ Use Node.js 20.19+ and npm, plus PostgreSQL for migrations and database-backed f
 ```bash
 cd backend
 npm install
-cp .env.example .env
+cp ../.env.example .env
 ```
 
-Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and optional SMTP credentials to deliver verification and password-reset links. Email delivery is unavailable until SMTP is configured. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts. Do not share or commit `.env`.
+Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and optional SMTP credentials to deliver verification and password-reset links. Email delivery is unavailable until SMTP is configured. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts and must be 8–128 characters with at least one letter, one number, and one special character. Do not share or commit `.env`.
 
 Validate the shared schema and generate Prisma Client:
 
@@ -69,13 +69,13 @@ Seed synthetic development data after the migration:
 npm run db:seed
 ```
 
-For a non-demo deployment, create the first administrator through the one-time bootstrap instead of seeding demo accounts. Set `BOOTSTRAP_ADMIN_NUMBER` in `admin/DD/YYYY` format: `admin/` is fixed, `DD` is any two digits, and `YYYY` is a four-digit year no later than the current year. Set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` (at least 8 characters), and optionally `BOOTSTRAP_ADMIN_NAME` in `.env`, then run:
+For a non-demo deployment, create the first administrator through the one-time bootstrap instead of seeding demo accounts. Set `BOOTSTRAP_ADMIN_NUMBER` in `admin/DD/YYYY` format: `admin/` is fixed, `DD` is any two digits, and `YYYY` is a four-digit year no later than the current year. Set `BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD` (8–128 characters with at least one letter, one number, and one special character), and optionally `BOOTSTRAP_ADMIN_NAME` in `.env`, then run:
 
 ```bash
 npm run db:bootstrap-admin
 ```
 
-The bootstrap refuses to run when an active administrator already exists. Before student access, an administrator must preload the authoritative registration-number/email roster through `POST /api/v1/admin/student-roster/import`. Students do not self-register: on first sign-in they use their roster registration number as both identifier and temporary password, after which the system provisions the student profile and requires a private password change. New lecturers use the lecturer registration form, then re-enter their account details and choose a department in the lecturer department form. This confirms and updates the same pending account; it does not create a second account. A department must have a designated COD before it is offered to applicants. The department's designated COD approves or rejects the lecturer; accounts remain inactive until approval. Lecturer email verification is disabled, so approved staff can sign in without it. Administrators create departments in Academic setup and assign one active COD per department. Assigning a COD also adds them to that department. COD is a lecturer responsibility, and students cannot be promoted to COD.
+The bootstrap refuses to run when an active administrator already exists. Before student access, an administrator must preload the authoritative registration-number/full-name/email roster through `POST /api/v1/admin/student-roster/import`. Students do not self-register: on first sign-in they use their roster registration number as both identifier and temporary password, after which the system provisions the student profile and requires a private password change. New lecturers use the lecturer registration form, then re-enter their account details and choose a department in the lecturer department form. This confirms and updates the same pending account; it does not create a second account. A department must have a designated COD before it is offered to applicants. The department's designated COD approves or rejects the lecturer; accounts remain inactive until approval. Lecturer email verification is disabled, so approved staff can sign in without it. Administrators create departments in Academic setup and assign one active COD per department. Assigning a COD also adds them to that department. COD is a lecturer responsibility, and students cannot be promoted to COD.
 
 Never run development migrations against production or an unapproved shared database. The team lead coordinates schema and migration changes.
 

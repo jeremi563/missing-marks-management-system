@@ -9,6 +9,7 @@ vi.mock('../../src/api/admin', () => ({
   getAdminAcademicPeriods: vi.fn(),
   getAdminClassrooms: vi.fn(),
   getAdminAssessments: vi.fn(),
+  getAdminCourses: vi.fn(),
   getAdminCourseUnits: vi.fn(),
   getAdminDepartments: vi.fn(),
   getAdminEnrollments: vi.fn(),

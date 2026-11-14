@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Camera, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react'
 import { changePassword, requestEmailChange, updateAvatar } from '../../api/auth'
 import { useAuth } from '../../auth/useAuth'
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../../auth/password-policy'
+import './AccountSettings.css'
 
 const initialForm = { currentPassword: '', newPassword: '', confirmPassword: '' }
 const MAX_AVATAR_BYTES = 512 * 1024
@@ -34,8 +36,8 @@ export default function AccountSettings({ roleLabel }) {
     event.preventDefault()
     setPasswordError('')
     setPasswordSuccess('')
-    if (form.newPassword.length < 8) {
-      setPasswordError('Your new password must be at least 8 characters.')
+    if (!meetsPasswordPolicy(form.newPassword)) {
+      setPasswordError(PASSWORD_POLICY_MESSAGE)
       return
     }
     if (form.newPassword !== form.confirmPassword) {
@@ -232,7 +234,7 @@ export default function AccountSettings({ roleLabel }) {
               <ShieldCheck size={17} /> {passwordSaving ? 'Updating password…' : 'Update password'}
             </button>
           </form>
-          <p className="field-hint">Use at least 8 characters. Your password is never shown or stored in plain text.</p>
+          <p className="field-hint">{PASSWORD_POLICY_MESSAGE} Your password is never shown or stored in plain text.</p>
         </section>
       </div>
     </section>

@@ -3,6 +3,11 @@ import {
 	isAdminRegistrationNumber,
 	isStaffRegistrationNumber,
 } from "../../shared/utils/registration-number.js";
+import { hasPasswordComposition, PASSWORD_POLICY_MESSAGE } from "../../shared/utils/password-policy.js";
+
+const strongPassword = z.string().min(8).max(128).refine(hasPasswordComposition, {
+	message: PASSWORD_POLICY_MESSAGE,
+});
 
 const publicRegistrationNumber = z.string().trim().min(1).max(100).refine(
 	isStaffRegistrationNumber,
@@ -14,11 +19,12 @@ const publicRegistrationNumber = z.string().trim().min(1).max(100).refine(
 export const loginSchema = z.object({
 	identifier: z.string().trim().min(1).max(100),
 	password: z.string().min(1).max(128),
+	accountType: z.enum(["student", "staff"]),
 }).strict();
 
 export const registerSchema = z.object({
 	email: z.string().trim().email().max(254),
-	password: z.string().min(8).max(128),
+	password: strongPassword,
 	displayName: z.string().trim().min(1).max(200),
 	registrationNumber: publicRegistrationNumber,
 }).strict();
@@ -50,12 +56,12 @@ export const tokenBodySchema = z.object({
 }).strict();
 
 export const passwordResetSchema = tokenBodySchema.extend({
-	password: z.string().min(8).max(128),
+	password: strongPassword,
 }).strict();
 
 export const passwordChangeSchema = z.object({
 	currentPassword: z.string().min(1).max(128),
-	newPassword: z.string().min(8).max(128),
+	newPassword: strongPassword,
 }).strict();
 
 export const emailChangeSchema = z.object({

@@ -2,10 +2,11 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/config/database.js";
 import { academicYearForDate } from "../src/shared/utils/academic-year.js";
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from "../src/shared/utils/password-policy.js";
 
 const demoPassword = process.env.DEMO_SEED_PASSWORD;
-if (!demoPassword || demoPassword.length < 8) {
-	throw new Error("Set DEMO_SEED_PASSWORD to a non-production value of at least 8 characters before seeding.");
+if (!meetsPasswordPolicy(demoPassword)) {
+	throw new Error(`Set DEMO_SEED_PASSWORD to a strong, non-production value before seeding. ${PASSWORD_POLICY_MESSAGE}`);
 }
 
 const demoUsers = [

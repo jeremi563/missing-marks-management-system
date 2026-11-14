@@ -328,6 +328,7 @@ test('returns report details successfully', async () => {
     id: 'report-1',
     reference: 'MM-001',
     student: { studentNumber: 'STU-001' },
+    academicPeriod: { name: 'Semester One', code: 'S1' },
   };
 
   const prisma = {
@@ -337,6 +338,12 @@ test('returns report details successfully', async () => {
 
     missingMarkReport: {
       findFirst: async () => report,
+    },
+    assessment: {
+      findMany: async () => [],
+    },
+    attendanceSession: {
+      findMany: async () => [],
     },
   };
 
@@ -390,7 +397,11 @@ const createCommentControllerPrisma = () => ({
   },
 
   missingMarkReport: {
-    findFirst: async () => ({ id: 'report-1' }),
+    findFirst: async () => ({
+      id: 'report-1',
+      reference: 'MM-001',
+      student: { userId: 'student-user-1' },
+    }),
   },
 
   reportComment: {
@@ -430,6 +441,11 @@ const createCommentControllerPrisma = () => ({
       },
     }),
   },
+  notification: {
+    createMany: async () => ({ count: 1 }),
+    findUnique: async ({ where }) => ({ dedupeKey: where.dedupeKey }),
+  },
+  $transaction: async function (operation) { return operation(this); },
 });
 
 test('returns 401 when comment retrieval authentication is missing', async () => {
@@ -572,6 +588,7 @@ test('passes comment creation errors to the error handler', async () => {
         throw expectedError;
       },
     },
+    $transaction: async function (operation) { return operation(this); },
   };
 
   const req = {

@@ -504,7 +504,11 @@ export async function decideDepartmentLecturerAccount({ db = prisma, actorUserId
 }
 
 export async function importStudentRoster({ db = prisma, actorUserId, students }) {
-	const normalizedStudents = students.map(({ studentNumber, email }) => ({ studentNumber: studentNumber.trim().toUpperCase(), email: email.trim().toLowerCase() }));
+	const normalizedStudents = students.map(({ studentNumber, fullName, email }) => ({
+		studentNumber: studentNumber.trim().toUpperCase(),
+		fullName: fullName.trim(),
+		email: email.trim().toLowerCase(),
+	}));
 	return db.$transaction(async (tx) => {
 		for (const student of normalizedStudents) {
 			const registration = parseStudentRegistrationNumber(student.studentNumber);
@@ -517,12 +521,16 @@ export async function importStudentRoster({ db = prisma, actorUserId, students }
 			});
 			if (!course) throw new AppError(422, `Student number ${student.studentNumber} must identify a course that exists in its department`);
 			const existing = await tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: student.studentNumber } });
-			if (existing?.linkedUserId) throw new AppError(409, `Student number ${student.studentNumber} is already linked to an account`);
 			const rosterEmailOwner = await tx.studentRegistrationEligibility.findFirst({ where: { email: student.email, studentNumber: { not: student.studentNumber } }, select: { id: true } });
 			if (rosterEmailOwner) throw new AppError(409, "A roster email is already assigned to another student number");
 			const emailOwner = await tx.user.findUnique({ where: { email: student.email }, select: { studentProfile: { select: { studentNumber: true } } } });
 			if (emailOwner && emailOwner.studentProfile?.studentNumber !== student.studentNumber) throw new AppError(409, "A roster email is already associated with another account");
-			if (existing) await tx.studentRegistrationEligibility.update({ where: { id: existing.id }, data: { email: student.email } });
+			if (existing?.linkedUserId) {
+				await tx.studentRegistrationEligibility.update({ where: { id: existing.id }, data: { fullName: student.fullName } });
+				await tx.user.update({ where: { id: existing.linkedUserId }, data: { displayName: student.fullName } });
+			} else if (existing) {
+				await tx.studentRegistrationEligibility.update({ where: { id: existing.id }, data: { email: student.email, fullName: student.fullName } });
+			}
 			else await tx.studentRegistrationEligibility.create({ data: student });
 		}
 		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_STUDENT_ROSTER_IMPORTED", entityType: "StudentRegistrationEligibility", metadata: { count: normalizedStudents.length } });

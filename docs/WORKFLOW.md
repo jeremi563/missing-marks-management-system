@@ -2,9 +2,9 @@
 
 ## Student roster sign-in
 
-1. The administrator imports each eligible student's registration number and institutional email into the authoritative roster after creating the corresponding department and course.
+1. The administrator imports each eligible student's registration number, full name, and institutional email into the authoritative roster after creating the corresponding department and course.
 2. The student signs in with their registration number as both the identifier and temporary password. No student self-registration form is available.
-3. On the first successful sign-in, the system verifies the roster/course match and atomically creates the student user, role, login identifier, and profile, then links the roster entry.
+3. On the first successful sign-in, the system verifies the roster/course match and atomically creates the student user (including the roster full name), role, login identifier, and profile, then links the roster entry.
 4. The student must choose a new private password before accessing other authenticated features. The temporary password is no longer accepted after the change.
 5. Later sign-ins use the selected password. Existing linked student accounts are not recreated.
 

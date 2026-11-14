@@ -30,7 +30,12 @@ function setSessionCookie(res, token) {
 
 export async function login(req, res, next) {
 	try {
-		const { user, token, sessionExpiresAt } = await loginWithCredentials(req.body.identifier ?? req.body.email, req.body.password);
+		const { user, token, sessionExpiresAt } = await loginWithCredentials(
+			req.body.identifier ?? req.body.email,
+			req.body.password,
+			undefined,
+			{ accountType: req.body.accountType },
+		);
 		setSessionCookie(res, token);
 		return sendSuccess(res, "Signed in successfully", { user, sessionExpiresAt });
 	} catch (error) {

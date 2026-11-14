@@ -4,8 +4,12 @@ import {
 	isStaffRegistrationNumber,
 	isStudentRegistrationNumber,
 } from "../../shared/utils/registration-number.js";
+import { hasPasswordComposition, PASSWORD_POLICY_MESSAGE } from "../../shared/utils/password-policy.js";
 
 const roleNames = z.enum(["student", "lecturer", "cod", "administrator"]);
+const strongPassword = z.string().min(8).max(128).refine(hasPasswordComposition, {
+	message: PASSWORD_POLICY_MESSAGE,
+});
 const studentNumber = z.string().trim().min(1).max(100).refine(isStudentRegistrationNumber, {
 	message: "Use the student number format AB16/00111/26, with an admission year from 13 through the current year.",
 });
@@ -31,7 +35,7 @@ export const userListQuery = z.object({
 
 export const createUserBody = z.object({
 	email: z.string().trim().email().max(254),
-	password: z.string().min(8).max(128),
+	password: strongPassword,
 	displayName: z.string().trim().min(1).max(200),
 	roles: z.array(roleNames).min(1).max(2),
 	studentNumber: studentNumber.optional(),
@@ -58,7 +62,7 @@ export const createUserBody = z.object({
 
 export const updateUserBody = z.object({
 	email: z.string().trim().email().max(254).optional(),
-	password: z.string().min(8).max(128).optional(),
+	password: strongPassword.optional(),
 	displayName: z.string().trim().min(1).max(200).optional(),
 	studentNumber: studentNumber.optional(),
 	isActive: z.boolean().optional(),
@@ -76,6 +80,7 @@ export const updateUserBody = z.object({
 export const rosterImportBody = z.object({
 	students: z.array(z.object({
 		studentNumber,
+		fullName: z.string().trim().min(1).max(200),
 		email: z.string().trim().email().max(254),
 	}).strict()).min(1).max(1000),
 }).strict().refine(({ students }) => new Set(students.map(({ studentNumber }) => studentNumber.toUpperCase())).size === students.length, {

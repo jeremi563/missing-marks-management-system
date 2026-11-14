@@ -32,9 +32,12 @@ describe('password recovery pages', () => {
   it('updates the password only when the confirmation matches', async () => {
     resetPassword.mockResolvedValue({ success: true })
 
-    render(<MemoryRouter initialEntries={['/reset-password?token=valid-reset-token']}><ResetPasswordPage /></MemoryRouter>)
+    const { container } = render(<MemoryRouter initialEntries={['/reset-password?token=valid-reset-token']}><ResetPasswordPage /></MemoryRouter>)
+    expect(container.querySelectorAll('.recovery-password-icon')).toHaveLength(2)
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-123' } })
+    expect(container.querySelectorAll('.recovery-password-icon')).toHaveLength(1)
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'different-password' } })
+    expect(container.querySelectorAll('.recovery-password-icon')).toHaveLength(0)
     fireEvent.click(screen.getByRole('button', { name: 'Update password' }))
 
     expect(await screen.findByText(/passwords do not match/i)).toBeTruthy()
@@ -44,6 +47,16 @@ describe('password recovery pages', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Update password' }))
     await waitFor(() => expect(resetPassword).toHaveBeenCalledWith('valid-reset-token', 'new-password-123'))
     expect(await screen.findByText('You can sign in now')).toBeTruthy()
+  })
+
+  it('rejects a reset password that does not meet the complexity policy', async () => {
+    render(<MemoryRouter initialEntries={['/reset-password?token=valid-reset-token']}><ResetPasswordPage /></MemoryRouter>)
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'Password123' } })
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'Password123' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Update password' }))
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/at least one letter, one number, and one special character/i)
+    expect(resetPassword).not.toHaveBeenCalled()
   })
 
   it('offers a new reset request when the link has no token', () => {

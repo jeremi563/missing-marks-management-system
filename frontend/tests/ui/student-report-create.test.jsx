@@ -39,7 +39,7 @@ describe('StudentReportCreate', () => {
     const courseSelect = await screen.findByLabelText('Course unit')
     expect(screen.queryByLabelText('Assessment component')).toBeNull()
     expect(screen.queryByLabelText('Assessment ID')).toBeNull()
-    expect(screen.getByRole('option', { name: 'IN101 — Introduction to Computing' })).toBeTruthy()
+    expect(await screen.findByRole('option', { name: 'IN101 — Introduction to Computing' })).toBeTruthy()
 
     fireEvent.change(courseSelect, { target: { value: 'course-1' } })
     const academicYearSelect = screen.getByLabelText('Academic year')

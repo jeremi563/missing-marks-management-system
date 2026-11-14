@@ -1,81 +1,78 @@
+.student-dashboard, .student-reports-page, .student-profile, .student-attendance, .student-appeals, .student-notifications { display: grid; gap: 22px; }
+.student-welcome, .student-reports-header, .notifications-header, .profile-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.student-eyebrow { color: var(--primary); font-size: 11px; font-weight: 750; letter-spacing: .12em; }
+.student-welcome h2, .student-reports-header h2, .notifications-header h1, .profile-header h1 { margin: 7px 0; font-size: 27px; }
+.student-welcome p, .student-reports-header p, .notifications-header p, .profile-header p { color: var(--muted); }
+.student-primary-button, .student-reports-header a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 15px; border-radius: 10px; color: #fff; background: var(--primary); font-weight: 650; }
+.student-summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.student-summary-card, .student-report-card, .student-recent-section, .details-card, .appeal-card, .attendance-card, .notification-card { padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: #fff; }
+.student-summary-card { display: flex; align-items: center; gap: 13px; }
+.student-summary-card p { margin: 0; color: var(--muted); font-size: 12px; }
+.student-summary-card h3 { margin: 5px 0 0; font-size: 22px; }
+.student-stat-icon, .student-report-icon, .notification-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 12px; color: var(--primary); background: var(--secondary-soft); }
+.student-stat-orange { color: #bd7d15; background: #fff5df; }
+.student-stat-green { color: #1d8b5a; background: #e9f8f0; }
+.student-stat-red { color: #c14949; background: #fff0ef; }
+.student-section-heading, .student-report-main, .student-report-actions, .student-reports-toolbar, .notification-title-row, .comment-header, .appeal-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+.student-section-heading h3 { margin: 0; }
+.student-section-heading p { color: var(--muted); font-size: 13px; }
+.student-report-card { display: grid; gap: 14px; margin-top: 12px; }
+.student-report-main { justify-content: flex-start; }
+.student-report-information h3 { margin: 0 0 5px; }
+.student-report-information p, .student-report-information small { margin: 4px 0; color: var(--muted); font-size: 13px; }
+.student-reports-list { display: grid; gap: 12px; }
+.student-reports-toolbar { margin: 10px 0; }
+.student-filter { display: flex; align-items: center; gap: 10px; }
+.student-filter select { width: auto; }
+.student-report-actions a, .student-recent-section a { color: var(--primary); font-size: 13px; font-weight: 650; }
+.student-clear-filter { color: var(--primary); }
+.details-card h2 { margin-top: 0; }
+.report-attendance-review { display: grid; gap: 14px; margin: 18px 0; }
+.report-attendance-review-heading h3 { margin: 0 0 5px; }
+.report-attendance-review-heading p,
+.report-attendance-review-note { margin: 0; color: var(--muted); font-size: 12px; }
+.report-attendance-check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.report-attendance-check { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 12px; background: #f7faf9; border: 1px solid var(--line); border-radius: 10px; }
+.report-attendance-check > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; }
+.report-attendance-check strong { color: var(--ink); font-size: 12px; }
+.report-attendance-check span { color: #647d80; font-size: 11px; font-weight: 700; }
+.report-attendance-check small { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.report-attendance-check-present span { color: #17784c; }
+.report-attendance-check-absent span { color: #b64242; }
+.report-attendance-class-check span { color: var(--blue); }
+.comment-item { padding: 14px 0; border-bottom: 1px solid #edf0f5; }
+.comment-header small, .comment-item p { color: var(--muted); font-size: 12px; }
+.comment-form { display: grid; gap: 10px; margin-top: 18px; }
+.notification-card { display: flex; gap: 14px; }
+.notification-content { flex: 1; }
+.notification-card h3 { margin: 2px 0 5px; font-size: 14px; }
+.notification-card p { color: var(--muted); font-size: 13px; }
+.notification-card.read { opacity: .78; }
+.notification-date { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+.notification-filters { display: flex; gap: 8px; }
+.notification-filters button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+.notification-filters button.active { color: var(--primary); background: var(--secondary-soft); border-color: #d9cbff; }
+.notifications-toolbar { display: flex; justify-content: space-between; gap: 12px; }
+.notifications-empty { padding: 45px 20px; color: var(--muted); text-align: center; }
+.notifications-empty h3 { color: var(--ink); }
+.student-registration { display: inline-block; margin-top: 7px; color: var(--muted); font-size: 12px; }
+.student-reports-count { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+@media (max-width: 680px) {
+  .student-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .report-attendance-check-grid { grid-template-columns: 1fr; }
+  .student-welcome, .student-reports-header, .notifications-header, .student-reports-toolbar, .notifications-toolbar { align-items: flex-start; flex-direction: column; }
+}
+
 .student-portal {
   --student-ink: #171717;
   --student-muted: #5f636a;
   --student-line: #E5E5E5;
   --student-teal: var(--primary);
   --student-teal-dark: #561de6;
-  --student-canvas: #FFFFFF;
+  --student-canvas: var(--canvas);
   min-height: 100vh;
   color: var(--student-ink);
   background: var(--student-canvas);
-}
-
-.student-portal .sidebar {
-  width: 252px;
-  padding: 26px 17px 20px;
-  color: var(--ink);
-  background: #FFFFFF;
-  border-right: 1px solid var(--line);
-  box-shadow: 8px 0 28px rgba(23,23,23,.04);
-}
-
-.student-portal .sidebar-brand {
-  padding: 0 5px;
-  color: var(--ink);
-}
-
-.student-portal .sidebar-brand small {
-  color: var(--muted);
-}
-
-.student-portal .brand-icon {
-  color: #fff;
-  background: linear-gradient(140deg, var(--primary), var(--secondary));
-  border-radius: 12px;
-  box-shadow: none;
-}
-
-.student-portal .sidebar-role {
-  margin: 35px 9px 13px;
-  color: var(--muted);
-}
-
-.student-portal .sidebar-nav {
-  gap: 7px;
-}
-
-.student-portal .sidebar-link {
-  min-height: 46px;
-  padding: 0 13px;
-  color: #45454a;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  font-weight: 550;
-  transition: background .16s ease, color .16s ease, border-color .16s ease;
-}
-
-.student-portal .sidebar-link svg {
-  color: #71747b;
-}
-
-.student-portal .sidebar-link:hover {
-  color: var(--primary);
-  background: var(--secondary-soft);
-}
-
-.student-portal .sidebar-link.active {
-  color: var(--primary);
-  background: var(--secondary-soft);
-  border-color: #e4d7ff;
-  box-shadow: inset 3px 0 var(--primary);
-}
-
-.student-portal .sidebar-link.active svg {
-  color: var(--primary);
-}
-
-.student-portal .dashboard-main {
-  margin-left: 252px;
 }
 
 .student-portal .topbar {
@@ -143,11 +140,11 @@
   min-height: 206px;
   padding: 32px 36px;
   overflow: hidden;
-  color: #f6ffff;
-  background: linear-gradient(118deg, #171717, #26222f 78%, #38245a);
-  border: 1px solid #30283e;
+  color: #173840;
+  background: linear-gradient(90deg, #90c6cf4f, #33a1b4b4 50%, #63acb9a9 100%);
+  border: 1px solid rgba(51, 161, 180, .28);
   border-radius: 17px;
-  box-shadow: 0 12px 26px #173a4517;
+  box-shadow: 0 12px 26px rgba(18, 57, 65, .12);
 }
 
 .student-portal .student-welcome::after {
@@ -170,12 +167,12 @@
 }
 
 .student-portal .student-welcome .student-eyebrow {
-  color: #D7C2FF;
+  color: #562fb1;
 }
 
 .student-portal .student-welcome h2 {
   margin: 0 0 8px;
-  color: #fff;
+  color: #4f47a5;
   font-size: clamp(26px, 3vw, 34px);
   font-weight: 720;
   letter-spacing: -.035em;
@@ -183,7 +180,7 @@
 
 .student-portal .student-welcome p:not(.student-eyebrow) {
   margin: 0;
-  color: #c1d5d9;
+  color: #173840;
   font-size: 14px;
   line-height: 1.65;
 }
@@ -192,9 +189,9 @@
   display: inline-flex;
   margin-top: 17px;
   padding: 7px 10px;
-  color: #d1e8e7;
-  background: #ffffff0c;
-  border: 1px solid #ffffff20;
+  color: #173840;
+  background: #ffffff66;
+  border: 1px solid #17384024;
   border-radius: 7px;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -205,9 +202,9 @@
 .student-portal .student-report-create-page .button-primary {
   min-height: 43px;
   padding: 0 15px;
-  color: #102f38;
-  background: #91dfcb;
-  border: 1px solid #91dfcb;
+  color: #fff;
+  background: var(--primary);
+  border: 1px solid var(--primary);
   border-radius: 9px;
   box-shadow: none;
   font-size: 13px;
@@ -218,8 +215,8 @@
 .student-portal .student-primary-button:hover,
 .student-portal .student-reports-header a:hover,
 .student-portal .student-report-create-page .button-primary:hover {
-  color: #102f38;
-  background: #b0ecdb;
+  color: #fff;
+  background: var(--primary-strong);
   transform: translateY(-1px);
 }
 
@@ -244,10 +241,10 @@
 .student-portal .student-summary-card {
   min-height: 112px;
   padding: 20px;
-  background: #fff;
+  background: #b8ebe84e;
   border: 1px solid var(--student-line);
   border-radius: 13px;
-  box-shadow: 0 4px 14px #18384008;
+  box-shadow: 0 0 20px rgba(22, 60, 64, .2);
   transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
 }
 
@@ -621,8 +618,8 @@
 .student-portal input:focus,
 .student-portal select:focus,
 .student-portal textarea:focus {
-  border-color: #54a7a5;
-  box-shadow: 0 0 0 3px #087e8318;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(var(--primary-rgb), .12);
 }
 
 .student-portal .field-hint {
@@ -1328,26 +1325,8 @@
 }
 
 .student-portal :focus-visible {
-  outline: 3px solid #48aaa0;
+  outline: 3px solid rgba(var(--primary-rgb), .45);
   outline-offset: 3px;
-}
-
-@media (max-width: 900px) {
-  .student-portal .sidebar {
-    width: 252px;
-  }
-
-  .student-portal .dashboard-main {
-    margin-left: 0;
-  }
-
-  .student-portal .sidebar-overlay {
-    background: #0d2731a6;
-  }
-
-  .student-portal .sidebar-close {
-    color: #dce9eb;
-  }
 }
 
 @media (max-width: 680px) {

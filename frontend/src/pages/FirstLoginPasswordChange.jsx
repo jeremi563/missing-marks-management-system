@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, KeyRound } from 'lucide-react'
 import { useAuth } from '../auth/useAuth'
+import { getPostLoginDestination } from '../auth/role-navigation'
+import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../auth/password-policy'
 import { changePassword } from '../api/auth'
+import '../styles/AuthPages.css'
 
 export default function FirstLoginPasswordChange() {
   const { refreshUser, user } = useAuth()
@@ -18,8 +21,8 @@ export default function FirstLoginPasswordChange() {
   const submit = async (event) => {
     event.preventDefault()
     setError('')
-    if (newPassword.length < 8) {
-      setError('Choose a password with at least 8 characters.')
+    if (!meetsPasswordPolicy(newPassword)) {
+      setError(PASSWORD_POLICY_MESSAGE)
       return
     }
     if (newPassword !== confirmPassword) {
@@ -34,8 +37,9 @@ export default function FirstLoginPasswordChange() {
     setSubmitting(true)
     try {
       await changePassword(currentPassword, newPassword)
-      await refreshUser()
-      navigate(location.state?.from?.pathname || '/student', { replace: true })
+      const refreshedUser = await refreshUser()
+      const destination = getPostLoginDestination(refreshedUser, location.state?.from)
+      navigate(destination, { replace: true })
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to update your password. Please try again.')
     } finally {
@@ -69,6 +73,7 @@ export default function FirstLoginPasswordChange() {
             onChange={(event) => setNewPassword(event.target.value)}
             autoComplete="new-password"
             minLength={8}
+            maxLength={128}
             required
           />
           <label htmlFor="confirm-new-password">Confirm new password</label>
@@ -79,8 +84,10 @@ export default function FirstLoginPasswordChange() {
             onChange={(event) => setConfirmPassword(event.target.value)}
             autoComplete="new-password"
             minLength={8}
+            maxLength={128}
             required
           />
+          <small className="field-hint">{PASSWORD_POLICY_MESSAGE}</small>
           <button
             className="button button-secondary"
             type="button"

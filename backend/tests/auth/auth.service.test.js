@@ -71,9 +71,21 @@ test("uses the same registration-number login for every account role", async () 
 					? { user }
 					: null,
 			},
-		});
+		}, { accountType: role === "student" ? "student" : "staff" });
 		assert.deepEqual(result.user.roles, [role]);
 	}
+});
+
+test("rejects valid credentials when the selected account type does not match the user's role", async () => {
+	const student = await makeUser();
+	const lecturer = await makeUser({ roles: [{ role: { name: "lecturer" } }] });
+
+	await assert.rejects(loginWithCredentials("STU-001", "student-password", {
+		accountLoginIdentifier: { findUnique: async () => ({ user: student }) },
+	}, { accountType: "staff" }), { statusCode: 401 });
+	await assert.rejects(loginWithCredentials("AB/0123/STAFF9", "student-password", {
+		accountLoginIdentifier: { findUnique: async () => ({ user: lecturer }) },
+	}, { accountType: "student" }), { statusCode: 401 });
 });
 
 test("allows an active, approved lecturer to sign in without email verification", async () => {
@@ -260,7 +272,7 @@ test("first roster sign-in provisions a student and requires a private password"
 	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
 	const calls = {};
 	const userId = "00000000-0000-4000-8000-000000000002";
-	const eligibility = { id: "eligibility-id", studentNumber: studentNumber.toUpperCase(), email: "student@example.test", linkedUserId: null };
+	const eligibility = { id: "eligibility-id", studentNumber: studentNumber.toUpperCase(), fullName: "Taylor Student", email: "student@example.test", linkedUserId: null };
 	const tx = {
 		studentRegistrationEligibility: {
 			findUnique: async () => eligibility,
@@ -281,12 +293,13 @@ test("first roster sign-in provisions a student and requires a private password"
 		$transaction: async (callback) => callback(tx),
 	};
 
-	const result = await loginWithCredentials(studentNumber.toLowerCase(), studentNumber.toLowerCase(), db);
+	const result = await loginWithCredentials(studentNumber.toLowerCase(), studentNumber.toLowerCase(), db, { accountType: "student" });
 
 	assert.equal(result.user.id, userId);
 	assert.equal(result.user.mustChangePassword, true);
 	assert.deepEqual(result.user.roles, ["student"]);
 	assert.equal(calls.user.email, "student@example.test");
+	assert.equal(calls.user.displayName, "Taylor Student");
 	assert.equal(calls.user.isActive, true);
 	assert.equal(calls.user.approvalStatus, "APPROVED");
 	assert.equal(calls.user.mustChangePassword, true);
@@ -304,6 +317,16 @@ test("does not provision a roster student when the temporary password does not m
 		accountLoginIdentifier: { findUnique: async () => null },
 		$transaction: async () => { transactionStarted = true; },
 	}), { statusCode: 401 });
+	assert.equal(transactionStarted, false);
+});
+
+test("does not provision a roster student from the staff login tab", async () => {
+	const studentNumber = `IN16/01243/${String(new Date().getFullYear() % 100).padStart(2, "0")}`;
+	let transactionStarted = false;
+	await assert.rejects(loginWithCredentials(studentNumber, studentNumber, {
+		accountLoginIdentifier: { findUnique: async () => null },
+		$transaction: async () => { transactionStarted = true; },
+	}, { accountType: "staff" }), { statusCode: 401 });
 	assert.equal(transactionStarted, false);
 });
 
