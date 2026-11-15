@@ -12,11 +12,12 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react'
-import { getStudentAttendance, getStudentCatSubmissions } from '../../api/student'
+import { getStudentAttendance, getStudentCatSubmissions, getStudentExamAttendance } from '../../api/student'
 
 function StudentAttendance() {
   const [records, setRecords] = useState([])
   const [catSubmissions, setCatSubmissions] = useState([])
+  const [examAttendance, setExamAttendance] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -35,15 +36,18 @@ function StudentAttendance() {
         setLoading(true)
         setError('')
 
-        const [response, catResponse] = await Promise.all([
+        const [response, catResponse, examResponse] = await Promise.all([
           getStudentAttendance({ page: 1, limit: 100 }),
           getStudentCatSubmissions({ page: 1, limit: 100 }),
+          getStudentExamAttendance({ page: 1, limit: 100 }),
         ])
         const data = response?.data ?? response
 
         setRecords(Array.isArray(data) ? data : data?.records ?? [])
         const catData = catResponse?.data ?? catResponse
         setCatSubmissions(Array.isArray(catData) ? catData : catData?.items ?? [])
+        const examData = examResponse?.data ?? examResponse
+        setExamAttendance(Array.isArray(examData) ? examData : examData?.items ?? [])
       } catch (err) {
         setError(
           err.response?.data?.message ||
@@ -366,6 +370,48 @@ function StudentAttendance() {
           </div>
         )}
 
+      </section>
+
+      <section className="attendance-records" aria-label="Examination attendance verification">
+        <div className="attendance-records-header">
+          <div>
+            <h2>Examination attendance verification</h2>
+            <p>Examination check-ins remain pending until reviewed by the session lecturer.</p>
+          </div>
+        </div>
+        {examAttendance.length === 0 ? (
+          <div className="attendance-empty">
+            <ClipboardList size={38} />
+            <h3>No examination attendance records</h3>
+            <p>Examination check-ins and their verification decisions will appear here.</p>
+          </div>
+        ) : (
+          <div className="attendance-table-wrapper">
+            <table className="attendance-table">
+              <thead>
+                <tr><th>Assessment</th><th>Course unit</th><th>Academic year</th><th>Check-in</th><th>Verification status</th><th>Decision details</th></tr>
+              </thead>
+              <tbody>
+                {examAttendance.map((record) => (
+                  <tr key={record.id}>
+                    <td>{record.session?.assessment?.code || record.session?.assessment?.name || 'Examination'}</td>
+                    <td>{record.session?.courseUnit?.code} · {record.session?.courseUnit?.name}</td>
+                    <td>{record.academicYear || 'Not available'}</td>
+                    <td>{formatDate(record.recordedAt)}</td>
+                    <td><span className={`attendance-status ${(record.examVerificationStatus || 'unknown').toLowerCase()}`}>{(record.examVerificationStatus || 'UNKNOWN').replaceAll('_', ' ')}</span></td>
+                    <td>
+                      {record.examRejectionReason && <span><strong>Reason:</strong> {record.examRejectionReason}</span>}
+                      {record.examComments && <span><strong>Comments:</strong> {record.examComments}</span>}
+                      {record.examVerifiedAt && <span><strong>Decision:</strong> {formatDate(record.examVerifiedAt)}</span>}
+                      {record.examVerificationStatus === 'PENDING_REVIEW' && 'Awaiting lecturer verification'}
+                      {record.examVerificationStatus === 'LEGACY_UNVERIFIED' && 'Historical outcome unavailable'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       <section className="attendance-records" aria-label="CAT submissions">

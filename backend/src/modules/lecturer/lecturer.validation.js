@@ -64,6 +64,29 @@ export const catSubmissionDecisionSchema = z.object({
     context.addIssue({ code: 'custom', path: ['comments'], message: 'Comments are only valid when verifying.' });
   }
 });
+export const examAttendanceQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+  status: z.enum(['PENDING_REVIEW', 'VERIFIED', 'REJECTED', 'LEGACY_UNVERIFIED']).optional(),
+  courseUnitId: z.string().uuid().optional(),
+  assessmentId: z.string().uuid().optional(),
+}).strict();
+export const examAttendanceParamsSchema = z.object({ recordId: z.string().uuid() }).strict();
+export const examAttendanceDecisionSchema = z.object({
+  decision: z.enum(['VERIFY', 'REJECT']),
+  comments: z.string().trim().max(2000).optional(),
+  reason: z.string().trim().min(1).max(2000).optional(),
+}).strict().superRefine((body, context) => {
+  if (body.decision === 'REJECT' && !body.reason) {
+    context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is required.' });
+  }
+  if (body.decision === 'VERIFY' && body.reason !== undefined) {
+    context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is only valid when rejecting.' });
+  }
+  if (body.decision === 'REJECT' && body.comments !== undefined) {
+    context.addIssue({ code: 'custom', path: ['comments'], message: 'Comments are only valid when verifying.' });
+  }
+});
 
 // Feature 3: Report investigation and comments
 export const createCommentSchema = z.object({

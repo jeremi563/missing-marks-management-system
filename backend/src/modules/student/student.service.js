@@ -858,17 +858,18 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 			) {
 				throw new AppError(403, "This course unit is not part of your registered course");
 			}
-			if (currentSession.sessionType === "CAT") {
-				if (!currentSession.assessmentId) throw new AppError(409, "The CAT session is missing its assessment");
+			if (["CAT", "EXAM"].includes(currentSession.sessionType)) {
+				const sessionLabel = currentSession.sessionType === "CAT" ? "CAT" : "examination";
+				if (!currentSession.assessmentId) throw new AppError(409, `The ${sessionLabel} session is missing its assessment`);
 				const assessment = await transaction.assessment.findFirst({
 					where: {
 						id: currentSession.assessmentId,
 						courseUnitId: currentSession.courseUnitId,
-						type: "CAT",
+						type: currentSession.sessionType,
 					},
 					select: { id: true },
 				});
-				if (!assessment) throw new AppError(409, "The CAT session assessment is no longer valid for this course unit");
+				if (!assessment) throw new AppError(409, `The ${sessionLabel} session assessment is no longer valid for this course unit`);
 			}
 
 			const currentDistance = distanceBetweenMeters(
@@ -902,8 +903,9 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 					status: "PRESENT",
 					locationVerified: true,
 					recordedAt,
+					...(currentSession.sessionType === "EXAM" ? { examVerificationStatus: "PENDING_REVIEW" } : {}),
 				},
-				select: { id: true, status: true, locationVerified: true, recordedAt: true },
+				select: { id: true, status: true, locationVerified: true, recordedAt: true, examVerificationStatus: true },
 			});
 
 			await transaction.attendanceHistory.create({
@@ -979,6 +981,20 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 						message: `A CAT submission for ${currentSession.courseUnit.code} is awaiting your verification.`,
 					});
 				}
+			}
+			if (currentSession.sessionType === "EXAM") {
+				await recordAuditEvent({
+					prismaClient: transaction,
+					actorId: userId,
+					action: "EXAM_ATTENDANCE_VERIFICATION_CREATED",
+					entityType: "AttendanceRecord",
+					entityId: record.id,
+					metadata: {
+						assessmentId: currentSession.assessmentId,
+						attendanceSessionId: currentSession.id,
+						examVerificationStatus: "PENDING_REVIEW",
+					},
+				});
 			}
 
 			return {
@@ -1063,6 +1079,51 @@ export async function listStudentCatSubmissions(prisma, userId, { page = 1, limi
 	});
 	return {
 		items,
+		pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+	};
+}
+
+export async function listStudentExamAttendance(prisma, userId, { page = 1, limit = 20, status } = {}) {
+	const student = await prisma.studentProfile.findUnique({ where: { userId }, select: { id: true } });
+	if (!student) throw new AppError(404, "Student profile not found");
+	const where = {
+		studentProfileId: student.id,
+		session: { is: { sessionType: "EXAM" } },
+		...(status ? { examVerificationStatus: status } : {}),
+	};
+	const [items, total] = await prisma.$transaction([
+		prisma.attendanceRecord.findMany({
+			where,
+			skip: (page - 1) * limit,
+			take: limit,
+			orderBy: [{ recordedAt: "desc" }, { id: "desc" }],
+			select: {
+				id: true,
+				status: true,
+				recordedAt: true,
+				locationVerified: true,
+				examVerificationStatus: true,
+				examVerifiedAt: true,
+				examVerificationMethod: true,
+				examVerificationActorAt: true,
+				examRejectionReason: true,
+				examComments: true,
+				examVerifiedBy: { select: { user: { select: { displayName: true } } } },
+				examVerificationActor: { select: { displayName: true } },
+				session: {
+					select: {
+						id: true,
+						startsAt: true,
+						courseUnit: { select: { id: true, code: true, name: true } },
+						assessment: { select: { id: true, code: true, name: true, type: true } },
+					},
+				},
+			},
+		}),
+		prisma.attendanceRecord.count({ where }),
+	]);
+	return {
+		items: items.map((item) => ({ ...item, academicYear: academicYearForDate(item.session.startsAt) })),
 		pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
 	};
 }

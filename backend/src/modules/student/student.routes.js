@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
-import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, checkInToAttendance, getCatSubmissions, getNotifications, updateReport, withdrawReport, getReportComments, addClarification, submitAppeal, markNotificationRead, createAttendanceDiscrepancy, getAttendanceDiscrepancies, getAttendanceDiscrepancy, respondAttendanceDiscrepancy } from "./student.controller.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody, validateCreateStudentCommentBody, validateStudentNotificationId, validateAttendanceDiscrepancySource, validateAttendanceDiscrepancyParams, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery } from "./student.validation.js";
+import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, checkInToAttendance, getCatSubmissions, getStudentExamAttendance, getNotifications, updateReport, withdrawReport, getReportComments, addClarification, submitAppeal, markNotificationRead, createAttendanceDiscrepancy, getAttendanceDiscrepancies, getAttendanceDiscrepancy, respondAttendanceDiscrepancy } from "./student.controller.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody, validateCreateStudentCommentBody, validateStudentNotificationId, validateAttendanceDiscrepancySource, validateAttendanceDiscrepancyParams, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery, validateStudentExamAttendanceQuery } from "./student.validation.js";
 import { validate } from "../../middleware/validate.js";
 import { appealIdParams, createSpecialCaseBody, pageQuery, reportIdParams, specialCaseIdParams } from "../feature5/feature5.validation.js";
 import { createStudentCase, getStudentAppealById, getStudentAppeals, getStudentCaseById, getStudentCases } from "../feature5/feature5.controller.js";
@@ -10,12 +10,18 @@ import { getStudentEnrollmentOptions, postStudentEnrollmentRequests } from "../e
 import { studentEnrollmentRequestBody } from "../enrollment/enrollment-request.validation.js";
 import { getStudentMarksController } from "../marks/marks.controller.js";
 import { studentMarksQuery } from "../marks/marks.validation.js";
+import { examBookletScanRateLimit } from "../exam-booklet/exam-booklet.rate-limit.js";
+import { getStudentExamBooklets, postStudentExamBookletScan } from "../exam-booklet/exam-booklet.controller.js";
+import { studentBookletScanBody } from "../exam-booklet/exam-booklet.validation.js";
 
 const router = Router();
 
 router.get("/profile", authenticate, authorize("student"), getProfile);
 router.get("/marks", authenticate, authorize("student"), validate(studentMarksQuery, "query"), getStudentMarksController);
 router.get("/cat-submissions", authenticate, authorize("student"), validateStudentCatSubmissionsQuery, getCatSubmissions);
+router.get("/exam-attendance", authenticate, authorize("student"), validateStudentExamAttendanceQuery, getStudentExamAttendance);
+router.get("/exam-booklets", authenticate, authorize("student"), getStudentExamBooklets);
+router.post("/exam-booklets/scan", authenticate, authorize("student"), examBookletScanRateLimit, validate(studentBookletScanBody), postStudentExamBookletScan);
 router.get("/enrollment-options", authenticate, authorize("student"), getStudentEnrollmentOptions);
 router.post("/enrollment-requests", authenticate, authorize("student"), validate(studentEnrollmentRequestBody), postStudentEnrollmentRequests);
 router.get("/report-options", authenticate, authorize("student"), getReportOptions);

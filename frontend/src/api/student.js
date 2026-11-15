@@ -30,6 +30,18 @@ export const getStudentCatSubmissions = async (params = {}) => {
   const response = await apiClient.get('/student/cat-submissions', { params })
   return response.data
 }
+export const getStudentExamAttendance = async (params = {}) => {
+  const response = await apiClient.get('/student/exam-attendance', { params })
+  return response.data
+}
+export const getStudentExamBooklets = async () => {
+  const response = await apiClient.get('/student/exam-booklets')
+  return response.data
+}
+export const scanStudentExamBooklet = async (data) => {
+  const response = await apiClient.post('/student/exam-booklets/scan', data)
+  return response.data
+}
 
 // Missing-mark reports
 export const getStudentReports = async (params = {}) => {

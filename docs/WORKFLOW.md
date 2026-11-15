@@ -133,9 +133,24 @@ The submission starts as `PENDING_REVIEW`. Only the lecturer who owns the linked
 
 `LEGACY_REVIEWED` and `LEGACY_UNVERIFIED` preserve the ambiguity of records created before this workflow: a historical verifier/time does not establish whether the outcome was approval or rejection. Such rows are not presented as pending review. Assessment-attendance and attempt sources remain separate and may be reviewed in departmental reports and discrepancies. The current Admin correction ledger supports session attendance records only.
 
+EXAM attendance is a separate verification lifecycle on `AttendanceRecord`, not a CAT submission. A successful EXAM check-in passes the same QR, session-window, GPS, registration, and academic-year enrollment checks, then creates the normal attendance record and history with `examVerificationStatus: PENDING_REVIEW` and an `EXAM_ATTENDANCE_VERIFICATION_CREATED` audit event in one transaction. CLASS check-in keeps its existing behavior and does not receive an examination status.
+
+Only the lecturer who owns the linked EXAM session can review its records. They may verify with optional comments or reject with a required reason. The conditional update permits one final decision and records the lecturer and decision time; its audit event and student notification-outbox entry commit in the same transaction. Students can view their own pending, verified, rejected, and legacy-unverified EXAM records and rejection reasons. Existing EXAM records are migrated to `LEGACY_UNVERIFIED`; they are not silently treated as pending or verified. COD attendance reports remain read-only and no separate COD decision workflow is introduced.
+
 Confirm the official university source of truth for CAT and examination attendance before treating application records as authoritative.
 
-The team has discussed QR verification for an exam booklet. Document the final scanning, matching and exception process before implementation.
+### Examination booklet QR verification
+
+1. The lecturer who owns an EXAM attendance session allocates a booklet for each student enrolled in the course unit for the session's academic year. One active booklet is permitted per student and EXAM assessment. Allocation generates a 256-bit random token; only its SHA-256 hash is stored. The QR payload is the token alone and contains no student data.
+2. The lecturer prints newly issued QR codes and attaches them to the corresponding physical booklets. The raw token is returned only when first issued; existing tokens are never recovered from storage. A replacement issues a fresh code.
+3. A signed-in student selects their allocation and scans its booklet QR. The server derives the student from authentication, then validates the token, allocation, assessment, EXAM session, academic-year enrollment and active session window. A booklet allocated to another student is rejected and audited.
+4. An assigned lecturer/invigilator scans a QR. The server first shows the allocation's student and booklet details; the invigilator must explicitly confirm that the student's physical identity matches before submitting the verification. Student and invigilator scans are recorded as `STUDENT_SCAN` and `INVIGILATOR_SCAN`, respectively.
+5. If the QR is damaged, an authorized lecturer assigned to that session may search by student number. The lecturer must confirm the student's physical identity. Manual lookup still requires an active EXAM session, valid allocation, assessment match and enrollment; it is recorded as an invigilator scan with a damaged-QR exception and an audit event.
+6. On success, one transaction records the scan, marks the booklet `VERIFIED`, creates an attendance record only if none exists, updates the existing `AttendanceRecord.examVerificationStatus` to `VERIFIED`, records the verification method/actor/time, writes an audit event and enqueues a student notification. `(sessionId, studentProfileId)` prevents duplicate attendance. `examVerifiedByLecturerId` remains reserved for lecturer decisions and is never populated with a student ID.
+7. Repeated scans by the allocated student safely return the existing verification and create a duplicate ledger entry. Wrong-student, invalid, replaced, wrong-exam, inactive-session, missing-allocation and enrollment failures do not verify attendance and are logged. A prior lecturer rejection remains authoritative and cannot be overwritten by booklet scanning; earlier lecturer actor/time fields are preserved.
+8. A session lecturer or the designated active departmental COD may approve replacement with a required reason. The old booklet and scan ledger remain; its token is moved to an inactive hash and can never verify again. The new allocation becomes the sole active booklet for that student/assessment.
+
+CLASS and CAT workflows are unchanged. Device location remains supporting evidence only; it is not proof of physical presence. Attendance verification through this feature is an application record, not an independently verified university source of truth.
 
 ## 8. Notifications
 

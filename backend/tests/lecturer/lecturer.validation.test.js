@@ -16,6 +16,9 @@ import {
   catSubmissionsQuerySchema,
   catSubmissionParamsSchema,
   catSubmissionDecisionSchema,
+  examAttendanceQuerySchema,
+  examAttendanceParamsSchema,
+  examAttendanceDecisionSchema,
 } from '../../src/modules/lecturer/lecturer.validation.js';
 
 test('accepts a valid report UUID', () => {
@@ -151,8 +154,16 @@ test('rejects a missing decision reason', () => {
     decision: 'APPROVE',
     assessmentTypeId: validAssessmentTypeId,
   });
-
   assert.equal(result.success, false);
+});
+
+test('validates exam attendance filters, identifiers, and decision requirements', () => {
+  assert.equal(examAttendanceQuerySchema.safeParse({ page: '2', status: 'PENDING_REVIEW' }).success, true);
+  assert.equal(examAttendanceParamsSchema.safeParse({ recordId: validAssessmentTypeId }).success, true);
+  assert.equal(examAttendanceDecisionSchema.safeParse({ decision: 'VERIFY', comments: 'Checked.' }).success, true);
+  assert.equal(examAttendanceDecisionSchema.safeParse({ decision: 'REJECT', reason: 'Not on register.' }).success, true);
+  assert.equal(examAttendanceDecisionSchema.safeParse({ decision: 'REJECT', reason: '   ' }).success, false);
+  assert.equal(examAttendanceDecisionSchema.safeParse({ decision: 'VERIFY', reason: 'Unexpected.' }).success, false);
 });
 
 test('rejects an empty decision reason', () => {
