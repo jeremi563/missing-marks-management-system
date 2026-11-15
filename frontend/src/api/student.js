@@ -1,6 +1,7 @@
 
 
 import apiClient from './client'
+import { withEvidenceFiles } from './evidence'
 
 // Student profile
 export const getStudentProfile = async () => {
@@ -38,8 +39,9 @@ export const getStudentReport = async (reportId) => {
   return response.data
 }
 
-export const createStudentReport = async (reportData) => {
-  const response = await apiClient.post('/student/reports', reportData)
+export const createStudentReport = async (reportData, files = []) => {
+  const payload = withEvidenceFiles(reportData, files)
+  const response = await apiClient.post('/student/reports', payload, payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined)
   return response.data
 }
 
@@ -76,10 +78,12 @@ export const withdrawStudentReport = async (reportId) => {
 }
 
 // Appeals
-export const createStudentAppeal = async (reportId, appealData) => {
+export const createStudentAppeal = async (reportId, appealData, files = []) => {
+  const payload = withEvidenceFiles(appealData, files)
   const response = await apiClient.post(
     `/student/reports/${reportId}/appeals`,
-    appealData
+    payload,
+    payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined
   )
   return response.data
 }
@@ -94,8 +98,13 @@ export const getStudentAppeal = async (appealId) => {
   return response.data
 }
 
-export const createStudentSpecialCase = async (reportId, caseData) => {
-  const response = await apiClient.post(`/student/reports/${reportId}/special-cases`, caseData)
+export const createStudentSpecialCase = async (reportId, caseData, files = []) => {
+  const payload = withEvidenceFiles(caseData, files)
+  const response = await apiClient.post(
+    `/student/reports/${reportId}/special-cases`,
+    payload,
+    payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined
+  )
   return response.data
 }
 

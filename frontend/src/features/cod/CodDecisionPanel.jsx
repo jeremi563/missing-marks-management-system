@@ -3,6 +3,7 @@ import { getCodAppeal, getCodSpecialCase, decideCodAppeal, decideCodSpecialCase 
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import StatusChip from '../../components/ui/StatusChip'
+import EvidenceList from '../shared/EvidenceList'
 
 function unwrap(response) {
   const first = response?.data ?? response
@@ -54,6 +55,7 @@ export default function CodDecisionPanel({ id, type, onClose }) {
       <header className="page-heading"><div><p className="eyebrow">{isAppeal ? 'APPEAL REVIEW' : 'SPECIAL CASE REVIEW'}</p><h2>{record.reference || record.id || (isAppeal ? 'Appeal' : 'Special case')}</h2><p>{record.student?.displayName || record.student?.studentNumber || record.category?.name || ''}</p></div><div className="record-actions"><StatusChip status={record.status} /><button className="button button-secondary" onClick={onClose}>Close</button></div></header>
       {error && <div className="form-alert" role="alert">{error}</div>}
       <p>{record.reason || record.description || record.comments || 'No additional details provided.'}</p>
+      <EvidenceList evidence={record.evidence} title={isAppeal ? 'Appeal evidence' : 'Special-case evidence'} />
       <label htmlFor="cod-case-reason">Decision reason</label>
       <textarea id="cod-case-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={2000} required />
       <div className="record-actions" style={{ marginTop: 12 }}>
