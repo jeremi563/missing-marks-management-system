@@ -110,7 +110,7 @@ test('returns assessments only for the selected assigned course unit and session
       findFirst: async ({ where }) => {
         assert.deepEqual(where, {
           id: 'unit-1',
-          lecturerMappings: { some: { lecturerProfileId: 'lecturer-profile-1', academicYear: academicYearForDate(new Date()) } },
+          lecturerMappings: { some: { lecturerProfileId: 'lecturer-profile-1', academicYear: academicYearForDate(new Date()), isActive: true } },
         });
         return { id: 'unit-1' };
       },
@@ -152,13 +152,13 @@ test("returns enrolled students only from the authenticated lecturer's assigned 
       name: 'Programming',
       department: { name: 'Computing', code: 'SIST' },
     },
-    academicPeriod: { id: 'period-1', code: '2026A', name: '2026 Semester A' },
+    academicPeriod: { id: 'period-1', code: '2026A', name: '2026 Semester A', startsAt: new Date('2026-09-01') },
   }];
   const prisma = {
     lecturerProfile: { findUnique: async () => ({ id: 'lecturer-profile-1' }) },
     courseUnitLecturer: {
       findMany: async ({ where }) => {
-        assert.deepEqual(where, { lecturerProfileId: 'lecturer-profile-1', academicYear: { not: null } });
+        assert.deepEqual(where, { lecturerProfileId: 'lecturer-profile-1', academicYear: { not: null }, isActive: true });
         return [{ courseUnitId: 'unit-1', academicYear }];
       },
     },
@@ -328,7 +328,7 @@ test('returns report details successfully', async () => {
     id: 'report-1',
     reference: 'MM-001',
     student: { studentNumber: 'STU-001' },
-    academicPeriod: { name: 'Semester One', code: 'S1' },
+    academicPeriod: { name: 'Semester One', code: 'S1', startsAt: new Date('2026-09-01') },
   };
 
   const prisma = {
@@ -885,6 +885,7 @@ const createAttendanceControllerPrisma = ({
   courseUnitLecturer: {
     findFirst: async ({ where }) => {
       assert.equal(where.academicYear, academicYearForDate(validAttendanceBody.startsAt));
+      assert.equal(where.isActive, true);
       return assignment;
     },
   },

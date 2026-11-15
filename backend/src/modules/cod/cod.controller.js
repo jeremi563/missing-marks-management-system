@@ -1,6 +1,6 @@
 import { sendSuccess } from "../../shared/utils/api-response.js";
 import { decideDepartmentLecturerAccount, listPendingDepartmentLecturers } from "../admin/admin.service.js";
-import { addCodReportComment, decideEscalatedReport, getCodReportDetails, listCodReportComments, listDepartmentReports, listCodDepartmentCourseUnits, listCodDepartmentStudents, listCodDepartmentLecturers, listCodDepartments, assignCodCourseUnitLecturer } from "./cod.service.js";
+import { addCodReportComment, decideEscalatedReport, getCodReportDetails, listCodReportComments, listDepartmentReports, listCodDepartmentCourseUnits, listCodDepartmentStudents, listCodDepartmentLecturers, listCodDepartments, assignCodCourseUnitLecturer, reassignCodReport } from "./cod.service.js";
 
 export async function getCodDepartments(req, res, next) {
   try {
@@ -132,6 +132,21 @@ export async function decideCodReport(req, res, next) {
       reason: req.body.reason,
     });
     return sendSuccess(res, "Final report decision recorded successfully", result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function postCodReportReassignment(req, res, next) {
+  try {
+    const result = await reassignCodReport({
+      db: req.app.locals.prisma,
+      userId: req.user.id,
+      reportId: req.params.id,
+      lecturerProfileId: req.body.lecturerProfileId,
+      reason: req.body.reason,
+    });
+    return sendSuccess(res, "Report reassigned successfully", result);
   } catch (error) {
     return next(error);
   }

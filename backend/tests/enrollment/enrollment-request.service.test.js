@@ -25,8 +25,8 @@ test("lists the student's department and course units, current periods, and exis
 			}];
 		} },
 		academicPeriod: { findMany: async () => [
-			{ id: "period-current", name: "2026/27", enrollmentOpensAt: new Date("2026-09-01"), enrollmentClosesAt: new Date("2027-02-01") },
-			{ id: "period-future", name: "2027/28", enrollmentOpensAt: new Date("2027-09-01"), enrollmentClosesAt: new Date("2028-02-01") },
+			{ id: "period-current", name: "2026/27", startsAt: new Date("2026-09-01"), enrollmentOpensAt: new Date("2026-09-01"), enrollmentClosesAt: new Date("2027-02-01") },
+			{ id: "period-future", name: "2027/28", startsAt: new Date("2027-09-01"), enrollmentOpensAt: new Date("2027-09-01"), enrollmentClosesAt: new Date("2028-02-01") },
 		] },
 		unitEnrollment: { findMany: async (query) => { enrollmentQuery = query; return []; } },
 		studentEnrollmentRequest: { findMany: async (query) => { requestQuery = query; return requests; } },
@@ -43,6 +43,7 @@ test("lists the student's department and course units, current periods, and exis
 	assert.deepEqual(courseQuery.select.lecturerMappings, {
 			where: {
 				academicYear: { in: ["2026/27"] },
+				isActive: true,
 				lecturer: { user: { isActive: true, approvalStatus: "APPROVED" } },
 			},
 			select: { lecturer: { select: { user: { select: { id: true, displayName: true } } } } },
@@ -59,7 +60,7 @@ test("creates one request per selected assigned course and notifies its lecturer
 	let courseQuery;
 	const tx = {
 		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
-		academicPeriod: { findUnique: async () => ({ id: "period-1", name: "2026/27", enrollmentOpensAt: new Date("2026-09-01"), enrollmentClosesAt: new Date("2027-02-01") }) },
+		academicPeriod: { findUnique: async () => ({ id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01"), enrollmentOpensAt: new Date("2026-09-01"), enrollmentClosesAt: new Date("2027-02-01") }) },
 		courseUnit: { findMany: async (query) => {
 			courseQuery = query;
 			return [{
@@ -100,7 +101,7 @@ test("creates one request per selected assigned course and notifies its lecturer
 test("prevents enrollment requests to another department or an unassigned course", async () => {
 	const tx = {
 		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
-		academicPeriod: { findUnique: async () => ({ id: "period-1", name: "2026/27", enrollmentOpensAt: new Date("2026-09-01"), enrollmentClosesAt: new Date("2027-02-01") }) },
+		academicPeriod: { findUnique: async () => ({ id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01"), enrollmentOpensAt: new Date("2026-09-01"), enrollmentClosesAt: new Date("2027-02-01") }) },
 		courseUnit: { findMany: async () => [] },
 	};
 	const db = { $transaction: async (callback) => callback(tx) };
@@ -119,6 +120,7 @@ test("rejects enrollment requests outside the administrator-configured window", 
 			findUnique: async () => ({
 				id: "period-1",
 				name: "2026/27",
+				startsAt: new Date("2026-09-01"),
 				enrollmentOpensAt: new Date("2026-09-01"),
 				enrollmentClosesAt: new Date("2026-11-01"),
 			}),
@@ -143,6 +145,7 @@ test("after enrollment windows close, keeps all department courses browseable wi
 			findMany: async () => [{
 				id: "period-closed",
 				name: "2025/26",
+				startsAt: new Date("2025-09-01"),
 				enrollmentOpensAt: new Date("2025-08-01"),
 				enrollmentClosesAt: new Date("2025-10-01"),
 			}],
@@ -151,7 +154,7 @@ test("after enrollment windows close, keeps all department courses browseable wi
 			findMany: async () => [{
 				courseUnitId: "unit-enrolled",
 				academicPeriodId: "period-closed",
-				academicPeriod: { name: "2025/26", code: "AY25" },
+				academicPeriod: { name: "2025/26", code: "AY25", startsAt: new Date("2025-09-01") },
 			}],
 		},
 		studentEnrollmentRequest: { findMany: async () => [] },
@@ -196,11 +199,11 @@ test("approves assigned lecturer requests in bulk and creates matching enrollmen
 		academicPeriodId: "period-1",
 		courseUnit: { departmentId: "department-1", code: "IN101", department: { name: "Information Technology" } },
 		student: { userId: "student-user-1" },
-		academicPeriod: { name: "2026/27" },
+		academicPeriod: { name: "2026/27", startsAt: new Date("2026-09-01") },
 	}];
 	const tx = {
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1", unitAssignments: [{ courseUnitId: "unit-1", academicYear: "2026/27" }] }) },
-		academicPeriod: { findMany: async () => [{ id: "period-1", name: "2026/27", code: "2026/27" }] },
+		academicPeriod: { findMany: async () => [{ id: "period-1", name: "2026/27", code: "2026/27", startsAt: new Date("2026-09-01") }] },
 		departmentMembership: { findMany: async () => [] },
 		user: { findFirst: async () => null },
 		department: { findMany: async () => [] },
@@ -232,7 +235,7 @@ test("reviewers only receive requests within their assigned scope", async () => 
 		departmentMembership: { findMany: async () => [] },
 		user: { findFirst: async () => null },
 		department: { findMany: async () => [] },
-		academicPeriod: { findMany: async () => [{ id: "period-1", name: "2026/27", code: "2026/27" }] },
+		academicPeriod: { findMany: async () => [{ id: "period-1", name: "2026/27", code: "2026/27", startsAt: new Date("2026-09-01") }] },
 		studentEnrollmentRequest: { findMany: async (args) => { query = args; return []; } },
 	};
 
@@ -270,13 +273,13 @@ test("prevents a reviewer from deciding requests outside their scope", async () 
 		departmentMembership: { findMany: async () => [] },
 		user: { findFirst: async () => null },
 		department: { findMany: async () => [] },
-		academicPeriod: { findMany: async () => [{ id: "period-1", name: "2026/27", code: "2026/27" }] },
+		academicPeriod: { findMany: async () => [{ id: "period-1", name: "2026/27", code: "2026/27", startsAt: new Date("2026-09-01") }] },
 		studentEnrollmentRequest: {
 			findMany: async () => [{
 				id: "request-1",
 				courseUnitId: "unit-1",
 				courseUnit: { departmentId: "department-1" },
-				academicPeriod: { name: "2026/27", code: "2026/27" },
+				academicPeriod: { name: "2026/27", code: "2026/27", startsAt: new Date("2026-09-01") },
 			}],
 			updateMany: async () => { updated = true; return { count: 1 }; },
 		},

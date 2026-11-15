@@ -28,6 +28,7 @@ test("student request controller passes the validated request body to the servic
 			findUnique: async () => ({
 				id: periodId,
 				name: "2026/27",
+				startsAt: new Date("2026-09-01"),
 				enrollmentOpensAt: new Date("2026-09-01"),
 				enrollmentClosesAt: new Date("2027-02-01"),
 			}),
@@ -77,7 +78,7 @@ test("reviewer controller reads the validated query and body from Express reques
 					departmentMembership: { findMany: async () => [] },
 					user: { findFirst: async () => null },
 					department: { findMany: async () => [] },
-					academicPeriod: { findMany: async () => [{ id: periodId, name: "2026/27" }] },
+					academicPeriod: { findMany: async () => [{ id: periodId, name: "2026/27", startsAt: new Date("2026-09-01") }] },
 					studentEnrollmentRequest: { findMany: async ({ where }) => { listQuery = where; return []; } },
 				},
 			},
@@ -101,7 +102,7 @@ test("reviewer controller reads the validated query and body from Express reques
 						departmentMembership: { findMany: async () => [] },
 						user: { findFirst: async () => null },
 						department: { findMany: async () => [] },
-						academicPeriod: { findMany: async () => [{ id: periodId, name: "2026/27" }] },
+						academicPeriod: { findMany: async () => [{ id: periodId, name: "2026/27", startsAt: new Date("2026-09-01") }] },
 						studentEnrollmentRequest: {
 							findMany: async () => [{
 								id: requestId,
@@ -110,7 +111,7 @@ test("reviewer controller reads the validated query and body from Express reques
 								academicPeriodId: periodId,
 								courseUnit: { departmentId: "department-id", code: "IN101", department: { name: "Computing" } },
 								student: { userId: "student-user" },
-								academicPeriod: { name: "2026/27" },
+								academicPeriod: { name: "2026/27", startsAt: new Date("2026-09-01") },
 							}],
 							updateMany: async () => ({ count: 1 }),
 						},

@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCourse, createCourseUnit, updateCourseUnit } from "../../src/modules/admin/academic.service.js";
+import {
+	createAcademicPeriod,
+	createCourse,
+	createCourseUnit,
+	deleteMapping,
+	updateAcademicPeriod,
+	updateCourseUnit,
+} from "../../src/modules/admin/academic.service.js";
 
 const ids = {
 	unit: "00000000-0000-4000-8000-000000000003",
@@ -105,4 +112,71 @@ test("admin creates a course unit under the selected course and derives its depa
 	assert.deepEqual(createdData, { courseId: "course-1", code: "IN101", name: "Introduction to Computing", departmentId: "department-1" });
 	assert.equal(result.departmentId, "department-1");
 	assert.equal(auditEvent.action, "ADMIN_COURSE_UNIT_CREATED");
+});
+
+test("academic-period creation and update reject periods crossing Nairobi academic years", async () => {
+	let created;
+	const createTx = {
+		academicPeriod: {
+			create: async ({ data }) => { created = data; return data; },
+		},
+		auditLog: { create: async () => ({}) },
+	};
+	const db = { $transaction: async (operation) => operation(createTx) };
+	await createAcademicPeriod({
+		db,
+		actorUserId: "admin-1",
+		name: "Misleading 2020/21",
+		startsAt: new Date("2026-09-01T00:00:00+03:00"),
+		endsAt: new Date("2027-08-31T23:59:59+03:00"),
+	});
+	assert.equal(created.name, "Misleading 2020/21");
+	await assert.rejects(createAcademicPeriod({
+		db,
+		actorUserId: "admin-1",
+		name: "2026/27",
+		startsAt: new Date("2026-09-01T00:00:00+03:00"),
+		endsAt: new Date("2027-09-01T00:00:00+03:00"),
+	}), { statusCode: 422 });
+
+	const updateTx = {
+		academicPeriod: {
+			findUnique: async () => ({
+				id: "period-1",
+				startsAt: new Date("2026-09-01T00:00:00+03:00"),
+				endsAt: new Date("2027-08-31T23:59:59+03:00"),
+				enrollmentOpensAt: null,
+				enrollmentClosesAt: null,
+			}),
+			update: async () => assert.fail("A spanning update must not be persisted"),
+		},
+		auditLog: { create: async () => ({}) },
+	};
+	await assert.rejects(updateAcademicPeriod({
+		db: { $transaction: async (operation) => operation(updateTx) },
+		actorUserId: "admin-1",
+		id: "period-1",
+		endsAt: new Date("2027-09-01T00:00:00+03:00"),
+	}), { statusCode: 422 });
+});
+
+test("administrator removal deactivates a lecturer assignment and keeps its history", async () => {
+	let deactivation;
+	let audit;
+	const tx = {
+		courseUnitLecturer: {
+			findUnique: async () => ({ id: "mapping-1", isActive: true }),
+			updateMany: async (query) => { deactivation = query; return { count: 1 }; },
+		},
+		auditLog: { create: async ({ data }) => { audit = data; return data; } },
+	};
+	const result = await deleteMapping({
+		db: { $transaction: async (operation) => operation(tx) },
+		actorUserId: "admin-1",
+		id: "mapping-1",
+	});
+	assert.equal(deactivation.where.id, "mapping-1");
+	assert.deepEqual(deactivation.data, { isActive: false, endedAt: result.endedAt });
+	assert.equal(audit.action, "ADMIN_LECTURER_MAPPING_DEACTIVATED");
+	assert.equal(result.isActive, false);
 });

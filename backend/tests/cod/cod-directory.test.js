@@ -176,8 +176,8 @@ test("COD can assign an active department lecturer to a department course unit a
 			},
 		},
 		courseUnitLecturer: {
-			findUnique: async ({ where }) => {
-				assert.deepEqual(where, { courseUnitId_academicYear: { courseUnitId: "unit-1", academicYear: "2026/27" } });
+			findFirst: async ({ where }) => {
+				assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2026/27", isActive: true });
 				return null;
 			},
 			create: async ({ data }) => {
@@ -201,7 +201,7 @@ test("COD can assign an active department lecturer to a department course unit a
 		now: new Date("2026-11-12T12:00:00.000Z"),
 		db,
 	});
-	assert.deepEqual(createdMapping, { courseUnitId: "unit-1", lecturerProfileId: "lecturer-profile-1", academicYear: "2026/27" });
+	assert.deepEqual(createdMapping, { courseUnitId: "unit-1", lecturerProfileId: "lecturer-profile-1", academicYear: "2026/27", isActive: true });
 	assert.equal(result.id, "mapping-1");
 	assert.equal(auditEvent.action, "COD_COURSE_UNIT_LECTURER_ASSIGNED");
 });
@@ -240,30 +240,38 @@ test("COD course-unit assignment rejects lecturers outside the department", asyn
 	);
 });
 
-test("COD cannot assign a second lecturer to a course unit in the same academic year", async () => {
+test("COD replaces the active lecturer and preserves the previous assignment", async () => {
 	const db = authorizedDb();
-	let created = false;
+	let deactivation;
+	let createdMapping;
+	let auditEvent;
 	db.$transaction = async (operation) => operation({
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2" }) },
 		courseUnitLecturer: {
-			findUnique: async () => ({ id: "existing-assignment" }),
-			create: async () => { created = true; },
+			findFirst: async () => ({ id: "existing-assignment", lecturerProfileId: "lecturer-profile-1" }),
+			updateMany: async (args) => { deactivation = args; return { count: 1 }; },
+			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data }; },
 		},
+		auditLog: { create: async ({ data }) => { auditEvent = data; } },
 	});
 
-	await assert.rejects(
-		assignCodCourseUnitLecturer({
-			userId: "cod-1",
-			courseUnitId: "unit-1",
-			departmentId: "department-1",
-			lecturerProfileId: "lecturer-profile-2",
-			now: new Date("2026-11-12T12:00:00.000Z"),
-			db,
-		}),
-		(error) => error.statusCode === 409 && /2026\/27/.test(error.message),
-	);
-	assert.equal(created, false);
+	await assignCodCourseUnitLecturer({
+		userId: "cod-1",
+		courseUnitId: "unit-1",
+		departmentId: "department-1",
+		lecturerProfileId: "lecturer-profile-2",
+		now: new Date("2026-11-12T12:00:00.000Z"),
+		db,
+	});
+
+	assert.deepEqual(deactivation, {
+		where: { id: "existing-assignment", isActive: true },
+		data: { isActive: false, endedAt: new Date("2026-11-12T12:00:00.000Z") },
+	});
+	assert.deepEqual(createdMapping, { courseUnitId: "unit-1", lecturerProfileId: "lecturer-profile-2", academicYear: "2026/27", isActive: true });
+	assert.equal(auditEvent.action, "COD_COURSE_UNIT_LECTURER_REPLACED");
+	assert.equal(auditEvent.metadata.previousLecturerProfileId, "lecturer-profile-1");
 });
 
 test("COD can assign a course unit again in a later academic year", async () => {
@@ -273,8 +281,8 @@ test("COD can assign a course unit again in a later academic year", async () => 
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2" }) },
 		courseUnitLecturer: {
-			findUnique: async ({ where }) => {
-				assert.deepEqual(where, { courseUnitId_academicYear: { courseUnitId: "unit-1", academicYear: "2027/28" } });
+			findFirst: async ({ where }) => {
+				assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2027/28", isActive: true });
 				return null;
 			},
 			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data }; },
@@ -290,7 +298,7 @@ test("COD can assign a course unit again in a later academic year", async () => 
 		now: new Date("2027-09-12T12:00:00.000Z"),
 		db,
 	});
-	assert.deepEqual(createdMapping, { courseUnitId: "unit-1", lecturerProfileId: "lecturer-profile-2", academicYear: "2027/28" });
+	assert.deepEqual(createdMapping, { courseUnitId: "unit-1", lecturerProfileId: "lecturer-profile-2", academicYear: "2027/28", isActive: true });
 });
 
 test("COD assignment validation requires a department, course unit, and lecturer profile", () => {

@@ -2,8 +2,8 @@ import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
 import { validate } from "../../middleware/validate.js";
-import { decideCodReport, decideLecturerApproval, getCodComments, getCodReport, getCodReports, getPendingLecturerApprovals, postCodComment, getCodDepartmentCourseUnits, getCodDepartmentStudents, getCodDepartmentLecturers, getCodDepartments, postCodCourseUnitLecturer } from "./cod.controller.js";
-import { codCourseUnitParamsSchema, codDirectoryQuerySchema, codReportDecisionBodySchema, codReportIdParamsSchema, createCodCourseUnitLecturerBodySchema, createCodReportCommentBodySchema, getCodReportsQuerySchema, lecturerApprovalDecisionBodySchema, lecturerApprovalIdParamsSchema } from "./cod.validation.js";
+import { decideCodReport, decideLecturerApproval, getCodComments, getCodReport, getCodReports, getPendingLecturerApprovals, postCodComment, getCodDepartmentCourseUnits, getCodDepartmentStudents, getCodDepartmentLecturers, getCodDepartments, postCodCourseUnitLecturer, postCodReportReassignment } from "./cod.controller.js";
+import { codCourseUnitParamsSchema, codDirectoryQuerySchema, codReportDecisionBodySchema, codReportIdParamsSchema, codReportReassignmentBodySchema, createCodCourseUnitLecturerBodySchema, createCodReportCommentBodySchema, getCodReportsQuerySchema, lecturerApprovalDecisionBodySchema, lecturerApprovalIdParamsSchema } from "./cod.validation.js";
 import { feature5CodRoutes } from "../feature5/cod.routes.js";
 import { getCodAttendanceDiscrepancies, getCodAttendanceDiscrepancyById, getCodAttendanceDiscrepancyDecisions, postCodAttendanceDiscrepancyDecision, postCodLegacyAttendanceRevalidation } from "./attendance-discrepancy.controller.js";
 import { attendanceDiscrepancyIdParamsSchema, attendanceDiscrepancyListQuerySchema, codAttendanceDiscrepancyDecisionBodySchema, codLegacyAttendanceRevalidationBodySchema } from "./attendance-discrepancy.validation.js";
@@ -61,4 +61,10 @@ codRoutes.post(
   validate(codReportIdParamsSchema, "params"),
   validate(codReportDecisionBodySchema, "body"),
   decideCodReport,
+);
+codRoutes.post(
+  "/reports/:id/reassign",
+  validate(codReportIdParamsSchema, "params"),
+  validate(codReportReassignmentBodySchema),
+  postCodReportReassignment,
 );

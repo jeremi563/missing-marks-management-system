@@ -14,7 +14,7 @@ function dbFor(status, { openAppeal = false } = {}) {
 			assignedLecturerProfileId: null,
 			courseUnitId: "unit",
 			courseUnit: { departmentId },
-			academicPeriod: { name: "2026/27", code: "2026/27", startsAt: null },
+			academicPeriod: { name: "misleading period", code: "2019/20", startsAt: new Date("2026-09-01T00:00:00Z") },
 		}) },
 		appeal: { findFirst: async () => openAppeal ? { id: "appeal" } : null },
 		specialCase: { findFirst: async () => null },
@@ -45,7 +45,7 @@ test("reassignment requires the lecturer's unit mapping for the report academic 
 				assignedLecturerProfileId: null,
 				courseUnitId: "unit",
 				courseUnit: { departmentId },
-				academicPeriod: { name: "2026/27", code: "2026/27", startsAt: null },
+				academicPeriod: { name: "misleading period", code: "2019/20", startsAt: new Date("2026-09-01T00:00:00Z") },
 			}),
 			updateMany: async () => ({ count: 1 }),
 		},
@@ -70,5 +70,5 @@ test("reassignment requires the lecturer's unit mapping for the report academic 
 		reason: "Reassignment",
 	});
 
-	assert.deepEqual(eligibilityQuery, { some: { courseUnitId: "unit", academicYear: "2026/27" } });
+	assert.deepEqual(eligibilityQuery, { some: { courseUnitId: "unit", academicYear: "2026/27", isActive: true } });
 });

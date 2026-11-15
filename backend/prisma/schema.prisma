@@ -356,12 +356,13 @@ model CourseUnitLecturer {
   courseUnitId      String   @map("course_unit_id") @db.Uuid
   lecturerProfileId String   @map("lecturer_profile_id") @db.Uuid
   academicYear      String?  @map("academic_year") @db.VarChar(7)
+  isActive          Boolean  @default(true) @map("is_active")
+  endedAt           DateTime? @map("ended_at")
   createdAt         DateTime @default(now()) @map("created_at")
 
   courseUnit CourseUnit      @relation(fields: [courseUnitId], references: [id], onDelete: Restrict)
   lecturer   LecturerProfile @relation(fields: [lecturerProfileId], references: [id], onDelete: Restrict)
 
-  @@unique([courseUnitId, academicYear])
   @@index([lecturerProfileId])
   @@map("course_unit_lecturers")
 }

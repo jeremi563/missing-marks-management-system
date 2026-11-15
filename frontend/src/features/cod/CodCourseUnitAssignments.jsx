@@ -150,7 +150,7 @@ export default function CodCourseUnitAssignments() {
             <div>
               <h3>{selectedDepartment ? `${selectedDepartment.name} course units` : 'Department course units'}</h3>
               <p>Current academic year: <strong>{currentAcademicYear}</strong></p>
-              <p>Course units are grouped by course and identified by code. Current assignments are shown for this academic year.</p>
+              <p>Course units are grouped by course and identified by code. Replacements retain the previous assignment as history; outstanding reports must be reassigned separately.</p>
             </div>
           </div>
           {isLoading ? <LoadingState message="Loading unit assignments…" /> :
@@ -167,9 +167,10 @@ export default function CodCourseUnitAssignments() {
                           </th>
                         </tr>
                         {groupedUnits.map((courseUnit) => {
-                          const assignedIds = courseUnit.lecturerMappings?.map(({ lecturer }) => lecturer.id) || []
-                          const availableLecturers = lecturers.filter(({ lecturerProfile }) => !assignedIds.includes(lecturerProfile.id))
-                          const hasCurrentYearAssignment = Boolean(courseUnit.lecturerMappings?.length)
+                          const currentAssignment = courseUnit.lecturerMappings?.[0]
+                          const currentLecturerId = currentAssignment?.lecturer.id
+                          const availableLecturers = lecturers.filter(({ lecturerProfile }) => lecturerProfile.id !== currentLecturerId)
+                          const hasCurrentYearAssignment = Boolean(currentAssignment)
                           return (
                             <tr key={courseUnit.id}>
                               <td><strong>{courseUnit.code}</strong></td>
@@ -181,9 +182,9 @@ export default function CodCourseUnitAssignments() {
                                   aria-label={`Lecturer for ${courseUnit.code}`}
                                   value={selectedLecturers[courseUnit.id] || ''}
                                   onChange={(event) => setSelectedLecturers((current) => ({ ...current, [courseUnit.id]: event.target.value }))}
-                                  disabled={hasCurrentYearAssignment || !availableLecturers.length || busyUnitId === courseUnit.id}
+                                  disabled={!availableLecturers.length || busyUnitId === courseUnit.id}
                                 >
-                                  <option value="">{hasCurrentYearAssignment ? 'Already assigned this academic year' : availableLecturers.length ? 'Select lecturer' : 'No eligible lecturers'}</option>
+                                  <option value="">{hasCurrentYearAssignment ? 'Select replacement lecturer' : availableLecturers.length ? 'Select lecturer' : 'No eligible lecturers'}</option>
                                   {availableLecturers.map((lecturer) => (
                                     <option key={lecturer.lecturerProfile.id} value={lecturer.lecturerProfile.id}>
                                       {lecturer.displayName || lecturer.email}{lecturer.lecturerProfile.staffNumber ? ` · ${lecturer.lecturerProfile.staffNumber}` : ''}
@@ -195,10 +196,10 @@ export default function CodCourseUnitAssignments() {
                                 <button
                                   className="button button-primary"
                                   type="button"
-                                  disabled={hasCurrentYearAssignment || !selectedLecturers[courseUnit.id] || busyUnitId === courseUnit.id}
+                                  disabled={!selectedLecturers[courseUnit.id] || busyUnitId === courseUnit.id}
                                   onClick={() => assignLecturer(courseUnit)}
                                 >
-                                  <UserPlus size={15} />{busyUnitId === courseUnit.id ? 'Assigning…' : 'Assign'}
+                                  <UserPlus size={15} />{busyUnitId === courseUnit.id ? 'Saving…' : hasCurrentYearAssignment ? 'Replace' : 'Assign'}
                                 </button>
                               </td>
                             </tr>

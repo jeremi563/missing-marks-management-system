@@ -6,16 +6,7 @@ import { loadAttendanceDiscrepancySource } from '../../shared/services/attendanc
 import { evaluateConfiguredAttendanceEligibility } from '../../shared/services/eligibility.service.js';
 import { createNotification } from '../../shared/services/notification.service.js';
 import { isActiveCodDepartmentMember } from '../../shared/services/designated-cod-authorization.service.js';
-import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
-
-function attendanceYearBounds(academicYear) {
-  const startYear = Number(academicYear?.slice(0, 4));
-  if (!Number.isInteger(startYear)) return null;
-  return {
-    startsAt: new Date(Date.UTC(startYear, 7, 1)),
-    endsAt: new Date(Date.UTC(startYear + 1, 7, 1)),
-  };
-}
+import { academicYearBounds, academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
 
 function isPresentStatus(status) {
   return ['PRESENT', 'ATTENDED'].includes(String(status).toUpperCase());
@@ -23,7 +14,7 @@ function isPresentStatus(status) {
 
 async function getReportAttendanceReview(prisma, report) {
   const academicYear = academicYearForPeriod(report.academicPeriod);
-  const bounds = attendanceYearBounds(academicYear);
+  const bounds = academicYearBounds(academicYear);
   if (!bounds) {
     return {
       academicYear: null,
@@ -892,6 +883,7 @@ export const createAttendanceSession = async (
       courseUnitId: sessionData.courseUnitId,
       lecturerProfileId: lecturer.id,
       academicYear: academicYearForDate(sessionData.startsAt),
+      isActive: true,
     },
     select: {
       id: true,
@@ -1551,7 +1543,7 @@ export async function createLecturerAttendanceDiscrepancy(db, userId, input) {
 	const lecturer = await getDiscrepancyLecturer(db, userId);
 	const context = await loadAttendanceDiscrepancySource(db, input);
 	if (context.assignedLecturerProfileId !== lecturer.id) throw new AppError(404, "Attendance source not found");
-	const assignment = await db.courseUnitLecturer.findFirst({ where: { courseUnitId: context.courseUnitId, lecturerProfileId: lecturer.id, academicYear: context.academicYear }, select: { id: true } });
+	const assignment = await db.courseUnitLecturer.findFirst({ where: { courseUnitId: context.courseUnitId, lecturerProfileId: lecturer.id, academicYear: context.academicYear, isActive: true }, select: { id: true } });
 	if (!assignment) throw new AppError(404, "Attendance source not found");
 	try {
 	return await db.$transaction(async (tx) => {

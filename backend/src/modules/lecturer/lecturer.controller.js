@@ -74,7 +74,7 @@ export const getAssignedCourseUnits = async (req, res, next) => {
       where: { userId: lecturerUserId },
       select: {
         unitAssignments: {
-          where: { academicYear: academicYearForDate(new Date()) },
+          where: { academicYear: academicYearForDate(new Date()), isActive: true },
           orderBy: { courseUnit: { code: 'asc' } },
           select: {
             id: true,
@@ -131,7 +131,7 @@ export const getAssignedCourseUnitAssessments = async (req, res, next) => {
     const courseUnit = await prisma.courseUnit.findFirst({
       where: {
         id: req.params.courseUnitId,
-        lecturerMappings: { some: { lecturerProfileId: lecturer.id, academicYear: academicYearForDate(new Date()) } },
+        lecturerMappings: { some: { lecturerProfileId: lecturer.id, academicYear: academicYearForDate(new Date()), isActive: true } },
       },
       select: { id: true },
     });
@@ -199,7 +199,7 @@ export const getAssignedStudents = async (req, res, next) => {
     const limit = Number(req.query.limit) || 20;
     const [assignments, periods] = await Promise.all([
       prisma.courseUnitLecturer.findMany({
-        where: { lecturerProfileId: lecturer.id, academicYear: { not: null } },
+        where: { lecturerProfileId: lecturer.id, academicYear: { not: null }, isActive: true },
         select: { courseUnitId: true, academicYear: true },
       }),
       prisma.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true } }),

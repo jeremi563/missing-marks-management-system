@@ -53,10 +53,11 @@ The request is unique per student, course unit, and academic period. Rejected re
 ## Lecturer course-unit assignments
 
 1. A designated COD assigns an administrator-created, course-associated unit to an active, approved lecturer who belongs to that unit's department. Administrators can review or remove a mapping but cannot create one.
-2. The system determines the current academic year using a September-to-August boundary; the client cannot choose a year.
-3. Each course unit may have at most one lecturer mapping per academic year. A mapping in a later academic year is a separate assignment.
-4. Lecturer course-unit and assessment access is limited to current-year mappings. Enrollment reviews, student rosters, attendance, and report reassignment use the matching academic year.
-5. Legacy duplicate mappings remain stored for history, but only the latest mapping is assigned a year; earlier duplicates remain unscoped and do not grant current access.
+2. The system determines academic years in the `Africa/Nairobi` timezone: September 1 through August 31, formatted `YYYY/YY`. The client cannot choose a year.
+3. Each course unit has at most one active lecturer assignment per academic year. Replacing an assignment deactivates the previous row and preserves it as history; an inactive assignment does not grant access.
+4. Lecturer course-unit and assessment access is limited to active current-year assignments. Enrollment reviews, student rosters, attendance, and report assignment use the year derived from the academic period's `startsAt` date.
+5. Period names and codes do not determine their academic year. A period requires `startsAt`; its end date, if present, must be later than its start and within the same academic year.
+6. Existing lecturer mappings with no academic year remain inactive and unscoped until reviewed; the system does not infer a year for them. If a replacement changes the appropriate lecturer for unresolved reports, a COD can reassign those reports to an active lecturer assigned to the unit and year. The reassignment records the previous and new lecturer, actor, reason, assignment history, and audit event without deleting report or decision history.
 
 ## System administrator and COD accounts
 
@@ -87,7 +88,7 @@ The request is unique per student, course unit, and academic period. Rejected re
 ## 5. COD / Academic Officer review
 
 - The COD / Academic Officer receives reports only after a lecturer escalates them.
-- Student submissions are routed to the lecturer mapped to the course unit and academic year; CODs do not assign or reassign these reports.
+- Student submissions are routed to the active lecturer mapped to the course unit and academic year. CODs may reassign outstanding reports when the appropriate lecturer changes; escalated cases remain subject to the COD decision workflow.
 - Academic information review is read-only: the COD can inspect linked application enrollment, assessment, CAT submission, and assessment-attendance records supported by the report's relationships. This review does not create an approval/rejection outcome or change report status. These application records are not independently verified official university records; missing records do not prove an event did not occur.
 - Report comments authored by a COD are staff-private and retained as append-only comments. Comment creation records an actor-attributed audit event transactionally with the comment.
 - They review escalated lecturer decisions, appeals and special cases.

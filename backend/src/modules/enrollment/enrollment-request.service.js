@@ -87,6 +87,7 @@ export async function listStudentEnrollmentOptions(db, userId, now = new Date())
 			lecturerMappings: {
 				where: {
 					academicYear: { in: lecturerYears },
+					isActive: true,
 					lecturer: { user: { isActive: true, approvalStatus: "APPROVED" } },
 				},
 				select: { lecturer: { select: { user: { select: { id: true, displayName: true } } } } },
@@ -125,7 +126,7 @@ export async function createStudentEnrollmentRequests(db, userId, { courseUnitId
 				id: { in: uniqueCourseUnitIds },
 				department: { initials: registration.departmentInitials },
 				course: { is: { code: registration.courseCode } },
-				lecturerMappings: { some: { academicYear, lecturer: { user: { isActive: true, approvalStatus: "APPROVED" } } } },
+				lecturerMappings: { some: { academicYear, isActive: true, lecturer: { user: { isActive: true, approvalStatus: "APPROVED" } } } },
 			},
 			select: {
 				id: true,
@@ -147,7 +148,7 @@ export async function createStudentEnrollmentRequests(db, userId, { courseUnitId
 					},
 				},
 				lecturerMappings: {
-					where: { academicYear, lecturer: { user: { isActive: true, approvalStatus: "APPROVED" } } },
+					where: { academicYear, isActive: true, lecturer: { user: { isActive: true, approvalStatus: "APPROVED" } } },
 					select: { lecturer: { select: { userId: true } } },
 				},
 			},
@@ -221,7 +222,7 @@ async function getReviewerScope(db, userId) {
 				userId,
 				user: { isActive: true, approvalStatus: "APPROVED", roles: { some: { role: { name: "lecturer" } } } },
 			},
-			select: { id: true, unitAssignments: { select: { courseUnitId: true, academicYear: true } } },
+			select: { id: true, unitAssignments: { where: { isActive: true }, select: { courseUnitId: true, academicYear: true } } },
 		}),
 		getDesignatedCodDepartmentIds(db, userId),
 	]);

@@ -13,6 +13,7 @@ export const getCodReport = (reportId) => request('get', `/cod/reports/${reportI
 export const getCodReportComments = (reportId) => request('get', `/cod/reports/${reportId}/comments`)
 export const addCodReportComment = (reportId, body) => request('post', `/cod/reports/${reportId}/comments`, { body })
 export const decideCodReport = (reportId, data) => request('post', `/cod/reports/${reportId}/decision`, data)
+export const reassignCodReport = (reportId, data) => request('post', `/cod/reports/${reportId}/reassign`, data)
 export const getPendingLecturerApprovals = () => request('get', '/cod/pending-lecturer-approvals')
 export const decideLecturerApproval = (id, status) => request('patch', `/cod/lecturer-approvals/${id}`, { status })
 export const getLecturerDepartmentRequests = () => request('get', '/cod/lecturer-department-requests')
