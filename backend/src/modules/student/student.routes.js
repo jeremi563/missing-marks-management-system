@@ -15,7 +15,6 @@ const router = Router();
 
 router.get("/profile", authenticate, authorize("student"), getProfile);
 router.get("/marks", authenticate, authorize("student"), validate(studentMarksQuery, "query"), getStudentMarksController);
-router.get("/cat-submissions", authenticate, authorize("student"), validateStudentCatSubmissionsQuery, getCatSubmissions);
 router.get("/enrollment-options", authenticate, authorize("student"), getStudentEnrollmentOptions);
 router.post("/enrollment-requests", authenticate, authorize("student"), validate(studentEnrollmentRequestBody), postStudentEnrollmentRequests);
 router.get("/report-options", authenticate, authorize("student"), getReportOptions);

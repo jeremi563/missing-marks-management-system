@@ -31,7 +31,6 @@ A student should be able to:
 - Submit an appeal where permitted by the agreed appeal policy.
 - View their own attendance history and relevant attendance-related information.
 - View their own official marks by academic period, including assessment and course-unit details.
-- Check in to a CAT session using the existing QR/location flow; a successful check-in creates one CAT submission and the student can view its verification status and any rejection reason.
 - Receive notifications about report progress and required action.
 
 A student must not view another student's private report or change official marks.
