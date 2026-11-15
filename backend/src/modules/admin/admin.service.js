@@ -509,31 +509,113 @@ export async function importStudentRoster({ db = prisma, actorUserId, students }
 		fullName: fullName.trim(),
 		email: email.trim().toLowerCase(),
 	}));
-	return db.$transaction(async (tx) => {
-		for (const student of normalizedStudents) {
-			const registration = parseStudentRegistrationNumber(student.studentNumber);
-			const course = registration && await tx.course.findFirst({
-				where: {
-					code: registration.courseCode,
-					department: { initials: registration.departmentInitials },
-				},
-				select: { id: true },
-			});
-			if (!course) throw new AppError(422, `Student number ${student.studentNumber} must identify a course that exists in its department`);
-			const existing = await tx.studentRegistrationEligibility.findUnique({ where: { studentNumber: student.studentNumber } });
-			const rosterEmailOwner = await tx.studentRegistrationEligibility.findFirst({ where: { email: student.email, studentNumber: { not: student.studentNumber } }, select: { id: true } });
-			if (rosterEmailOwner) throw new AppError(409, "A roster email is already assigned to another student number");
-			const emailOwner = await tx.user.findUnique({ where: { email: student.email }, select: { studentProfile: { select: { studentNumber: true } } } });
-			if (emailOwner && emailOwner.studentProfile?.studentNumber !== student.studentNumber) throw new AppError(409, "A roster email is already associated with another account");
-			if (existing?.linkedUserId) {
-				await tx.studentRegistrationEligibility.update({ where: { id: existing.id }, data: { fullName: student.fullName } });
-				await tx.user.update({ where: { id: existing.linkedUserId }, data: { displayName: student.fullName } });
-			} else if (existing) {
-				await tx.studentRegistrationEligibility.update({ where: { id: existing.id }, data: { email: student.email, fullName: student.fullName } });
-			}
-			else await tx.studentRegistrationEligibility.create({ data: student });
+	const duplicateIndexes = new Set();
+	for (const field of ["studentNumber", "email"]) {
+		const indexesByValue = new Map();
+		normalizedStudents.forEach((student, index) => {
+			const value = student[field].toLowerCase();
+			indexesByValue.set(value, [...(indexesByValue.get(value) ?? []), index]);
+		});
+		for (const indexes of indexesByValue.values()) {
+			if (indexes.length > 1) indexes.forEach((index) => duplicateIndexes.add(index));
 		}
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_STUDENT_ROSTER_IMPORTED", entityType: "StudentRegistrationEligibility", metadata: { count: normalizedStudents.length } });
-		return { imported: normalizedStudents.length };
-	});
+	}
+
+	const auditResult = async (tx, index, status, message, reasonCode) => {
+		await recordAuditEvent({
+			prismaClient: tx,
+			actorId: actorUserId,
+			action: "ADMIN_STUDENT_ROSTER_IMPORT_ROW",
+			entityType: "StudentRegistrationEligibility",
+			metadata: { recordIndex: index + 1, outcome: status, reasonCode },
+		});
+		return { index, status, message };
+	};
+
+	const results = [];
+	for (const [index, student] of normalizedStudents.entries()) {
+		let result;
+		if (duplicateIndexes.has(index)) {
+			result = await db.$transaction((tx) => auditResult(
+				tx, index, "FAILED", "Registration number or email is duplicated in this upload.", "DUPLICATE_IN_UPLOAD",
+			));
+		} else {
+			try {
+				result = await db.$transaction(async (tx) => {
+					const existingEligibility = await tx.studentRegistrationEligibility.findUnique({
+						where: { studentNumber: student.studentNumber },
+						select: { id: true },
+					});
+					if (existingEligibility) {
+						return auditResult(tx, index, "SKIPPED", "This registration number is already on the roster; existing information was not changed.", "REGISTRATION_EXISTS");
+					}
+
+					const rosterEmailOwner = await tx.studentRegistrationEligibility.findFirst({
+						where: { email: student.email, studentNumber: { not: student.studentNumber } },
+						select: { id: true },
+					});
+					if (rosterEmailOwner) {
+						return auditResult(tx, index, "FAILED", "This email address is already assigned to another roster entry.", "ROSTER_EMAIL_CONFLICT");
+					}
+
+					const emailOwner = await tx.user.findUnique({
+						where: { email: student.email },
+						select: { studentProfile: { select: { studentNumber: true } } },
+					});
+					if (emailOwner) {
+						const sameStudent = emailOwner.studentProfile?.studentNumber === student.studentNumber;
+						return auditResult(
+							tx,
+							index,
+							sameStudent ? "SKIPPED" : "FAILED",
+							sameStudent ? "A student account already exists; existing information was not changed." : "This email address is already associated with another account.",
+							sameStudent ? "STUDENT_ACCOUNT_EXISTS" : "ACCOUNT_EMAIL_CONFLICT",
+						);
+					}
+
+					const existingProfile = await tx.studentProfile.findUnique({
+						where: { studentNumber: student.studentNumber },
+						select: { id: true },
+					});
+					if (existingProfile) {
+						return auditResult(tx, index, "SKIPPED", "A student account already exists; existing information was not changed.", "STUDENT_ACCOUNT_EXISTS");
+					}
+
+					const existingIdentifier = await tx.accountLoginIdentifier.findUnique({
+						where: { value: student.studentNumber },
+						select: { id: true },
+					});
+					if (existingIdentifier) {
+						return auditResult(tx, index, "SKIPPED", "This registration number is already associated with an account; no information was changed.", "LOGIN_IDENTIFIER_EXISTS");
+					}
+
+					const registration = parseStudentRegistrationNumber(student.studentNumber);
+					const course = registration && await tx.course.findFirst({
+						where: {
+							code: registration.courseCode,
+							department: { initials: registration.departmentInitials },
+						},
+						select: { id: true },
+					});
+					if (!course) {
+						return auditResult(tx, index, "FAILED", "Registration number does not map to an existing department and course.", "COURSE_NOT_FOUND");
+					}
+
+					await tx.studentRegistrationEligibility.create({ data: student, select: { id: true } });
+					return auditResult(tx, index, "IMPORTED", "Student added to the roster.", "IMPORTED");
+				});
+			} catch (error) {
+				if (error?.code !== "P2002") throw error;
+				result = await db.$transaction((tx) => auditResult(
+					tx, index, "SKIPPED", "A matching registration number or email was added concurrently; no information was changed.", "UNIQUE_CONFLICT",
+				));
+			}
+		}
+		results.push(result);
+	}
+
+	const imported = results.filter(({ status }) => status === "IMPORTED").length;
+	const skipped = results.filter(({ status }) => status === "SKIPPED").length;
+	const failed = results.filter(({ status }) => status === "FAILED").length;
+	return { imported, skipped, failed, results };
 }

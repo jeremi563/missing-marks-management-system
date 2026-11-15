@@ -36,7 +36,7 @@ test("administrator user validation requires update fields and normalizes list f
 	assert.equal(userListQuery.safeParse({ approvalStatus: "UNKNOWN" }).success, false);
 	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: "Taylor Student", email: "student@example.test" }] }).success, true);
 	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: " ", email: "student@example.test" }] }).success, false);
-	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: "Taylor Student", email: "student@example.test" }, { studentNumber: `ab16/01243/${year}`, fullName: "Alex Student", email: "other@example.test" }] }).success, false);
+	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${year}`, fullName: "Taylor Student", email: "student@example.test" }, { studentNumber: `ab16/01243/${year}`, fullName: "Alex Student", email: "other@example.test" }] }).success, true);
 	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: "AB16/01243/12", fullName: "Taylor Student", email: "old-year@example.test" }] }).success, false);
 	assert.equal(rosterImportBody.safeParse({ students: [{ studentNumber: `AB16/01243/${String(Number(year) + 1).padStart(2, "0")}`, fullName: "Taylor Student", email: "future@example.test" }] }).success, false);
 	assert.equal(accountApprovalBody.safeParse({ status: "APPROVED" }).success, true);

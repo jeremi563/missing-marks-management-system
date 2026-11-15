@@ -52,3 +52,37 @@ test("every administrator endpoint requires authentication before database acces
 		await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 	}
 });
+
+test("authenticated non-administrators cannot access the roster import endpoint", async () => {
+	const previousPrisma = app.locals.prisma;
+	app.locals.prisma = {
+		user: {
+			findUnique: async () => ({
+				id: "student-user",
+				email: "student@example.test",
+				sessionVersion: 0,
+				pendingEmail: null,
+				displayName: "Student",
+				mustChangePassword: false,
+				isActive: true,
+				approvalStatus: "APPROVED",
+				roles: [{ role: { name: "student" } }],
+			}),
+		},
+	};
+	const jwt = await import("jsonwebtoken");
+	const token = jwt.default.sign({ sessionVersion: 0 }, process.env.JWT_SECRET, { subject: "student-user", expiresIn: "15m" });
+	const server = app.listen(0);
+	try {
+		const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/admin/student-roster/import`, {
+			method: "POST",
+			headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+			body: JSON.stringify({ students: [] }),
+		});
+		assert.equal(response.status, 403);
+		assert.equal((await response.json()).success, false);
+	} finally {
+		app.locals.prisma = previousPrisma;
+		await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+	}
+});

@@ -1,5 +1,5 @@
 import {
-  Building2, LayoutDashboard, FileText, ClipboardList, Users, Settings, Bell, UserRound, UserCheck, GraduationCap, UserPlus, BookOpen, UserRoundSearch, BookOpenCheck,
+  Building2, LayoutDashboard, FileText, ClipboardList, Users, Settings, Bell, UserRound, UserCheck, GraduationCap, UserPlus, BookOpen, UserRoundSearch, BookOpenCheck, FileSpreadsheet,
 } from 'lucide-react'
 
 export const navigation = {
@@ -42,6 +42,7 @@ export const navigation = {
     { label: 'Lecturer approvals', to: '/admin/approvals', icon: UserCheck },
     { label: 'All accounts', to: '/admin/users', icon: Users },
     { label: 'Students', to: '/admin/students', icon: UserRound },
+    { label: 'Roster import', to: '/admin/roster-import', icon: FileSpreadsheet },
     { label: 'Lecturers', to: '/admin/lecturers', icon: GraduationCap },
     { label: 'Academic setup', to: '/admin/academic', icon: ClipboardList },
     { label: 'System settings', to: '/admin/settings', icon: Settings },

@@ -57,7 +57,7 @@ export async function decideAccountApproval(req, res, next) {
 export async function importStudentRosterRecords(req, res, next) {
 	try {
 		const result = await importStudentRoster({ db: req.app.locals.prisma, actorUserId: req.user.id, ...req.body });
-		return sendSuccess(res, "Student roster imported successfully", result, 201);
+		return sendSuccess(res, "Student roster import processed", result);
 	} catch (error) { return next(error); }
 }
 

@@ -1,0 +1,146 @@
+.admin-roster-import .roster-import-panel,
+.admin-roster-import .roster-preview-panel {
+  margin-bottom: 20px;
+}
+
+.roster-import-panel-heading,
+.roster-preview-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.roster-import-panel-heading h3 {
+  margin: 0 0 8px;
+}
+
+.roster-import-panel-heading p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.roster-file-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 20px;
+  padding: 14px 18px;
+  color: var(--ink);
+  border: 1px dashed var(--border, #b9c4d2);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.roster-file-picker:focus-within {
+  outline: 3px solid color-mix(in srgb, var(--primary, #315cce) 25%, transparent);
+  outline-offset: 2px;
+}
+
+.roster-file-picker input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.roster-import-privacy {
+  margin: 12px 0 0;
+  font-size: 12px;
+}
+
+.roster-preview-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.roster-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 18px 0;
+}
+
+.roster-counts span {
+  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--surface-muted, #f1f4f8);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.roster-preview-table {
+  min-width: 850px;
+}
+
+.roster-preview-table input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 120px;
+  padding: 8px;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface, #fff);
+}
+
+.roster-preview-table td {
+  vertical-align: top;
+}
+
+.roster-preview-table td strong {
+  display: block;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.roster-row-message {
+  display: block;
+  min-width: 180px;
+  max-width: 270px;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.roster-row-invalid strong,
+.roster-row-failed strong {
+  color: #933c3b;
+}
+
+.roster-row-skipped strong {
+  color: #805c0a;
+}
+
+.roster-row-imported strong {
+  color: #146752;
+}
+
+.roster-remove-button {
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+@media (max-width: 700px) {
+  .roster-import-panel-heading,
+  .roster-preview-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .roster-preview-actions > .button,
+  .roster-import-panel-heading > .button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .roster-file-picker {
+    width: auto;
+  }
+}
