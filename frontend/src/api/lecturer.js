@@ -1,4 +1,5 @@
 import apiClient from './client'
+import { withEvidenceFiles } from './evidence'
 
 const request = async (method, url, data, config) => {
   const response = await apiClient.request({ method, url, data, ...config })
@@ -27,7 +28,15 @@ export const getLecturerReportCorrections = (reportId) => request('get', `/lectu
 export const getLecturerMarkOptions = () => request('get', '/lecturer/marks/options')
 export const getLecturerAssessmentRoster = (assessmentId, academicPeriodId) => request('get', `/lecturer/assessments/${assessmentId}/marks`, undefined, { params: { academicPeriodId } })
 export const submitLecturerMarks = (assessmentId, data) => request('post', `/lecturer/assessments/${assessmentId}/marks`, data)
-export const createLecturerSpecialCase = (reportId, data) => request('post', `/lecturer/reports/${reportId}/special-cases`, data)
+export const createLecturerSpecialCase = (reportId, data, files = []) => {
+  const payload = withEvidenceFiles(data, files)
+  return request(
+    'post',
+    `/lecturer/reports/${reportId}/special-cases`,
+    payload,
+    payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined
+  )
+}
 export const getLecturerSpecialCases = (params = {}) => request('get', '/lecturer/special-cases', undefined, { params })
 export const getLecturerSpecialCase = (caseId) => request('get', `/lecturer/special-cases/${caseId}`)
 export const getLecturerAssessmentTypes = () => request('get', '/lecturer/assessment-types')

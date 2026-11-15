@@ -88,18 +88,19 @@ All routes below are mounted under `/api/v1`. Each requires a valid authenticate
 | GET | `/api/v1/student/profile` | No body. | `200`, own profile. |
 | GET | `/api/v1/student/marks` | Optional UUID `academicPeriodId`; no student ID is accepted. | `200`, official marks for the authenticated student's profile, with assessment, course-unit, and period details. |
 | GET | `/api/v1/student/reports` | Optional `page` and `limit`. | `200`, own reports and pagination. |
-| POST | `/api/v1/student/reports` | Required `courseUnitId`, `academicYear`, `description`; optional `assessmentId` and `assessmentComponent`. | `201`, submitted report; automatically assigned to and notifies the lecturer mapped to the unit/year when one exists. |
+| POST | `/api/v1/student/reports` | JSON fields `courseUnitId`, `academicYear`, `description`; optional `assessmentId`, `assessmentComponent`. To attach files, send multipart fields with the same names and repeat `evidence` for each file. | `201`, submitted report; automatically assigned to and notifies the lecturer mapped to the unit/year when one exists. |
 | GET | `/api/v1/student/reports/:reportId` | UUID `reportId`; no body. | `200`, own report with status timeline. |
 | GET | `/api/v1/student/reports/:reportId/comments` | UUID `reportId`; no body. | `200`, comments visible to the student. |
 | POST | `/api/v1/student/reports/:reportId/comments` | UUID `reportId`; `{ "body": "..." }`. | `201`, clarification comment. |
 | PATCH | `/api/v1/student/reports/:reportId` | UUID `reportId`; at least one of `assessmentId`, `assessmentComponent`, `description`. | `200`, updated report. |
 | POST | `/api/v1/student/reports/:reportId/withdraw` | UUID `reportId`; no body. | `200`, report with `Withdrawn` status. |
-| POST | `/api/v1/student/reports/:reportId/appeals` | UUID `reportId`; `{ "reason": "...", "comments": "..." }`, where `comments` is optional. | `201`, submitted appeal. |
+| POST | `/api/v1/student/reports/:reportId/appeals` | UUID `reportId`; JSON `{ "reason": "...", "comments": "..." }` or multipart fields plus repeated `evidence` file parts. `comments` is optional. | `201`, submitted appeal and safe evidence metadata when attached. |
 | GET | `/api/v1/student/attendance` | Optional `page` and `limit`. | `200`, own attendance history and pagination. |
 | POST | `/api/v1/student/attendance/check-in` | `{ "token": "64-character QR token", "latitude": -1.28, "longitude": 36.81, "accuracyMeters": 10 }`. | `201`, verified attendance record and session summary; a successful CAT check-in also creates or returns the student's CAT submission. |
 | GET | `/api/v1/student/cat-submissions` | Optional `page`, `limit` (maximum 100), and status (`PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `LEGACY_REVIEWED`, or `LEGACY_UNVERIFIED`). No student ID is accepted. | `200`, own CAT submissions with assessment, course unit, academic year/period, status, and rejection reason when applicable. |
 | GET | `/api/v1/student/notifications` | Optional `page` and `limit`. | `200`, own notifications, unread count, and pagination. |
 | PATCH | `/api/v1/student/notifications/:notificationId/read` | UUID `notificationId`; no body. | `200`, own notification with `readAt` set. |
+| GET | `/api/v1/evidence/:evidenceId` | UUID `evidenceId`; authenticated student, lecturer, or COD role. | `200`, private file download only after record-level authorization; otherwise `404`. |
 | GET | `/api/v1/student/enrollment-options` | No body. | `200`, department course units, assigned lecturers, periods whose admin-configured enrollment window is open, existing enrollment, and request status. |
 | POST | `/api/v1/student/enrollment-requests` | `{ "academicPeriodId": "UUID", "courseUnitIds": ["UUID"] }`. | `201`, submitted enrollment requests. |
 
@@ -668,14 +669,14 @@ All paths below use `/api/v1`; protected paths require the listed role and authe
 | Method and path | Role | Behaviour |
 |---|---|---|
 | `GET /student/appeals`, `GET /student/appeals/:appealId` | Student | List/view only the authenticated student's appeals and final reasons. |
-| `POST /student/reports/:reportId/appeals` | Student | Submit one appeal for an owned `REJECTED` report within 14 calendar days of its recorded rejection. Body: `{reason, comments?}`. |
-| `POST /student/reports/:reportId/special-cases` | Student | Submit a case for an owned report in `PENDING`, `ESCALATED`, or `REJECTED`. Body: `{categoryId, description}`. |
-| `GET /student/special-cases`, `GET /student/special-cases/:caseId` | Student | List and view cases submitted by the authenticated student, including decisions; evidence bytes are not served. |
+| `POST /student/reports/:reportId/appeals` | Student | Submit one appeal for an owned `REJECTED` report within the configured appeal window. JSON body: `{reason, comments?}`; multipart requests may include up to three `evidence` files. |
+| `POST /student/reports/:reportId/special-cases` | Student | Submit a case for an owned report in `PENDING`, `ESCALATED`, or `REJECTED`. JSON body: `{categoryId, description}`; multipart requests may include up to three `evidence` files. |
+| `GET /student/special-cases`, `GET /student/special-cases/:caseId` | Student | List and view cases submitted by the authenticated student, including decisions and safe evidence metadata. |
 | `GET /lecturer/assessment-types` | Lecturer | List active decision assessment types. |
 | `POST /lecturer/reports/:reportId/start` | Lecturer | Start work on the currently assigned pending report once. |
 | `POST /lecturer/reports/:reportId/decision` | Lecturer | Final decision requires `decision`, `reason`, and active `assessmentTypeId`; `assessmentTypeOtherDescription` is required only for `OTHER`. |
-| `POST /lecturer/reports/:reportId/special-cases` | Lecturer | Submit a case for a currently assigned eligible report. Body: `{categoryId, description}`. |
-| `GET /lecturer/special-cases`, `GET /lecturer/special-cases/:caseId` | Lecturer | List submitted cases and view own/currently assigned report cases. Evidence metadata is visible only to the current assignee. |
+| `POST /lecturer/reports/:reportId/special-cases` | Lecturer | Submit a case for a currently assigned eligible report. JSON body: `{categoryId, description}`; multipart requests may include up to three `evidence` files. |
+| `GET /lecturer/special-cases`, `GET /lecturer/special-cases/:caseId` | Lecturer | List submitted cases and view own/currently assigned report cases. Safe evidence metadata is visible to the submitter or current assignee. |
 | `GET /cod/appeals`, `GET /cod/appeals/:appealId` | COD | List and view appeals for departments where the caller is the designated COD. Optional list query: `page`, `limit`, `status`. |
 | `POST /cod/appeals/:appealId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. Approval returns the report to `PENDING`. |
 | `GET /cod/special-cases`, `GET /cod/special-cases/:caseId` | COD | List and view cases only for designated departments. Optional list query: `page`, `limit`, `status`. |
@@ -687,4 +688,6 @@ All paths below use `/api/v1`; protected paths require the listed role and authe
 | `POST /admin/public-holidays`, `PATCH /admin/public-holidays/:id`, `DELETE /admin/public-holidays/:id` | Administrator | Maintain holidays. Create/update body: `{date, name, source?, description?}`. Existing deadlines are not recalculated. |
 | `PATCH /admin/departments/:departmentId/designated-cod` | Administrator | Assign a department's COD. Body: `{codUserId}`; target must be active, have the COD role, and be a member of that department. |
 
-Special-case evidence upload/download is not exposed because no private storage provider has been selected. Existing report-level evidence metadata remains available through the COD report review. No API response includes a storage key.
+Evidence uploads use multipart/form-data with a repeated `evidence` field. Each submission may include at most three files, each no larger than 5 MiB, with PDF, JPG/JPEG, PNG, or DOCX content. The server checks extension, declared MIME type, and file signature/content; it stores bytes under random names in the private `backend/uploads/evidence/` directory, outside static serving. The directory is created on demand and ignored by Git.
+
+`GET /api/v1/evidence/:evidenceId` returns a `private, no-store` attachment after checking the parent record. Students may access their own report/appeal or submitted special-case evidence; lecturers may access assigned report evidence and their own/currently assigned special-case evidence, but not appeal evidence; CODs may access evidence only for their designated departments. Administrator role alone does not grant evidence access, consistent with the existing admin API, which provides summaries rather than report-detail access. The endpoint does not expose a path or storage key. Successful upload and download actions create `EVIDENCE_UPLOADED` and `EVIDENCE_DOWNLOADED` audit events.

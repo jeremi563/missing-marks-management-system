@@ -11,6 +11,7 @@ import { extractRecords } from '../shared/recordUtils'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import StatusChip from '../../components/ui/StatusChip'
+import EvidenceList from '../shared/EvidenceList'
 
 function unwrap(response) {
   const first = response?.data ?? response
@@ -83,6 +84,7 @@ export default function CodReportPanel({ reportId, onClose }) {
       <header className="page-heading"><div><p className="eyebrow">DEPARTMENT REVIEW</p><h2>{report.reference || report.reportNumber || `Report ${report.id}`}</h2><p>{report.courseUnit?.name || report.courseUnit?.code || 'Course unit'} · {report.student?.displayName || report.student?.studentNumber || 'Student'}</p></div><div className="record-actions"><StatusChip status={report.status} /><button className="button button-secondary" onClick={onClose}>Close</button></div></header>
       {error && <div className="form-alert" role="alert">{error}</div>}
       <p>{report.description || report.reason || 'No description provided.'}</p>
+      <EvidenceList evidence={report.lecturerDecisionReview?.evidenceMetadata} title="Report evidence" />
       <div className="form-grid">
         {isOutstanding && <form className="details-card" onSubmit={(event) => {
           event.preventDefault()
