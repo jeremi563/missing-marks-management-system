@@ -58,24 +58,7 @@ import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema
 import { getEnrollmentRequestsForReviewer, postEnrollmentRequestDecision } from '../enrollment/enrollment-request.controller.js';
 import { enrollmentRequestDecisionBody, enrollmentRequestListQuery } from '../enrollment/enrollment-request.validation.js';
 import { getLecturerDepartments } from '../department-membership/department-membership.controller.js';
-import { examBookletScanRateLimit } from '../exam-booklet/exam-booklet.rate-limit.js';
-import {
-  getExamBookletScanHistory,
-  postExamBookletAllocations,
-  postExamBookletManualLookup,
-  postInvigilatorExamBookletPreview,
-  postInvigilatorExamBookletScan,
-  postLecturerExamBookletReplacement,
-} from '../exam-booklet/exam-booklet.controller.js';
-import {
-  invigilatorBookletScanBody,
-  invigilatorBookletPreviewBody,
-  manualBookletLookupBody,
-  replaceBookletBody,
-  validateExamBookletHistoryQuery,
-  validateExamBookletParams,
-  validateExamBookletSessionParams,
-} from '../exam-booklet/exam-booklet.validation.js';
+import { uploadEvidence } from '../../middleware/evidence-upload.js';
 import { getUserNotifications, patchAllUserNotificationsRead, patchUserNotificationRead } from '../../shared/controllers/user-notifications.controller.js';
 import { userNotificationIdParams, userNotificationsQuery } from '../../shared/validation/user-notifications.validation.js';
 import {
@@ -175,7 +158,7 @@ router.post(
 );
 
 router.post('/reports/:reportId/start', authenticate, authorize('lecturer'), validate(reportIdSchema, 'params'), startReportWork);
-router.post('/reports/:reportId/special-cases', authenticate, authorize('lecturer'), validate(reportIdSchema, 'params'), validate(createSpecialCaseBody), createLecturerCase);
+router.post('/reports/:reportId/special-cases', authenticate, authorize('lecturer'), validate(reportIdSchema, 'params'), uploadEvidence, validate(createSpecialCaseBody), createLecturerCase);
 router.get('/special-cases/:caseId', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), getLecturerCaseById);
 router.get('/special-cases', authenticate, authorize('lecturer'), validate(pageQuery, 'query'), getLecturerCases);
 

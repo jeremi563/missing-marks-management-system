@@ -1,4 +1,5 @@
 import apiClient from './client'
+import { withEvidenceFiles } from './evidence'
 
 const request = async (method, url, data, config) => {
   const response = await apiClient.request({ method, url, data, ...config })
@@ -27,19 +28,15 @@ export const getLecturerReportCorrections = (reportId) => request('get', `/lectu
 export const getLecturerMarkOptions = () => request('get', '/lecturer/marks/options')
 export const getLecturerAssessmentRoster = (assessmentId, academicPeriodId) => request('get', `/lecturer/assessments/${assessmentId}/marks`, undefined, { params: { academicPeriodId } })
 export const submitLecturerMarks = (assessmentId, data) => request('post', `/lecturer/assessments/${assessmentId}/marks`, data)
-export const getLecturerCatSubmissions = (params = {}) => request('get', '/lecturer/cat-submissions', undefined, { params })
-export const getLecturerCatSubmission = (submissionId) => request('get', `/lecturer/cat-submissions/${submissionId}`)
-export const decideLecturerCatSubmission = (submissionId, data) => request('post', `/lecturer/cat-submissions/${submissionId}/decision`, data)
-export const getLecturerExamAttendance = (params = {}) => request('get', '/lecturer/exam-attendance', undefined, { params })
-export const getLecturerExamAttendanceRecord = (recordId) => request('get', `/lecturer/exam-attendance/${recordId}`)
-export const decideLecturerExamAttendance = (recordId, data) => request('post', `/lecturer/exam-attendance/${recordId}/decision`, data)
-export const allocateLecturerExamBooklets = (sessionId) => request('post', `/lecturer/exam-booklets/sessions/${sessionId}/allocate`)
-export const previewLecturerExamBooklet = (sessionId, token) => request('post', `/lecturer/exam-booklets/sessions/${sessionId}/scan/preview`, { token })
-export const scanLecturerExamBooklet = (sessionId, data) => request('post', `/lecturer/exam-booklets/sessions/${sessionId}/scan`, data)
-export const manualLookupLecturerExamBooklet = (sessionId, data) => request('post', `/lecturer/exam-booklets/sessions/${sessionId}/manual-lookup`, data)
-export const getLecturerExamBookletScans = (sessionId, params = {}) => request('get', `/lecturer/exam-booklets/sessions/${sessionId}/scans`, undefined, { params })
-export const replaceLecturerExamBooklet = (bookletId, reason) => request('post', `/lecturer/exam-booklets/${bookletId}/replacements`, { reason })
-export const createLecturerSpecialCase = (reportId, data) => request('post', `/lecturer/reports/${reportId}/special-cases`, data)
+export const createLecturerSpecialCase = (reportId, data, files = []) => {
+  const payload = withEvidenceFiles(data, files)
+  return request(
+    'post',
+    `/lecturer/reports/${reportId}/special-cases`,
+    payload,
+    payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined
+  )
+}
 export const getLecturerSpecialCases = (params = {}) => request('get', '/lecturer/special-cases', undefined, { params })
 export const getLecturerSpecialCase = (caseId) => request('get', `/lecturer/special-cases/${caseId}`)
 export const getLecturerAssessmentTypes = () => request('get', '/lecturer/assessment-types')

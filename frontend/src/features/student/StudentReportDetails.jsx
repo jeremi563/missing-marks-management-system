@@ -22,6 +22,7 @@ import {
   updateStudentReport,
   withdrawStudentReport,
 } from '../../api/student'
+import EvidenceList from '../shared/EvidenceList'
 import '../../styles/StudentReportDetails.css'
 
 function unwrapResponse(response) {
@@ -271,6 +272,8 @@ function StudentReportDetails() {
           </div>
         </div>
       </section>
+
+      <EvidenceList evidence={report.evidence} title="Report evidence" />
 
       <section className="details-card">
         <div className="card-heading">

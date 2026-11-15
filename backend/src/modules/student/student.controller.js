@@ -106,7 +106,7 @@ export async function createReport(req, res, next) {
 			return res.status(500).json({ success: false, message: "Database service is not configured." });
 		}
 
-		const report = await submitMissingMarkReport(prisma, userId, req.validatedBody);
+		const report = await submitMissingMarkReport(prisma, userId, req.validatedBody, req.evidenceFiles ?? []);
 		return res.status(201).json({
 			success: true,
 			message: "Missing-mark report submitted successfully.",
@@ -377,7 +377,7 @@ export async function submitAppeal(req, res, next) {
 			return res.status(500).json({ success: false, message: "Database service is not configured." });
 		}
 
-		const appeal = await submitStudentAppeal(prisma, userId, req.params.reportId, req.validatedBody);
+		const appeal = await submitStudentAppeal(prisma, userId, req.params.reportId, req.validatedBody, req.evidenceFiles ?? []);
 		return res.status(201).json({
 			success: true,
 			message: "Appeal submitted successfully.",

@@ -157,7 +157,7 @@ This inventory documents the current schema, not a claim that every business rul
 | `mark_corrections` | `id/reportId/proposedByLecturerId: UUID`, `markId: UUID?`, `reviewedByUserId: UUID?`, `originalValue/finalValue: Decimal(8,2)?`, `proposedValue: Decimal(8,2)`, `baseMarkVersion: Int?`, `baselineVerified: Boolean`, `status: String`, `reason/reviewComments: String?`, `decidedAt: DateTime?`, timestamps | Append-only proposal/decision history linked to a missing-mark report and, when available, the official `StudentMark`. The original mark/version is captured at submission; `baselineVerified` distinguishes a verified no-mark baseline from legacy proposals that cannot be auto-applied. A partial SQL unique index permits only one `PENDING_REVIEW` row per report while retaining later history. |
 | `appeals` | `id/reportId/studentProfileId: UUID`, `reason/status: String`, `comments: String?`, optional decision actor/time/reason and review deadline | One appeal per report, with COD decision and stored review deadline. |
 | `special_cases` | `id/reportId: UUID`, nullable historical submitter, category lookup, description/status, optional decision actor/time/reason and review deadline | Multiple independent cases per report; historical category text is retained and submitter remains nullable for legacy rows. |
-| `special_case_evidence` | `id/reportId/uploadedByUserId: UUID`, `appealId/specialCaseId: UUID?`, `originalName/storageKey/mediaType: String`, `sizeBytes: Int`, `createdAt: DateTime` | Metadata and storage key for permitted special-case documents; never store file bytes in this row. `storageKey` is unique. Access control and file-type/size validation belong in the service/API layer. |
+| `special_case_evidence` | `id/reportId/uploadedByUserId: UUID`, `appealId/specialCaseId: UUID?`, `originalName/storageKey/mediaType: String`, `sizeBytes: Int`, `createdAt: DateTime` | Metadata for report, appeal, and special-case evidence; never store file bytes in this row. `storageKey` is a unique opaque random filename for the private local storage directory and is never returned by the API. Parent consistency, access control, and file validation belong in the service/API layer. |
 
 ### Attendance and assessment records
 
@@ -250,7 +250,7 @@ Migration `20261104120000_feature5_workflows` adds `assessment_types`, `special_
 
 `backend/prisma/seed.js` idempotently seeds the seven assessment types and six approved active special-case categories. The migration has not been applied to any database during this implementation. Before applying it to a database containing legacy data, verify its PostgreSQL schema and that existing appeal rows do not violate the new one-appeal-per-report index.
 
-Feature 5 deadlines are stored snapshots. Updating a public holiday does not recalculate them. Evidence storage remains provider-neutral: existing metadata relations are preserved, and the application does not persist uploaded bytes or expose `storageKey` values.
+Feature 5 deadlines are stored snapshots. Updating a public holiday does not recalculate them. Evidence bytes are stored on the backend host under `backend/uploads/evidence/`; the directory is private, created on demand, excluded from version control, and not served statically. No schema change is required: `storageKey` identifies a generated file and API responses expose metadata but not the key.
 
 ## Feature 7/Admin attendance correction schema and migration
 

@@ -10,9 +10,7 @@ import { getStudentEnrollmentOptions, postStudentEnrollmentRequests } from "../e
 import { studentEnrollmentRequestBody } from "../enrollment/enrollment-request.validation.js";
 import { getStudentMarksController } from "../marks/marks.controller.js";
 import { studentMarksQuery } from "../marks/marks.validation.js";
-import { examBookletScanRateLimit } from "../exam-booklet/exam-booklet.rate-limit.js";
-import { getStudentExamBooklets, postStudentExamBookletScan } from "../exam-booklet/exam-booklet.controller.js";
-import { studentBookletScanBody } from "../exam-booklet/exam-booklet.validation.js";
+import { uploadEvidence } from "../../middleware/evidence-upload.js";
 
 const router = Router();
 
@@ -26,16 +24,16 @@ router.get("/enrollment-options", authenticate, authorize("student"), getStudent
 router.post("/enrollment-requests", authenticate, authorize("student"), validate(studentEnrollmentRequestBody), postStudentEnrollmentRequests);
 router.get("/report-options", authenticate, authorize("student"), getReportOptions);
 router.get("/reports", authenticate, authorize("student"), validateReportListQuery, getReports);
-router.post("/reports", authenticate, authorize("student"), validateCreateReportBody, createReport);
+router.post("/reports", authenticate, authorize("student"), uploadEvidence, validateCreateReportBody, createReport);
 router.get("/reports/:reportId", authenticate, authorize("student"), validateStudentReportId, getReportById);
 router.get("/reports/:reportId/comments", authenticate, authorize("student"), validateStudentReportId, getReportComments);
 router.post("/reports/:reportId/comments", authenticate, authorize("student"), validateStudentReportId, validateCreateStudentCommentBody, addClarification);
 router.patch("/reports/:reportId", authenticate, authorize("student"), validateStudentReportId, validateUpdateReportBody, updateReport);
 router.post("/reports/:reportId/withdraw", authenticate, authorize("student"), validateStudentReportId, withdrawReport);
-router.post("/reports/:reportId/appeals", authenticate, authorize("student"), validateStudentReportId, validateCreateAppealBody, submitAppeal);
+router.post("/reports/:reportId/appeals", authenticate, authorize("student"), validateStudentReportId, uploadEvidence, validateCreateAppealBody, submitAppeal);
 router.get("/appeals", authenticate, authorize("student"), validate(pageQuery, "query"), getStudentAppeals);
 router.get("/appeals/:appealId", authenticate, authorize("student"), validate(appealIdParams, "params"), getStudentAppealById);
-router.post("/reports/:reportId/special-cases", authenticate, authorize("student"), validate(reportIdParams, "params"), validate(createSpecialCaseBody), createStudentCase);
+router.post("/reports/:reportId/special-cases", authenticate, authorize("student"), validate(reportIdParams, "params"), uploadEvidence, validate(createSpecialCaseBody), createStudentCase);
 router.get("/special-cases", authenticate, authorize("student"), validate(pageQuery, "query"), getStudentCases);
 router.get("/special-cases/:caseId", authenticate, authorize("student"), validate(specialCaseIdParams, "params"), getStudentCaseById);
 router.get("/attendance", authenticate, authorize("student"), validateReportListQuery, getAttendance);
