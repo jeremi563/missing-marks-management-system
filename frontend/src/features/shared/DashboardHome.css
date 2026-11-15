@@ -16,7 +16,7 @@
   background: linear-gradient(90deg, #90c6cf4f, #33a1b4b4 50%, #63acb9a9 100%);
   border: 1px solid rgba(51, 161, 180, .28);
   border-radius: 19px;
-  box-shadow: 0 16px 38px rgba(18, 57, 65, .12);
+  box-shadow: var(--account-card-shadow);
 }
 
 .portal-welcome-copy { position: relative; z-index: 1; max-width: 700px; }
@@ -31,7 +31,7 @@
 
 .portal-welcome-copy > p:last-child { max-width: 560px; margin: 0; color: #173840; font-size: 14px; line-height: 1.7; }
 
-.portal-departments { display: grid; gap: 14px; padding: 21px 23px; background: var(--surface); border: 1px solid var(--line); border-radius: 15px; }
+.portal-departments { display: grid; gap: 14px; padding: 21px 23px; border-radius: 15px; }
 
 .portal-departments .eyebrow { margin: 0 0 6px; font-size: 10px; }
 
@@ -57,24 +57,9 @@
 
 .portal-shortcut-grid { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
 
-.portal-shortcut-card { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 14px; min-height: 142px; padding: 21px; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 4px 16px #163c4007; transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease; }
+.portal-shortcut-card { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 14px; min-height: 142px; padding: 21px; border-radius: 14px; transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease; }
 
-.portal-lecturer .portal-shortcut-card,
-.portal-administrator .portal-shortcut-card { background: #b8ebe84e; box-shadow: 0 0 20px rgba(22, 60, 64, .2); }
-
-.portal-shortcut-card:hover { border-color: var(--secondary); box-shadow: 0 11px 26px rgba(110, 38, 255, .12); transform: translateY(-2px); }
-
-@media (min-width: 900px) {
-  .portal-shortcut-grid::before {
-    position: absolute;
-    top: 46px;
-    right: 16%;
-    left: 16%;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(110, 38, 255, 0), rgba(110, 38, 255, .18), rgba(110, 38, 255, 0));
-    content: "";
-  }
-}
+.portal-shortcut-card:hover { border-color: var(--secondary); box-shadow: var(--account-card-shadow-hover); transform: translateY(-1px); }
 
 .shortcut-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; }
 

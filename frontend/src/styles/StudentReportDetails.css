@@ -41,15 +41,19 @@
 	padding: 9px 13px;
 	border: 1px solid transparent;
 	border-radius: 6px;
-	background: var(--blue, #2563eb);
+	background: var(--button-primary);
 	color: white;
 	font: inherit;
 	cursor: pointer;
 }
 
+.report-action-buttons button:not(.secondary-action):not(.danger-action):hover:not(:disabled) {
+	background: var(--button-primary-hover);
+}
+
 .report-action-buttons .secondary-action {
 	border-color: var(--line, #cbd5e1);
-	background: white;
+	background: var(--account-surface);
 	color: var(--text-primary, #334155);
 }
 
@@ -82,7 +86,6 @@
 	padding: 24px;
 	border: 1px solid var(--line, #cbd5e1);
 	border-radius: 8px;
-	background: white;
 	box-shadow: 0 20px 50px rgb(15 23 42 / 20%);
 }
 

@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import { getStudentProfile } from '../../api/student'
 import { normalizeStudentProfile } from './profileData'
-import '../../styles/StudentProfile.css'
 
 function StudentProfile() {
   const [profile, setProfile] = useState(null)

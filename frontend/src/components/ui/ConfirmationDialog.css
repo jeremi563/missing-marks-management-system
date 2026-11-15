@@ -12,8 +12,6 @@
   width: min(100%, 440px);
   padding: 24px;
   color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: 0 20px 70px #0817194d;
 }

@@ -126,35 +126,6 @@ export default function LandingPage() {
         <Link className="button button-light" to="/login">Sign in <ArrowRight size={17} /></Link>
       </section>
 
-      <footer className="public-footer">
-        <div className="footer-inner">
-          <div className="footer-brand">
-            <span className="brand-icon"><GraduationCap size={18} /></span>
-            <div>
-              <strong>Missing Marks</strong>
-              <small>Academic support portal</small>
-            </div>
-          </div>
-
-          <nav className="footer-links" aria-label="Footer navigation">
-            <strong>Explore</strong>
-            <Link to="/">Home</Link>
-            <a href="#overview">How it works</a>
-            <Link to="/login">Sign in</Link>
-            <Link to="/register">Lecturer registration</Link>
-          </nav>
-
-          <div className="footer-purpose">
-            <strong>Academic support, with clarity.</strong>
-            <p>Track missing-mark reports from submission through review to resolution.</p>
-          </div>
-
-          <div className="footer-meta">
-            <span>© {new Date().getFullYear()} Missing Marks</span>
-            <span>All rights reserved.</span>
-          </div>
-        </div>
-      </footer>
     </main>
   )
 }

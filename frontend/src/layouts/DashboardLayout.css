@@ -3,7 +3,7 @@
 .sidebar-brand small { font-size: 11px; font-weight: 450; color: var(--muted); }
 .sidebar .sidebar-close { display: none; margin-left: auto; }
 .dashboard-main { min-height: 100vh; }
-.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; height: 70px; padding: 0 34px; background: rgba(255,255,255,0.95); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; height: 70px; padding: 0 34px; background: var(--surface); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
 .topbar h1 { margin: 0; font-size: 16px; font-weight: 700; }
 .topbar-user { display: flex; align-items: center; gap: 12px; margin-left: auto; color: #2f2f2f; font-size: 13px; }
 .topbar .menu-button { display: none; }
@@ -14,14 +14,9 @@
   .topbar-user span { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 .dashboard-layout {
-  height: 100vh;
-  height: 100dvh;
-  overflow-y: auto;
-  scrollbar-width: none;
   color: var(--ink);
   background: var(--canvas);
 }
-.dashboard-layout::-webkit-scrollbar { display: none; }
 .dashboard-main { background: var(--canvas); }
 .sidebar {
   position: fixed;
@@ -73,8 +68,8 @@
   margin-top: auto;
   padding: 0 13px;
   color: #fff;
-  background: var(--primary);
-  border: 1px solid var(--primary);
+  background: var(--button-primary);
+  border: 1px solid var(--button-primary);
   border-radius: 10px;
   font: inherit;
   font-size: 14px;
@@ -83,15 +78,15 @@
   cursor: pointer;
   transition: color .16s ease, background .16s ease;
 }
-.sidebar .sidebar-signout:hover { color: #fff; background: var(--primary-strong); border-color: var(--primary-strong); }
+.sidebar .sidebar-signout:hover { color: #fff; background: var(--button-primary-hover); border-color: var(--button-primary-hover); }
 .sidebar .sidebar-signout:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
 .sidebar .sidebar-signout svg { color: #fff; }
 .dashboard-main { margin-left: 264px; }
 .topbar {
   height: 72px;
   padding: 0 clamp(22px, 3vw, 42px);
-  background: #cbdfe8;
-  border-bottom-color: #9eaaae;
+  background: var(--surface);
+  border-bottom-color: var(--line);
   backdrop-filter: blur(14px);
 }
 .topbar h1 { color: var(--ink); font-size: 13px; font-weight: 680; letter-spacing: .015em; }

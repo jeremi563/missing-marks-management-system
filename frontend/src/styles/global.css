@@ -4,7 +4,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--ink);
-  background: var(--background);
+  background: var(--canvas);
+  font-feature-settings: "ss01" on;
 }
 button, input, select, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }

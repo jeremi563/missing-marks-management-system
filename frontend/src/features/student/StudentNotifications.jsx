@@ -13,7 +13,6 @@ import {
   getStudentNotifications,
   markStudentNotificationAsRead,
 } from '../../api/student'
-import '../../styles/StudentNotifications.css'
 
 function StudentNotifications() {
   const [notifications, setNotifications] = useState([])

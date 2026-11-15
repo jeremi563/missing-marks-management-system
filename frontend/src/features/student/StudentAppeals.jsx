@@ -16,7 +16,6 @@ import {
   getStudentReports,
   createStudentAppeal,
 } from '../../api/student'
-import '../../styles/StudentAppeals.css'
 
 function extractReports(response) {
   if (Array.isArray(response)) return response

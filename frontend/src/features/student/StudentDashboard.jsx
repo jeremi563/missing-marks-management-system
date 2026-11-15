@@ -19,7 +19,6 @@ import StatusChip from '../../components/ui/StatusChip'
 import LoadingState from '../../components/ui/LoadingState'
 import ErrorState from '../../components/ui/ErrorState'
 
-import '../../styles/StudentDashboard.css'
 
 function unwrapResponse(response) {
   return response?.data ?? response

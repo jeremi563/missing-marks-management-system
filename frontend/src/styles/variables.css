@@ -1,19 +1,29 @@
 :root {
   font-family: Poppins, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: #171717;
+  color-scheme: light;
   background: #ffffff;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   --primary: #6E26FF;
   --primary-rgb: 110, 38, 255;
   --primary-strong: #561de6;
+  --blue: var(--primary);
+  --navy: #171717;
+  --teal: var(--primary);
+  --teal-dark: var(--primary-strong);
+  --button-primary: var(--primary);
+  --button-primary-hover: rgba(var(--primary-rgb), .82);
   --secondary: #A679FF;
   --secondary-soft: #F2EBFF;
-  --background: #FFFFFF;
-  --surface: #FFFFFF;
+  --canvas: #DCEDF6;
+  --surface: var(--account-surface);
   --card: #F8F8FA;
+  --account-surface: #E0EEF5;
+  --account-card: #b8ebe84e;
+  --account-card-shadow: 0 8px 20px rgba(22, 60, 64, .12);
+  --account-card-shadow-hover: 0 12px 24px rgba(22, 60, 64, .16);
   --ink: #171717;
   --muted: #5f636a;
   --line: #E5E5E5;
-  --radius: 16px;
 }

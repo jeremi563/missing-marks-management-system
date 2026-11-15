@@ -4,9 +4,9 @@
 .student-enrollment-heading p:last-child { max-width: 720px; margin: 0; color: var(--muted); line-height: 1.55; }
 .student-enrollment-tabs { display: flex; gap: 6px; padding: 5px; width: fit-content; background: var(--secondary-soft); border: 1px solid var(--line); border-radius: 12px; }
 .student-enrollment-tabs button { display: inline-flex; align-items: center; gap: 9px; min-height: 39px; padding: 0 14px; color: #60777b; background: transparent; border: 0; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
-.student-enrollment-tabs button.active { color: var(--primary); background: #fff; box-shadow: 0 2px 6px rgba(var(--primary-rgb), .12); }
+.student-enrollment-tabs button.active { color: var(--primary); background: var(--account-surface); box-shadow: 0 2px 6px rgba(var(--primary-rgb), .12); }
 .student-enrollment-tabs button span { color: #66807e; font-size: 11px; font-weight: 600; }
-.student-enrollment-content { padding: clamp(18px, 2.4vw, 26px); background: var(--surface); border: 1px solid var(--line); border-radius: 15px; box-shadow: 0 5px 20px #163c4008; }
+.student-enrollment-content { padding: clamp(18px, 2.4vw, 26px); border-radius: 15px; }
 .student-enrollment-toolbar { display: grid; grid-template-columns: minmax(210px, .75fr) minmax(220px, 1fr); align-items: end; gap: 15px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
 .student-enrollment-period { display: grid; gap: 7px; }
 .student-enrollment-period label { color: #35525a; font-size: 12px; font-weight: 700; }
@@ -19,8 +19,8 @@
 .student-enrollment-list-heading p { margin: 0; color: var(--muted); font-size: 12px; }
 .student-enrollment-list-heading button { flex: 0 0 auto; padding: 6px 0; font-size: 12px; font-weight: 700; }
 .student-course-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
-.student-course-card { position: relative; display: grid; grid-template-columns: 19px minmax(0, 1fr) auto; align-items: start; gap: 12px; min-height: 110px; padding: 16px; color: var(--ink); background: #fff; border: 1px solid #dce8e7; border-radius: 12px; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, background .16s ease; }
-.student-course-card:hover:not(.disabled) { border-color: var(--secondary); box-shadow: 0 5px 16px rgba(var(--primary-rgb), .08); }
+.student-course-card { position: relative; display: grid; grid-template-columns: 19px minmax(0, 1fr) auto; align-items: start; gap: 12px; min-height: 110px; padding: 16px; color: var(--ink); border-radius: 12px; cursor: pointer; transition: border-color .16s ease, box-shadow .16s ease, background .16s ease; }
+.student-course-card:hover:not(.disabled) { border-color: var(--secondary); box-shadow: var(--account-card-shadow-hover); }
 .student-course-card.selected { border-color: var(--primary); background: var(--secondary-soft); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), .12); }
 .student-course-card.disabled { cursor: default; background: #f8faf9; }
 .student-course-card > input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -41,7 +41,7 @@
 .student-enrollment-footer > span { color: var(--muted); font-size: 12px; font-weight: 650; }
 .student-enrollment-footer .button { min-height: 43px; }
 .student-enrollment-request-list { display: grid; gap: 10px; }
-.student-enrollment-request-card { display: grid; grid-template-columns: 38px minmax(150px, 1.2fr) minmax(130px, 1fr) auto auto; align-items: center; gap: 14px; padding: 15px 17px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.student-enrollment-request-card { display: grid; grid-template-columns: 38px minmax(150px, 1.2fr) minmax(130px, 1fr) auto auto; align-items: center; gap: 14px; padding: 15px 17px; border-radius: 12px; }
 .student-request-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; }
 .student-request-icon.pending { color: #946a1a; background: #fff5dd; }
 .student-request-icon.approved { color: #21684c; background: #e8f5ee; }

@@ -5,7 +5,6 @@ import './styles/variables.css'
 import './styles/global.css'
 import './styles/components.css'
 import './styles/DesignSystem.css'
-import './App.css'
 
 import App from './App.jsx'
 import { AuthProvider } from './auth/AuthContext.jsx'
