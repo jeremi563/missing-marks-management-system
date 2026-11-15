@@ -48,6 +48,19 @@ import { enrollmentRequestDecisionBody, enrollmentRequestListQuery } from '../en
 import { getLecturerDepartments } from '../department-membership/department-membership.controller.js';
 import { getUserNotifications, patchAllUserNotificationsRead, patchUserNotificationRead } from '../../shared/controllers/user-notifications.controller.js';
 import { userNotificationIdParams, userNotificationsQuery } from '../../shared/validation/user-notifications.validation.js';
+import {
+  getAssessmentRosterController,
+  getLecturerMarkOptionsController,
+  getLecturerReportCorrectionsController,
+  postInitialMarksController,
+} from '../marks/marks.controller.js';
+import {
+  assessmentMarkParams,
+  assessmentRosterQuery,
+  markOptionsQuery,
+  reportCorrectionParams,
+  submitMarksBody,
+} from '../marks/marks.validation.js';
 
 const router = express.Router();
 
@@ -56,6 +69,9 @@ router.patch('/notifications/read-all', authenticate, authorize('lecturer'), pat
 router.patch('/notifications/:notificationId/read', authenticate, authorize('lecturer'), validate(userNotificationIdParams, 'params'), patchUserNotificationRead);
 router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCourseUnits);
 router.get('/course-units/:courseUnitId/assessments', authenticate, authorize('lecturer'), validate(courseUnitIdParamsSchema, 'params'), validate(courseUnitAssessmentsQuerySchema, 'query'), getAssignedCourseUnitAssessments);
+router.get('/marks/options', authenticate, authorize('lecturer'), validate(markOptionsQuery, 'query'), getLecturerMarkOptionsController);
+router.get('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), validate(assessmentMarkParams, 'params'), validate(assessmentRosterQuery, 'query'), getAssessmentRosterController);
+router.post('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), validate(assessmentMarkParams, 'params'), validate(submitMarksBody), postInitialMarksController);
 router.get('/classrooms', authenticate, authorize('lecturer'), getActiveClassrooms);
 router.get('/students', authenticate, authorize('lecturer'), validate(lecturerStudentsQuerySchema, 'query'), getAssignedStudents);
 router.get('/enrollment-requests', authenticate, authorize('lecturer', 'cod'), validate(enrollmentRequestListQuery, 'query'), getEnrollmentRequestsForReviewer);
@@ -141,6 +157,7 @@ router.post(
   validate(submitCorrectionSchema, 'body'),
   submitCorrection
 );
+router.get('/reports/:reportId/corrections', authenticate, authorize('lecturer'), validate(reportCorrectionParams, 'params'), getLecturerReportCorrectionsController);
 
 // Feature 6: Retrieve lecturer attendance sessions
 // GET /api/v1/lecturer/attendance/sessions

@@ -5,7 +5,6 @@ import {
   createReportComment,
   submitReportDecision,
   escalateAssignedReport,
-  submitMarkCorrection,
   createAttendanceSession,
   getAttendanceSessions,
   getAttendanceSessionById,
@@ -15,6 +14,7 @@ import {
   endAttendanceSession,
   getAttendanceSessionRecords,
 } from './lecturer.service.js';
+import { submitMarkCorrection } from '../marks/marks.service.js';
 import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
 
 export const getReports = async (req, res, next) => {
@@ -471,13 +471,13 @@ export const submitCorrection = async (req, res, next) => {
 
     const { proposedValue, reason } = req.body;
 
-    const result = await submitMarkCorrection(
-      prisma,
-      lecturerUserId,
-      req.params.reportId,
+    const result = await submitMarkCorrection({
+      db: prisma,
+      userId: lecturerUserId,
+      reportId: req.params.reportId,
       proposedValue,
-      reason
-    );
+      reason,
+    });
 
     return res.status(201).json({
       success: true,

@@ -25,6 +25,9 @@ export const decideCodEnrollmentRequests = (data) => request('post', '/cod/enrol
 export const getCodDepartmentLecturers = (params = {}) => request('get', '/cod/lecturers', undefined, { params })
 export const getCodDepartments = () => request('get', '/cod/departments')
 export const assignCodLecturerToCourseUnit = (courseUnitId, data) => request('post', `/cod/course-units/${courseUnitId}/lecturers`, data)
+export const getCodMarkCorrections = (params = {}) => request('get', '/cod/mark-corrections', undefined, { params })
+export const getCodMarkCorrection = (id) => request('get', `/cod/mark-corrections/${id}`)
+export const decideCodMarkCorrection = (id, data) => request('post', `/cod/mark-corrections/${id}/decision`, data)
 
 export const getCodAppeals = (params = {}) => request('get', '/cod/appeals', undefined, { params })
 export const getCodAppeal = (appealId) => request('get', `/cod/appeals/${appealId}`)

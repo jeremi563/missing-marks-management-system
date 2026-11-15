@@ -22,6 +22,10 @@ export const submitStudentEnrollmentRequests = async (data) => {
   const response = await apiClient.post('/student/enrollment-requests', data)
   return response.data
 }
+export const getStudentMarks = async (params = {}) => {
+  const response = await apiClient.get('/student/marks', { params })
+  return response.data
+}
 
 // Missing-mark reports
 export const getStudentReports = async (params = {}) => {

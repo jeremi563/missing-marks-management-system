@@ -192,6 +192,7 @@ model LecturerProfile {
   attendanceCorrections     AttendanceCorrection[]    @relation("CorrectionActor")
   assignedDiscrepancies     AttendanceDiscrepancy[]   @relation("DiscrepancyReviewer")
   reviewedDiscrepancies     AttendanceDiscrepancy[]   @relation("DiscrepancyLecturerReviewer")
+  enteredMarks              StudentMark[]
   previousReportAssignments ReportAssignment[]        @relation("PreviousReportLecturer")
   newReportAssignments      ReportAssignment[]        @relation("NewReportLecturer")
   proposedMarkCorrections   MarkCorrection[]          @relation("MarkCorrectionProposer")
@@ -321,10 +322,31 @@ model UnitEnrollment {
   student        StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
   courseUnit     CourseUnit     @relation(fields: [courseUnitId], references: [id], onDelete: Restrict)
   academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id], onDelete: Restrict)
+  marks          StudentMark[]
 
   @@unique([studentProfileId, courseUnitId, academicPeriodId])
   @@index([courseUnitId, academicPeriodId])
   @@map("unit_enrollments")
+}
+
+model StudentMark {
+  id                  String   @id @default(uuid()) @db.Uuid
+  unitEnrollmentId    String   @map("unit_enrollment_id") @db.Uuid
+  assessmentId        String   @map("assessment_id") @db.Uuid
+  enteredByLecturerId String   @map("entered_by_lecturer_id") @db.Uuid
+  value               Decimal  @db.Decimal(8, 2)
+  version             Int      @default(1)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  enrollment UnitEnrollment @relation(fields: [unitEnrollmentId], references: [id], onDelete: Restrict)
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  enteredBy LecturerProfile @relation(fields: [enteredByLecturerId], references: [id], onDelete: Restrict)
+  corrections MarkCorrection[]
+
+  @@unique([unitEnrollmentId, assessmentId])
+  @@index([assessmentId, unitEnrollmentId])
+  @@map("student_marks")
 }
 
 model StudentEnrollmentRequest {
@@ -538,6 +560,7 @@ model Assessment {
   sessions          AttendanceSession[]
   attendanceRecords AssessmentAttendance[]
   catSubmissions    CatSubmission[]
+  studentMarks      StudentMark[]
 
   @@unique([courseUnitId, code])
   @@index([courseUnitId, type])
@@ -959,11 +982,14 @@ model ReportEligibility {
 model MarkCorrection {
   id                   String    @id @default(uuid()) @db.Uuid
   reportId             String    @map("report_id") @db.Uuid
+  markId               String?   @map("mark_id") @db.Uuid
   proposedByLecturerId String    @map("proposed_by_lecturer_id") @db.Uuid
   reviewedByUserId     String?   @map("reviewed_by_user_id") @db.Uuid
   originalValue        Decimal?  @map("original_value") @db.Decimal(8, 2)
   proposedValue        Decimal   @map("proposed_value") @db.Decimal(8, 2)
   finalValue           Decimal?  @map("final_value") @db.Decimal(8, 2)
+  baseMarkVersion      Int?      @map("base_mark_version")
+  baselineVerified     Boolean   @default(false) @map("baseline_verified")
   status               String
   reason               String?
   reviewComments       String?   @map("review_comments")
@@ -972,10 +998,12 @@ model MarkCorrection {
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
   report     MissingMarkReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  mark       StudentMark?      @relation(fields: [markId], references: [id], onDelete: Restrict)
   proposedBy LecturerProfile   @relation("MarkCorrectionProposer", fields: [proposedByLecturerId], references: [id], onDelete: Restrict)
   reviewedBy User?             @relation("MarkCorrectionReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
 
   @@index([reportId, createdAt])
   @@index([reviewedByUserId, status])
+  @@index([markId])
   @@map("mark_corrections")
 }

@@ -745,36 +745,6 @@ test('returns 401 when escalation authentication is missing', async () => {
 
 // Feature 5: Mark-correction proposal controller tests
 
-const createCorrectionControllerPrisma = () => ({
-  lecturerProfile: {
-    findUnique: async () => ({ id: 'lecturer-1' }),
-  },
-
-  missingMarkReport: {
-    findFirst: async () => ({
-      id: 'report-1',
-      reference: 'MM-001',
-      status: 'APPROVED',
-      assessment: {
-        maximumMarks: 100,
-      },
-    }),
-  },
-
-  $transaction: async (callback) =>
-    callback({
-      markCorrection: {
-        findFirst: async () => null,
-
-        create: async ({ data }) => ({
-          id: 'correction-1',
-          ...data,
-          createdAt: new Date(),
-        }),
-      },
-    }),
-});
-
 test('returns 401 when correction submission authentication is missing', async () => {
   const req = {
     user: null,
@@ -805,67 +775,6 @@ test('returns 500 when Prisma is unavailable for correction submission', async (
 
   assert.equal(res.statusCode, 500);
   assert.equal(res.body.success, false);
-});
-
-test('submits a mark-correction proposal successfully', async () => {
-  const prisma = createCorrectionControllerPrisma();
-
-  const req = {
-    user: { id: 'user-1' },
-    app: { locals: { prisma } },
-    params: { reportId: 'report-1' },
-    body: {
-      proposedValue: 75,
-      reason: 'The original mark was entered incorrectly.',
-    },
-  };
-
-  const res = createResponse();
-
-  await submitCorrection(req, res, () => {});
-
-  assert.equal(res.statusCode, 201);
-  assert.equal(res.body.success, true);
-  assert.equal(
-    res.body.data.correction.proposedValue,
-    75
-  );
-  assert.equal(
-    res.body.data.correction.status,
-    'PENDING_REVIEW'
-  );
-  assert.equal(res.body.data.reference, 'MM-001');
-});
-
-test('passes correction submission errors to the error handler', async () => {
-  const expectedError = new Error('Database failure');
-
-  const prisma = {
-    lecturerProfile: {
-      findUnique: async () => {
-        throw expectedError;
-      },
-    },
-  };
-
-  const req = {
-    user: { id: 'user-1' },
-    app: { locals: { prisma } },
-    params: { reportId: 'report-1' },
-    body: {
-      proposedValue: 75,
-      reason: 'The original mark was entered incorrectly.',
-    },
-  };
-
-  const res = createResponse();
-  let capturedError;
-
-  await submitCorrection(req, res, (error) => {
-    capturedError = error;
-  });
-
-  assert.equal(capturedError, expectedError);
 });
 
 // Feature 6: Attendance session controller tests

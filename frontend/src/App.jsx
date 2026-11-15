@@ -34,6 +34,7 @@ import LecturerCourseUnits from './features/lecturer/LecturerCourseUnits'
 import LecturerStudents from './features/lecturer/LecturerStudents'
 import LecturerAttendance from './features/lecturer/LecturerAttendance'
 import LecturerSpecialCases from './features/lecturer/LecturerSpecialCases'
+import LecturerMarks from './features/lecturer/LecturerMarks'
 import CodReports from './features/cod/CodReports'
 import CodAppeals from './features/cod/CodAppeals'
 import CodAttendance from './features/cod/CodAttendance'
@@ -41,6 +42,8 @@ import CodSpecialCases from './features/cod/CodSpecialCases'
 import CodDepartmentWorkspace from './features/cod/CodDepartmentWorkspace'
 import CodCourseUnitAssignments from './features/cod/CodCourseUnitAssignments'
 import CodApprovals from './features/cod/CodApprovals'
+import CodMarkCorrections from './features/cod/CodMarkCorrections'
+import StudentMarks from './features/student/StudentMarks'
 import AdminUsers from './features/admin/AdminUsers'
 import AdminApprovals from './features/admin/AdminApprovals'
 import AdminAcademic from './features/admin/AdminAcademic'
@@ -83,6 +86,7 @@ function App() {
                 element={<StudentDashboard />}
               />
               <Route path="reports" element={<StudentReports />} />
+              <Route path="marks" element={<StudentMarks />} />
               <Route path="reports/new" element={<StudentReportCreate />} />
               <Route path="enrollments" element={<StudentEnrollmentRequests />} />
               <Route
@@ -116,6 +120,7 @@ function App() {
               />
               <Route path="course-units" element={<LecturerCourseUnits />} />
               <Route path="students" element={<LecturerStudents />} />
+              <Route path="marks" element={<LecturerMarks />} />
               <Route path="enrollment-requests" element={<EnrollmentRequestInbox />} />
               <Route path="reports" element={<LecturerReports />} />
               <Route path="notifications" element={<StaffNotifications audience="lecturer" />} />
@@ -146,6 +151,7 @@ function App() {
               <Route path="enrollment-requests" element={<EnrollmentRequestInbox audience="cod" />} />
               <Route path="lecturer-approvals" element={<CodApprovals />} />
               <Route path="reports" element={<CodReports />} />
+              <Route path="mark-corrections" element={<CodMarkCorrections />} />
               <Route path="notifications" element={<StaffNotifications audience="cod" />} />
               <Route path="appeals" element={<CodAppeals />} />
               <Route path="attendance" element={<CodAttendance />} />

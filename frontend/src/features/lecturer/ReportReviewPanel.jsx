@@ -6,6 +6,7 @@ import {
   getLecturerAssessmentTypes,
   getLecturerReport,
   getLecturerReportComments,
+  getLecturerReportCorrections,
   submitLecturerCorrection,
 } from '../../api/lecturer'
 import { extractRecords } from '../shared/recordUtils'
@@ -33,6 +34,7 @@ function AttendanceCheck({ label, check }) {
 export default function ReportReviewPanel({ reportId, onClose }) {
   const [report, setReport] = useState(null)
   const [comments, setComments] = useState([])
+  const [corrections, setCorrections] = useState([])
   const [assessmentTypes, setAssessmentTypes] = useState([])
   const [assessmentTypeId, setAssessmentTypeId] = useState('')
   const [assessmentTypeOtherDescription, setAssessmentTypeOtherDescription] = useState('')
@@ -46,15 +48,17 @@ export default function ReportReviewPanel({ reportId, onClose }) {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
-    const [reportResponse, commentsResponse, typesResponse] = await Promise.all([
+    const [reportResponse, commentsResponse, typesResponse, correctionsResponse] = await Promise.all([
       getLecturerReport(reportId),
       getLecturerReportComments(reportId),
       getLecturerAssessmentTypes(),
+      getLecturerReportCorrections(reportId),
     ])
     return {
       report: unwrap(reportResponse),
       comments: extractRecords(commentsResponse, ['comments']),
       assessmentTypes: extractRecords(typesResponse, ['assessmentTypes', 'types']),
+      corrections: extractRecords(correctionsResponse),
     }
   }, [reportId])
 
@@ -65,6 +69,7 @@ export default function ReportReviewPanel({ reportId, onClose }) {
       setReport(data.report)
       setComments(data.comments)
       setAssessmentTypes(data.assessmentTypes)
+      setCorrections(data.corrections)
       setError('')
     }).catch((requestError) => { if (active) setError(requestError.userMessage || 'Unable to load report details.') })
       .finally(() => { if (active) setLoading(false) })
@@ -80,6 +85,7 @@ export default function ReportReviewPanel({ reportId, onClose }) {
       setReport(data.report)
       setComments(data.comments)
       setAssessmentTypes(data.assessmentTypes)
+      setCorrections(data.corrections)
       setError('')
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to complete this report action.')
@@ -96,6 +102,7 @@ export default function ReportReviewPanel({ reportId, onClose }) {
   const isOtherAssessmentType = selectedAssessmentType?.code === 'OTHER'
   const canSubmitDecision = Boolean(assessmentTypeId)
     && (!isOtherAssessmentType || Boolean(assessmentTypeOtherDescription.trim()))
+  const hasPendingCorrection = corrections.some(({ status }) => status === 'PENDING_REVIEW')
   const decisionPayload = (decision) => ({
     decision,
     reason: reason.trim(),
@@ -148,9 +155,25 @@ export default function ReportReviewPanel({ reportId, onClose }) {
           <h3>Escalate to COD</h3><textarea value={escalation} onChange={(event) => setEscalation(event.target.value)} maxLength={2000} required placeholder="Reason for escalation" /><button className="button button-secondary" disabled={busy || !escalation.trim()}>Escalate</button>
         </form>
         <form className="details-card" onSubmit={(event) => { event.preventDefault(); act(() => submitLecturerCorrection(reportId, { proposedValue: Number(correctionValue), reason: correctionReason.trim() })).then(() => { setCorrectionValue(''); setCorrectionReason('') }) }}>
-          <h3>Propose mark correction</h3><label htmlFor="proposed-mark">Proposed mark</label><input id="proposed-mark" type="number" step="0.01" min="0" value={correctionValue} onChange={(event) => setCorrectionValue(event.target.value)} required /><label htmlFor="correction-reason">Justification</label><textarea id="correction-reason" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} maxLength={2000} required /><button className="button button-secondary" disabled={busy}>Submit correction</button>
+          <h3>Propose mark correction</h3>
+          {hasPendingCorrection && <p role="status">A correction is pending COD review. Submit another proposal after a decision.</p>}
+          <label htmlFor="proposed-mark">Proposed mark</label><input id="proposed-mark" type="number" step="0.01" min="0" max={report.assessment?.maximumMarks ?? undefined} value={correctionValue} onChange={(event) => setCorrectionValue(event.target.value)} required />
+          <label htmlFor="correction-reason">Justification</label><textarea id="correction-reason" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} maxLength={2000} required />
+          <button className="button button-secondary" disabled={busy || hasPendingCorrection}>Submit correction</button>
         </form>
       </div>
+      <section className="details-card" style={{ marginTop: 18 }}>
+        <h3>Correction history</h3>
+        {corrections.length
+          ? corrections.map((correction) => <article key={correction.id} style={{ borderTop: '1px solid var(--border-color, #ddd)', paddingTop: 12, marginTop: 12 }}>
+            <div className="record-actions"><StatusChip status={correction.status} /><span>{new Date(correction.createdAt).toLocaleString()}</span></div>
+            <p>Original: {correction.originalValue ?? 'No official mark'} · Proposed: {correction.proposedValue}{correction.finalValue != null ? ` · Final: ${correction.finalValue}` : ''}</p>
+            <p><strong>Reason:</strong> {correction.reason}</p>
+            {correction.reviewComments && <p><strong>COD comments:</strong> {correction.reviewComments}</p>}
+            {correction.decidedAt && <p>Decision recorded {new Date(correction.decidedAt).toLocaleString()}{correction.reviewedBy?.displayName ? ` by ${correction.reviewedBy.displayName}` : ''}</p>}
+          </article>)
+          : <p>No correction proposals have been submitted for this report.</p>}
+      </section>
       <section className="details-card" style={{ marginTop: 18 }}><h3>Comments</h3>{comments.length ? comments.map((item, index) => <p key={item.id || index}><strong>{item.author?.displayName || item.authorName || 'User'}:</strong> {item.body || item.comment}</p>) : <p>No comments yet.</p>}</section>
     </section>
   )

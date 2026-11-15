@@ -8,10 +8,13 @@ import { appealIdParams, createSpecialCaseBody, pageQuery, reportIdParams, speci
 import { createStudentCase, getStudentAppealById, getStudentAppeals, getStudentCaseById, getStudentCases } from "../feature5/feature5.controller.js";
 import { getStudentEnrollmentOptions, postStudentEnrollmentRequests } from "../enrollment/enrollment-request.controller.js";
 import { studentEnrollmentRequestBody } from "../enrollment/enrollment-request.validation.js";
+import { getStudentMarksController } from "../marks/marks.controller.js";
+import { studentMarksQuery } from "../marks/marks.validation.js";
 
 const router = Router();
 
 router.get("/profile", authenticate, authorize("student"), getProfile);
+router.get("/marks", authenticate, authorize("student"), validate(studentMarksQuery, "query"), getStudentMarksController);
 router.get("/enrollment-options", authenticate, authorize("student"), getStudentEnrollmentOptions);
 router.post("/enrollment-requests", authenticate, authorize("student"), validate(studentEnrollmentRequestBody), postStudentEnrollmentRequests);
 router.get("/report-options", authenticate, authorize("student"), getReportOptions);
