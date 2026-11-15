@@ -6,6 +6,7 @@ export const navigation = {
   student: [
     { label: 'Dashboard', to: '/student', icon: LayoutDashboard, end: true },
     { label: 'My reports', to: '/student/reports', icon: FileText },
+    { label: 'My marks', to: '/student/marks', icon: FileSpreadsheet },
     { label: 'Course enrollment', to: '/student/enrollments', icon: BookOpenCheck },
     { label: 'Appeals', to: '/student/appeals', icon: ClipboardList },
     { label: 'Attendance', to: '/student/attendance', icon: ClipboardList },
@@ -17,6 +18,7 @@ export const navigation = {
     { label: 'Dashboard', to: '/lecturer', icon: LayoutDashboard, end: true },
     { label: 'My course units', to: '/lecturer/course-units', icon: BookOpen },
     { label: 'My students', to: '/lecturer/students', icon: UserRoundSearch },
+    { label: 'Assessment marks', to: '/lecturer/marks', icon: FileSpreadsheet },
     { label: 'Enrollment requests', to: '/lecturer/enrollment-requests', icon: UserCheck },
     { label: 'Assigned reports', to: '/lecturer/reports', icon: FileText },
     { label: 'Notifications', to: '/lecturer/notifications', icon: Bell },
@@ -31,6 +33,7 @@ export const navigation = {
     { label: 'Enrollment requests', to: '/cod/enrollment-requests', icon: UserCheck },
     { label: 'Lecturer approvals', to: '/cod/lecturer-approvals', icon: UserCheck },
     { label: 'Reports', to: '/cod/reports', icon: FileText },
+    { label: 'Mark corrections', to: '/cod/mark-corrections', icon: FileSpreadsheet },
     { label: 'Notifications', to: '/cod/notifications', icon: Bell },
     { label: 'Appeals', to: '/cod/appeals', icon: ClipboardList },
     { label: 'Attendance review', to: '/cod/attendance', icon: ClipboardList },

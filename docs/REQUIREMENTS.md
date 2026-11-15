@@ -30,6 +30,7 @@ A student should be able to:
 - Edit or withdraw a report only when its status and system rules permit.
 - Submit an appeal where permitted by the agreed appeal policy.
 - View their own attendance history and relevant attendance-related information.
+- View their own official marks by academic period, including assessment and course-unit details.
 - Receive notifications about report progress and required action.
 
 A student must not view another student's private report or change official marks.
@@ -43,6 +44,8 @@ A lecturer should be able to:
 - Record an approval or rejection with a reason, where authorised.
 - Propose a correction or next action through the agreed workflow.
 - Create and manage attendance sessions for their assigned classes/units, subject to the approved attendance rules.
+- Submit initial marks for enrolled students in assessments belonging to course units assigned to them; submitted marks become official immediately and cannot be overwritten by another initial submission.
+- Propose corrections to marks through an audited departmental review process.
 - Review relevant CAT and examination attendance information.
 - View only the students, units and records they are authorised to access.
 
@@ -58,6 +61,7 @@ A COD / Academic Officer should be able to:
 - Review lecturer decisions.
 - Handle appeals and special cases under the agreed approval process.
 - Record departmental decisions and reasons.
+- Review and approve or reject lecturer mark-correction proposals within designated departments.
 - View relevant departmental summaries and audit information.
 
 The exact distinction between COD and Academic Officer permissions must be confirmed. If they are separate real-world roles, the team must decide whether they share a system role or have distinct permissions.
@@ -87,6 +91,8 @@ System administration does not automatically grant authority to alter official a
 8. Appeals and special-case handling.
 9. Notifications.
 10. Administration, audit and reporting.
+
+Official marks are stored in the shared application database and are linked to a student's existing unit enrollment, an assessment, and the lecturer who entered the value. One official mark is allowed per enrollment and assessment. Initial lecturer submissions are immediately official. Later changes require a correction proposal and a COD decision; approval updates or creates the official mark transactionally, while rejection leaves it unchanged. Corrections retain their original/proposed/final values and reviewer decision history. A proposal captures a verified mark version so a stale proposal cannot overwrite a newer value.
 
 ## 5. Important business rules to confirm
 

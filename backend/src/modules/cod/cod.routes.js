@@ -15,6 +15,12 @@ import { getCodDepartmentRequests, patchCodDepartmentRequestDecision } from "../
 import { departmentMembershipDecisionBody, departmentMembershipRequestParams } from "../department-membership/department-membership.validation.js";
 import { getUserNotifications, patchAllUserNotificationsRead, patchUserNotificationRead } from "../../shared/controllers/user-notifications.controller.js";
 import { userNotificationIdParams, userNotificationsQuery } from "../../shared/validation/user-notifications.validation.js";
+import {
+	getCodMarkCorrectionController,
+	getCodMarkCorrectionsController,
+	postCodMarkCorrectionDecisionController,
+} from "../marks/marks.controller.js";
+import { codCorrectionsQuery, correctionDecisionBody, correctionParams } from "../marks/marks.validation.js";
 
 export const codRoutes = Router();
 
@@ -31,6 +37,9 @@ codRoutes.patch("/lecturer-department-requests/:id", validate(departmentMembersh
 codRoutes.patch("/lecturer-approvals/:id", validate(lecturerApprovalIdParamsSchema, "params"), validate(lecturerApprovalDecisionBodySchema), decideLecturerApproval);
 codRoutes.get("/departments", getCodDepartments);
 codRoutes.get("/course-units", validate(codDirectoryQuerySchema, "query"), getCodDepartmentCourseUnits);
+codRoutes.get("/mark-corrections", validate(codCorrectionsQuery, "query"), getCodMarkCorrectionsController);
+codRoutes.get("/mark-corrections/:correctionId", validate(correctionParams, "params"), getCodMarkCorrectionController);
+codRoutes.post("/mark-corrections/:correctionId/decision", validate(correctionParams, "params"), validate(correctionDecisionBody), postCodMarkCorrectionDecisionController);
 codRoutes.get("/students", validate(codDirectoryQuerySchema, "query"), getCodDepartmentStudents);
 codRoutes.get("/lecturers", validate(codDirectoryQuerySchema, "query"), getCodDepartmentLecturers);
 codRoutes.post("/course-units/:courseUnitId/lecturers", validate(codCourseUnitParamsSchema, "params"), validate(createCodCourseUnitLecturerBodySchema), postCodCourseUnitLecturer);
