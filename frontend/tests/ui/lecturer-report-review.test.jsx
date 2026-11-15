@@ -9,6 +9,7 @@ vi.mock('../../src/api/lecturer', () => ({
   getLecturerAssessmentTypes: vi.fn(),
   getLecturerReport: vi.fn(),
   getLecturerReportComments: vi.fn(),
+  getLecturerReportCorrections: vi.fn(),
   submitLecturerCorrection: vi.fn(),
 }))
 
@@ -18,6 +19,7 @@ import {
   getLecturerAssessmentTypes,
   getLecturerReport,
   getLecturerReportComments,
+  getLecturerReportCorrections,
 } from '../../src/api/lecturer'
 
 afterEach(() => {

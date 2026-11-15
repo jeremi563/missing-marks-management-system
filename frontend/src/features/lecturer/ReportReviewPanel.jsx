@@ -21,11 +21,14 @@ function unwrap(response) {
 
 function AttendanceCheck({ label, check }) {
   const statusLabels = { present: 'Present', absent: 'Not present', unknown: 'Unknown' }
+  const status = check?.status ?? 'unknown'
+  const items = Array.isArray(check?.items) ? check.items : []
+
   return (
-    <article className={`report-attendance-check report-attendance-check-${check.status}`}>
-      <div><strong>{label}</strong><span>{statusLabels[check.status] || statusLabels.unknown}</span></div>
-      {check.items.length > 0
-        ? check.items.map((item) => <small key={item.assessmentId}>{item.code || item.name}: {statusLabels[item.status] || statusLabels.unknown}</small>)
+    <article className={`report-attendance-check report-attendance-check-${status}`}>
+      <div><strong>{label}</strong><span>{statusLabels[status] || statusLabels.unknown}</span></div>
+      {items.length > 0
+        ? items.map((item) => <small key={item.assessmentId || item.id || item.code || item.name}>{item.code || item.name}: {statusLabels[item.status] || statusLabels.unknown}</small>)
         : <small>No matching assessment attendance data is available.</small>}
     </article>
   )

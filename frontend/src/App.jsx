@@ -33,6 +33,7 @@ import LecturerReports from './features/lecturer/LecturerReports'
 import LecturerCourseUnits from './features/lecturer/LecturerCourseUnits'
 import LecturerStudents from './features/lecturer/LecturerStudents'
 import LecturerAttendance from './features/lecturer/LecturerAttendance'
+import LecturerCatSubmissions from './features/lecturer/LecturerCatSubmissions'
 import LecturerSpecialCases from './features/lecturer/LecturerSpecialCases'
 import LecturerMarks from './features/lecturer/LecturerMarks'
 import CodReports from './features/cod/CodReports'
@@ -125,6 +126,7 @@ function App() {
               <Route path="reports" element={<LecturerReports />} />
               <Route path="notifications" element={<StaffNotifications audience="lecturer" />} />
               <Route path="attendance" element={<LecturerAttendance />} />
+              <Route path="cat-submissions" element={<LecturerCatSubmissions />} />
               <Route path="special-cases" element={<LecturerSpecialCases />} />
               <Route path="settings" element={<AccountSettings roleLabel="Lecturer" />} />
             </Route>

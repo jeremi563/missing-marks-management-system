@@ -13,6 +13,9 @@ import {
   attendanceSessionIdSchema,
   courseUnitIdParamsSchema,
   courseUnitAssessmentsQuerySchema,
+  catSubmissionsQuerySchema,
+  catSubmissionParamsSchema,
+  catSubmissionDecisionSchema,
 } from '../../src/modules/lecturer/lecturer.validation.js';
 
 test('accepts a valid report UUID', () => {
@@ -431,6 +434,21 @@ test('rejects an end time equal to the start time', () => {
   const result = createAttendanceSessionSchema.safeParse({
     ...validAttendanceSession,
     endsAt: validAttendanceSession.startsAt,
+  });
+
+  test('validates CAT submission review filters and decisions', () => {
+    const id = '550e8400-e29b-41d4-a716-446655440000';
+    assert.equal(catSubmissionsQuerySchema.safeParse({ status: 'PENDING_REVIEW', courseUnitId: id, assessmentId: id }).success, true);
+    assert.equal(catSubmissionsQuerySchema.safeParse({ status: 'UNKNOWN' }).success, false);
+    assert.equal(catSubmissionParamsSchema.safeParse({ submissionId: id }).success, true);
+    assert.equal(catSubmissionParamsSchema.safeParse({ submissionId: 'bad-id' }).success, false);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'VERIFY' }).success, true);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'VERIFY', comments: '  Looks good.  ' }).success, true);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'REJECT', reason: '  Not legible.  ' }).success, true);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'REJECT' }).success, false);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'REJECT', reason: ' ' }).success, false);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'VERIFY', reason: 'Not valid here' }).success, false);
+    assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'REJECT', reason: 'No', comments: 'Not accepted' }).success, false);
   });
 
   assert.equal(result.success, false);

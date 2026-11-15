@@ -103,7 +103,7 @@ describe('administrator lecturer and academic-period views', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Academic periods' }))
 
     expect(await screen.findByRole('columnheader', { name: 'Academic year' })).toBeTruthy()
-    expect(await screen.findByRole('cell', { name: '2026/27' })).toBeTruthy()
+    expect(await screen.findByRole('cell', { name: '2025/26' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('tab', { name: 'Enrolments' }))
     expect(await screen.findByText('Enrolments are created when lecturers approve students’ course-unit requests. Administrators can review these records here.')).toBeTruthy()

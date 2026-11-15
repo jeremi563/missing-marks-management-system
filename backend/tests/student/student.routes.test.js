@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn } from "../../src/modules/student/student.validation.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery } from "../../src/modules/student/student.validation.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
@@ -86,6 +86,20 @@ test("registers GET /attendance with auth, student-role, and pagination validati
 	assert.ok(attendanceRoute);
 	assert.equal(attendanceRoute.route.methods.get, true);
 	assert.equal(attendanceRoute.route.stack.length, 4);
+});
+
+test("registers a student-scoped CAT submission list and validates pagination and status", () => {
+	const route = router.stack.find((layer) => layer.route?.path === "/cat-submissions" && layer.route.methods.get);
+	assert.ok(route);
+	assert.equal(route.route.stack.length, 4);
+	const req = { query: { page: "2", limit: "25", status: "REJECTED" } };
+	let capturedError;
+	validateStudentCatSubmissionsQuery(req, {}, (error) => { capturedError = error; });
+	assert.equal(capturedError, undefined);
+	assert.deepEqual(req.validatedQuery, { page: 2, limit: 25, status: "REJECTED" });
+	let invalidError;
+	validateStudentCatSubmissionsQuery({ query: { studentProfileId: "other-student" } }, {}, (error) => { invalidError = error; });
+	assert.equal(invalidError.statusCode, 400);
 });
 
 test("registers POST /attendance/check-in with student auth, role checks and location validation", () => {

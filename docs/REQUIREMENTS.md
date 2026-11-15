@@ -47,6 +47,7 @@ A lecturer should be able to:
 - Submit initial marks for enrolled students in assessments belonging to course units assigned to them; submitted marks become official immediately and cannot be overwritten by another initial submission.
 - Propose corrections to marks through an audited departmental review process.
 - Review relevant CAT and examination attendance information.
+- Verify or reject CAT submissions created by successful check-in to CAT sessions they own; rejection requires a reason, while verification comments are optional.
 - View only the students, units and records they are authorised to access.
 
 A lecturer must not access unrelated departmental or system administration functions.

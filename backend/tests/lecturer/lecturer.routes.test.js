@@ -39,6 +39,18 @@ test('registers an authenticated lecturer attendance-link generation endpoint', 
   assert.equal(route.route.stack.length, 4);
 });
 
+test('registers the authenticated CAT submission queue, details and decision endpoints', () => {
+  const list = router.stack.find((layer) => layer.route?.path === '/cat-submissions' && layer.route.methods.get);
+  const detail = router.stack.find((layer) => layer.route?.path === '/cat-submissions/:submissionId' && layer.route.methods.get);
+  const decision = router.stack.find((layer) => layer.route?.path === '/cat-submissions/:submissionId/decision' && layer.route.methods.post);
+  assert.ok(list);
+  assert.equal(list.route.stack.length, 4);
+  assert.ok(detail);
+  assert.equal(detail.route.stack.length, 4);
+  assert.ok(decision);
+  assert.equal(decision.route.stack.length, 5);
+});
+
 test('registers an authenticated end-time extension endpoint with body validation', () => {
   const route = router.stack.find(
     (layer) => layer.route?.path === '/attendance/sessions/:sessionId/end-time'

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { getStudentProfile, getStudentReportOptions, buildAcademicYearOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
+import { getStudentProfile, getStudentReportOptions, buildAcademicYearOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, listStudentCatSubmissions, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -364,9 +364,12 @@ test("does not query attendance history when no student profile exists", async (
 });
 
 function createCheckInPrisma(overrides = {}) {
-	const state = { attempts: [], records: [], histories: [] };
+	const state = { attempts: [], records: [], histories: [], catSubmissions: [], auditEvents: [], outbox: [] };
 	const session = {
 		id: "session-1",
+		assessmentId: null,
+		courseUnitId: "unit-1",
+		lecturerProfileId: "lecturer-1",
 		status: "active",
 		startsAt: new Date("2026-11-13T06:00:00.000Z"),
 		endsAt: new Date("2026-11-13T08:00:00.000Z"),
@@ -381,6 +384,38 @@ function createCheckInPrisma(overrides = {}) {
 		classroom: { name: "Room 1", latitude: -1.286389, longitude: 36.817223, boundaryMeters: 80, isActive: true },
 		...overrides.session,
 	};
+	const enrollmentLookup = overrides.prisma?.unitEnrollment?.findMany
+		?? (async () => [{ academicPeriod: { startsAt: new Date("2026-09-01"), code: "2026-T1", name: "2026 Term 1" } }]);
+	const tx = {
+		$queryRaw: async () => [{ id: session.id }],
+		attendanceSession: { findUnique: async () => session },
+		assessment: { findFirst: async ({ where }) => ({ id: where.id }) },
+		unitEnrollment: { findMany: enrollmentLookup },
+		lecturerProfile: { findUnique: async () => ({ userId: "lecturer-user-1" }) },
+		attendanceRecord: {
+			create: async ({ data }) => {
+				state.records.push(data);
+				return { id: "record-1", ...data };
+			},
+		},
+		attendanceHistory: {
+			create: async ({ data }) => { state.histories.push(data); },
+		},
+		catSubmission: {
+			createMany: async ({ data }) => {
+				const row = data[0];
+				const existing = state.catSubmissions.find((item) => item.assessmentId === row.assessmentId && item.studentProfileId === row.studentProfileId);
+				if (existing) return { count: 0 };
+				state.catSubmissions.push({ id: "cat-submission-1", ...row, createdAt: row.confirmedAt });
+				return { count: 1 };
+			},
+			findUnique: async ({ where }) => state.catSubmissions.find((item) =>
+				item.assessmentId === where.assessmentId_studentProfileId.assessmentId
+				&& item.studentProfileId === where.assessmentId_studentProfileId.studentProfileId) ?? null,
+		},
+		auditLog: { create: async ({ data }) => { state.auditEvents.push(data); } },
+		notificationOutbox: { create: async ({ data }) => { state.outbox.push(data); } },
+	};
 	const prisma = {
 		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
 		attendanceSession: {
@@ -389,22 +424,18 @@ function createCheckInPrisma(overrides = {}) {
 				return session;
 			},
 		},
-		unitEnrollment: {
-			findMany: async () => [{ academicPeriod: { startsAt: new Date("2026-09-01"), code: "2026-T1", name: "2026 Term 1" } }],
-		},
+		unitEnrollment: { findMany: enrollmentLookup },
 		attendanceAttempt: { create: async ({ data }) => state.attempts.push(data) },
 		attendanceRecord: { findUnique: async () => null },
-		$transaction: async (callback) => callback({
-			attendanceRecord: {
-				create: async ({ data }) => {
-					state.records.push(data);
-					return { id: "record-1", ...data };
-				},
-			},
-			attendanceHistory: {
-				create: async ({ data }) => { state.histories.push(data); },
-			},
-		}),
+		$transaction: async (callback) => {
+			const lengths = Object.fromEntries(Object.entries(state).map(([key, value]) => [key, value.length]));
+			try {
+				return await callback({ ...tx, ...overrides.transaction });
+			} catch (error) {
+				for (const [key, length] of Object.entries(lengths)) state[key].length = length;
+				throw error;
+			}
+		},
 		...overrides.prisma,
 	};
 	return { prisma, session, state };
@@ -427,6 +458,136 @@ test("records a student attendance check-in only after active-session, enrollmen
 	assert.equal(state.histories[0].attendanceRecordId, "record-1");
 	assert.equal(state.histories[0].courseUnitCode, "IN101");
 	assert.equal(state.attempts.length, 0);
+	assert.equal(state.catSubmissions.length, 0);
+});
+
+test("CAT check-in atomically creates a pending submission and notifies its session lecturer", async () => {
+	const { prisma, state } = createCheckInPrisma({
+		session: { sessionType: "CAT", assessmentId: "assessment-1" },
+	});
+	const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z"));
+
+	assert.equal(state.records.length, 1);
+	assert.equal(state.histories.length, 1);
+	assert.equal(state.catSubmissions.length, 1);
+	assert.equal(state.catSubmissions[0].status, "PENDING_REVIEW");
+	assert.equal(state.catSubmissions[0].assessmentId, "assessment-1");
+	assert.equal(state.catSubmissions[0].attendanceRecordId, "record-1");
+	assert.equal(state.catSubmissions[0].confirmedAt.toISOString(), "2026-11-13T07:00:00.000Z");
+	assert.equal(result.catSubmission.status, "PENDING_REVIEW");
+	assert.equal(state.auditEvents[0].action, "CAT_SUBMISSION_CREATED");
+	assert.equal(state.outbox[0].recipientUserId, "lecturer-user-1");
+	assert.equal(state.outbox[0].eventType, "CAT_SUBMISSION_CREATED");
+});
+
+test("CAT submission, attendance history, audit and notification roll back together on outbox failure", async () => {
+	const { prisma, state } = createCheckInPrisma({
+		session: { sessionType: "CAT", assessmentId: "assessment-1" },
+		transaction: { notificationOutbox: { create: async () => { throw new Error("outbox failure"); } } },
+	});
+
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), /outbox failure/);
+	assert.equal(state.records.length, 0);
+	assert.equal(state.histories.length, 0);
+	assert.equal(state.catSubmissions.length, 0);
+	assert.equal(state.auditEvents.length, 0);
+});
+
+test("CAT check-in preserves an existing rejected submission while recording a separate session attendance", async () => {
+	const existingSubmission = {
+		id: "existing-cat-submission",
+		assessmentId: "assessment-1",
+		studentProfileId: "student-1",
+		status: "REJECTED",
+		rejectionReason: "Not legible",
+	};
+	const { prisma, state } = createCheckInPrisma({
+		session: { id: "session-2", sessionType: "CAT", assessmentId: "assessment-1" },
+		transaction: {},
+	});
+	state.catSubmissions.push(existingSubmission);
+	const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z"));
+
+	assert.equal(state.records.length, 1);
+	assert.equal(state.catSubmissions.length, 1);
+	assert.equal(result.catSubmission.status, "REJECTED");
+	assert.equal(result.catSubmission.rejectionReason, "Not legible");
+	assert.equal(state.auditEvents.length, 0);
+	assert.equal(state.outbox.length, 0);
+});
+
+test("rechecks session and enrollment inside the CAT attendance transaction", async () => {
+	let enrollmentCalls = 0;
+	const { prisma, state } = createCheckInPrisma({
+		session: { sessionType: "CAT", assessmentId: "assessment-1" },
+		prisma: {
+			unitEnrollment: {
+				findMany: async () => {
+					enrollmentCalls += 1;
+					return enrollmentCalls === 1
+						? [{ academicPeriod: { startsAt: new Date("2026-09-01"), code: "2026-T1", name: "2026 Term 1" } }]
+						: [];
+				},
+			},
+		},
+	});
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), { statusCode: 403 });
+	assert.equal(state.records.length, 0);
+	assert.equal(state.catSubmissions.length, 0);
+});
+
+test("lists only the authenticated student's CAT submissions with matching academic periods", async () => {
+	const query = {};
+	const submission = {
+		id: "cat-1",
+		status: "REJECTED",
+		rejectionReason: "Not legible",
+		assessment: { id: "assessment-1", courseUnit: { id: "unit-1", code: "IN101", name: "Computing" } },
+		attendanceRecord: { session: { startsAt: new Date("2026-11-13T06:00:00.000Z") } },
+	};
+	const prisma = {
+		studentProfile: { findUnique: async ({ where }) => { assert.deepEqual(where, { userId: "user-1" }); return { id: "student-1" }; } },
+		catSubmission: {
+			findMany: async (args) => { query.list = args; return [submission]; },
+			count: async (args) => { query.count = args; return 1; },
+		},
+		unitEnrollment: {
+			findMany: async (args) => {
+				query.enrollments = args;
+				return [{ courseUnitId: "unit-1", academicPeriod: { id: "period-1", code: "2026-T1", name: "Term 1", startsAt: new Date("2026-09-01"), endsAt: new Date("2026-12-31") } }];
+			},
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+	const result = await listStudentCatSubmissions(prisma, "user-1", { page: 2, limit: 5, status: "REJECTED" });
+	assert.deepEqual(query.list.where, { studentProfileId: "student-1", status: "REJECTED" });
+	assert.equal(query.list.skip, 5);
+	assert.equal(query.list.take, 5);
+	assert.deepEqual(query.count.where, query.list.where);
+	assert.equal(result.items[0].rejectionReason, "Not legible");
+	assert.equal(result.items[0].academicYear, "2026/27");
+	assert.equal(result.items[0].academicPeriods[0].id, "period-1");
+	assert.deepEqual(result.pagination, { page: 2, limit: 5, total: 1, totalPages: 1 });
 });
 
 test("rejects check-ins outside the configured boundary and records a rejected attempt", async () => {

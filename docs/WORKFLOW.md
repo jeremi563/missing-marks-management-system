@@ -127,7 +127,13 @@ The attendance percentage uses the administrator-configurable threshold, which d
 
 ## 7. CAT and examination attendance
 
-Assessment-attendance and attempt sources can be reviewed in departmental reports and discrepancies. The current Admin correction ledger supports session attendance records only. Confirm the official university source of truth for CAT and examination attendance before treating application records as authoritative.
+Lecturers create CAT attendance sessions against a CAT assessment for an assigned course unit and academic year. A student who passes the existing QR, active-session, classroom-location, registration and academic-year enrollment checks receives an `AttendanceRecord` and `AttendanceHistory`; in the same transaction, the application creates one `CatSubmission` for that student and assessment, linked to the source attendance record. A duplicate check-in to a different valid session may create its own attendance record but cannot duplicate or reset the student's existing CAT submission.
+
+The submission starts as `PENDING_REVIEW`. Only the lecturer who owns the linked CAT attendance session can decide it. Verification changes it to `VERIFIED` and may include comments. Rejection changes it to `REJECTED` and requires a reason. The decision actor/time, audit event and student notification are committed together; submission creation, attendance history, audit event and lecturer notification-outbox event are likewise atomic. A submission receives one final decision; attempts to decide it again conflict. Students can view only their own submission status and rejection reason. COD report details remain read-only and do not add a separate CAT decision workflow.
+
+`LEGACY_REVIEWED` and `LEGACY_UNVERIFIED` preserve the ambiguity of records created before this workflow: a historical verifier/time does not establish whether the outcome was approval or rejection. Such rows are not presented as pending review. Assessment-attendance and attempt sources remain separate and may be reviewed in departmental reports and discrepancies. The current Admin correction ledger supports session attendance records only.
+
+Confirm the official university source of truth for CAT and examination attendance before treating application records as authoritative.
 
 The team has discussed QR verification for an exam booklet. Document the final scanning, matching and exception process before implementation.
 

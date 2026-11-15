@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
-import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, checkInToAttendance, getNotifications, updateReport, withdrawReport, getReportComments, addClarification, submitAppeal, markNotificationRead, createAttendanceDiscrepancy, getAttendanceDiscrepancies, getAttendanceDiscrepancy, respondAttendanceDiscrepancy } from "./student.controller.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody, validateCreateStudentCommentBody, validateStudentNotificationId, validateAttendanceDiscrepancySource, validateAttendanceDiscrepancyParams, validateStudentAttendanceCheckIn } from "./student.validation.js";
+import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, checkInToAttendance, getCatSubmissions, getNotifications, updateReport, withdrawReport, getReportComments, addClarification, submitAppeal, markNotificationRead, createAttendanceDiscrepancy, getAttendanceDiscrepancies, getAttendanceDiscrepancy, respondAttendanceDiscrepancy } from "./student.controller.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody, validateCreateStudentCommentBody, validateStudentNotificationId, validateAttendanceDiscrepancySource, validateAttendanceDiscrepancyParams, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery } from "./student.validation.js";
 import { validate } from "../../middleware/validate.js";
 import { appealIdParams, createSpecialCaseBody, pageQuery, reportIdParams, specialCaseIdParams } from "../feature5/feature5.validation.js";
 import { createStudentCase, getStudentAppealById, getStudentAppeals, getStudentCaseById, getStudentCases } from "../feature5/feature5.controller.js";

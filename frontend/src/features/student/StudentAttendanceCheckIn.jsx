@@ -72,6 +72,12 @@ export default function StudentAttendanceCheckIn() {
             <strong>Attendance recorded</strong>
             <p>{result.session?.courseUnit?.code} — {result.session?.courseUnit?.name}</p>
             {result.session?.classroomName && <small>{result.session.classroomName}</small>}
+            {result.session?.sessionType === 'CAT' && result.catSubmission?.status === 'PENDING_REVIEW' && (
+              <p role="status">Your CAT submission is awaiting lecturer verification.</p>
+            )}
+            {result.session?.sessionType === 'CAT' && result.catSubmission?.status === 'REJECTED' && (
+              <p role="status">A CAT submission already exists with status Rejected. Review its decision reason in attendance history.</p>
+            )}
           </div>
         </div>
       )}

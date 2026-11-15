@@ -13,6 +13,9 @@ import {
   extendAttendanceSession,
   endAttendanceSession,
   getAttendanceSessionRecords,
+  listLecturerCatSubmissions,
+  getLecturerCatSubmission,
+  decideLecturerCatSubmission,
 } from './lecturer.service.js';
 import { submitMarkCorrection } from '../marks/marks.service.js';
 import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
@@ -800,3 +803,41 @@ export const getAttendanceSessionRecordsController = async (
     next(error);
   }
 };
+
+export async function getCatSubmissionsController(req, res, next) {
+  try {
+    const result = await listLecturerCatSubmissions(req.app.locals.prisma, req.user.id, req.validatedQuery);
+    return res.status(200).json({
+      success: true,
+      message: 'CAT submissions retrieved successfully.',
+      count: result.items.length,
+      data: result.items,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getCatSubmissionController(req, res, next) {
+  try {
+    const submission = await getLecturerCatSubmission(req.app.locals.prisma, req.user.id, req.validatedParams.submissionId);
+    return res.status(200).json({ success: true, message: 'CAT submission retrieved successfully.', data: submission });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function postCatSubmissionDecisionController(req, res, next) {
+  try {
+    const submission = await decideLecturerCatSubmission(
+      req.app.locals.prisma,
+      req.user.id,
+      req.validatedParams.submissionId,
+      req.validatedBody,
+    );
+    return res.status(200).json({ success: true, message: 'CAT submission decision recorded successfully.', data: submission });
+  } catch (error) {
+    return next(error);
+  }
+}

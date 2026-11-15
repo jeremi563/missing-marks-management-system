@@ -1,4 +1,4 @@
-import { getStudentProfile, getStudentReportOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead, createStudentAttendanceDiscrepancy, listStudentAttendanceDiscrepancies, getStudentAttendanceDiscrepancy, respondToStudentAttendanceDiscrepancy } from "./student.service.js";
+import { getStudentProfile, getStudentReportOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, listStudentCatSubmissions, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, addStudentClarification, submitStudentAppeal, markStudentNotificationRead, createStudentAttendanceDiscrepancy, listStudentAttendanceDiscrepancies, getStudentAttendanceDiscrepancy, respondToStudentAttendanceDiscrepancy } from "./student.service.js";
 
 export async function getProfile(req, res, next) {
 	try {
@@ -159,6 +159,21 @@ export async function checkInToAttendance(req, res, next) {
 			success: true,
 			message: "Attendance recorded successfully.",
 			data: result,
+		});
+	} catch (error) {
+		return next(error);
+	}
+}
+
+export async function getCatSubmissions(req, res, next) {
+	try {
+		const result = await listStudentCatSubmissions(req.app.locals.prisma, req.user.id, req.validatedQuery);
+		return res.status(200).json({
+			success: true,
+			message: "CAT submissions retrieved successfully.",
+			count: result.items.length,
+			data: result.items,
+			pagination: result.pagination,
 		});
 	} catch (error) {
 		return next(error);

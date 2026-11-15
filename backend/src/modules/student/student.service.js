@@ -714,6 +714,8 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 		where: { accessTokenHash },
 		select: {
 			id: true,
+			assessmentId: true,
+			lecturerProfileId: true,
 			status: true,
 			startsAt: true,
 			endsAt: true,
@@ -803,6 +805,96 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 	try {
 		return await prisma.$transaction(async (transaction) => {
 			const recordedAt = now;
+			await transaction.$queryRaw`
+				SELECT id
+				FROM attendance_sessions
+				WHERE id = ${session.id}::uuid
+				FOR UPDATE
+			`;
+			const currentSession = await transaction.attendanceSession.findUnique({
+				where: { id: session.id },
+				select: {
+					id: true,
+					assessmentId: true,
+					courseUnitId: true,
+					lecturerProfileId: true,
+					status: true,
+					startsAt: true,
+					endsAt: true,
+					sessionType: true,
+					courseUnit: {
+						select: {
+							id: true,
+							code: true,
+							name: true,
+							department: { select: { initials: true } },
+							course: { select: { code: true } },
+						},
+					},
+					classroom: {
+						select: {
+							name: true,
+							latitude: true,
+							longitude: true,
+							boundaryMeters: true,
+							isActive: true,
+						},
+					},
+				},
+			});
+			if (
+				!currentSession
+				|| currentSession.status !== "active"
+				|| new Date(currentSession.startsAt) > now
+				|| (currentSession.endsAt && new Date(currentSession.endsAt) <= now)
+				|| !currentSession.courseUnit
+				|| !currentSession.classroom?.isActive
+			) {
+				throw new AppError(409, "This attendance session is not currently accepting check-ins");
+			}
+			if (
+				currentSession.courseUnit.department?.initials !== registration.departmentInitials
+				|| currentSession.courseUnit.course?.code !== registration.courseCode
+			) {
+				throw new AppError(403, "This course unit is not part of your registered course");
+			}
+			if (currentSession.sessionType === "CAT") {
+				if (!currentSession.assessmentId) throw new AppError(409, "The CAT session is missing its assessment");
+				const assessment = await transaction.assessment.findFirst({
+					where: {
+						id: currentSession.assessmentId,
+						courseUnitId: currentSession.courseUnitId,
+						type: "CAT",
+					},
+					select: { id: true },
+				});
+				if (!assessment) throw new AppError(409, "The CAT session assessment is no longer valid for this course unit");
+			}
+
+			const currentDistance = distanceBetweenMeters(
+				input.latitude,
+				input.longitude,
+				Number(currentSession.classroom.latitude),
+				Number(currentSession.classroom.longitude),
+			);
+			if (currentDistance + input.accuracyMeters > currentSession.classroom.boundaryMeters) {
+				throw new AppError(403, currentDistance > currentSession.classroom.boundaryMeters
+					? "Your device location is outside the configured classroom boundary"
+					: "Your location is too close to the boundary to verify attendance. Move closer to the classroom and try again");
+			}
+
+			const currentEnrollments = await transaction.unitEnrollment.findMany({
+				where: {
+					studentProfileId: student.id,
+					courseUnitId: currentSession.courseUnitId,
+				},
+				select: { academicPeriod: { select: { startsAt: true, code: true, name: true } } },
+			});
+			const academicYear = academicYearForDate(currentSession.startsAt);
+			if (!currentEnrollments.some(({ academicPeriod }) => academicYearForPeriod(academicPeriod) === academicYear)) {
+				throw new AppError(403, "You are not enrolled in this course unit for the session's academic year");
+			}
+
 			const record = await transaction.attendanceRecord.create({
 				data: {
 					sessionId: session.id,
@@ -818,22 +910,85 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 				data: {
 					attendanceRecordId: record.id,
 					studentProfileId: student.id,
-					courseUnitCode: session.courseUnit.code,
-					courseUnitName: session.courseUnit.name,
-					sessionStartedAt: session.startsAt,
+					courseUnitCode: currentSession.courseUnit.code,
+					courseUnitName: currentSession.courseUnit.name,
+					sessionStartedAt: currentSession.startsAt,
 					status: record.status,
 					locationVerified: true,
 					signedAt: recordedAt,
 				},
 			});
 
+			let catSubmission = null;
+			if (currentSession.sessionType === "CAT") {
+				const inserted = await transaction.catSubmission.createMany({
+					data: [{
+						assessmentId: currentSession.assessmentId,
+						studentProfileId: student.id,
+						attendanceRecordId: record.id,
+						status: "PENDING_REVIEW",
+						confirmedAt: recordedAt,
+					}],
+					skipDuplicates: true,
+				});
+				catSubmission = await transaction.catSubmission.findUnique({
+					where: {
+						assessmentId_studentProfileId: {
+							assessmentId: currentSession.assessmentId,
+							studentProfileId: student.id,
+						},
+					},
+					select: {
+						id: true,
+						status: true,
+						rejectionReason: true,
+						comments: true,
+						createdAt: true,
+						confirmedAt: true,
+						verifiedAt: true,
+					},
+				});
+				if (!catSubmission) throw new AppError(409, "The CAT submission could not be confirmed");
+				if (inserted.count === 1) {
+					await recordAuditEvent({
+						prismaClient: transaction,
+						actorId: userId,
+						action: "CAT_SUBMISSION_CREATED",
+						entityType: "CatSubmission",
+						entityId: catSubmission.id,
+						metadata: {
+							assessmentId: currentSession.assessmentId,
+							attendanceRecordId: record.id,
+							attendanceSessionId: currentSession.id,
+							lecturerProfileId: currentSession.lecturerProfileId,
+							academicYear,
+						},
+					});
+					const lecturer = await transaction.lecturerProfile.findUnique({
+						where: { id: currentSession.lecturerProfileId },
+						select: { userId: true },
+					});
+					if (!lecturer) throw new AppError(409, "The CAT session lecturer could not be found");
+					await enqueueNotificationOnce(transaction, {
+						dedupeKey: `CAT_SUBMISSION_CREATED:${catSubmission.id}:${lecturer.userId}`,
+						eventType: "CAT_SUBMISSION_CREATED",
+						entityType: "CatSubmission",
+						entityId: catSubmission.id,
+						recipientUserId: lecturer.userId,
+						title: "CAT submission awaiting verification",
+						message: `A CAT submission for ${currentSession.courseUnit.code} is awaiting your verification.`,
+					});
+				}
+			}
+
 			return {
 				record,
+				catSubmission,
 				session: {
 					id: session.id,
-					sessionType: session.sessionType,
-					courseUnit: session.courseUnit,
-					classroomName: session.classroom.name,
+					sessionType: currentSession.sessionType,
+					courseUnit: currentSession.courseUnit,
+					classroomName: currentSession.classroom.name,
 				},
 			};
 		});
@@ -843,6 +998,73 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 		}
 		throw error;
 	}
+}
+
+export async function listStudentCatSubmissions(prisma, userId, { page = 1, limit = 20, status } = {}) {
+	const student = await prisma.studentProfile.findUnique({ where: { userId }, select: { id: true } });
+	if (!student) throw new AppError(404, "Student profile not found");
+	const where = { studentProfileId: student.id, ...(status ? { status } : {}) };
+	const [submissions, total] = await prisma.$transaction([
+		prisma.catSubmission.findMany({
+			where,
+			skip: (page - 1) * limit,
+			take: limit,
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+			select: {
+				id: true,
+				status: true,
+				rejectionReason: true,
+				comments: true,
+				createdAt: true,
+				confirmedAt: true,
+				verifiedAt: true,
+				verifiedBy: { select: { user: { select: { displayName: true } } } },
+				assessment: {
+					select: {
+						id: true,
+						code: true,
+						name: true,
+						type: true,
+						courseUnit: { select: { id: true, code: true, name: true } },
+					},
+				},
+				attendanceRecord: {
+					select: {
+						id: true,
+						status: true,
+						locationVerified: true,
+						recordedAt: true,
+						session: { select: { id: true, sessionType: true, startsAt: true } },
+					},
+				},
+			},
+		}),
+		prisma.catSubmission.count({ where }),
+	]);
+	const courseUnitIds = [...new Set(submissions.map(({ assessment }) => assessment.courseUnit.id))];
+	const enrollments = await prisma.unitEnrollment.findMany({
+		where: { studentProfileId: student.id, courseUnitId: { in: courseUnitIds } },
+		select: {
+			courseUnitId: true,
+			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+		},
+	});
+	const items = submissions.map((submission) => {
+		const academicYear = submission.attendanceRecord?.session?.startsAt
+			? academicYearForDate(submission.attendanceRecord.session.startsAt)
+			: null;
+		const academicPeriods = enrollments
+			.filter(({ courseUnitId, academicPeriod }) =>
+				courseUnitId === submission.assessment.courseUnit.id
+				&& academicYear
+				&& academicYearForPeriod(academicPeriod) === academicYear)
+			.map(({ academicPeriod }) => academicPeriod);
+		return { ...submission, academicYear, academicPeriods };
+	});
+	return {
+		items,
+		pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+	};
 }
 
 export async function getStudentAttendanceHistory(prisma, userId, pagination = {}) {
