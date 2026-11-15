@@ -54,6 +54,34 @@ describe('StudentAttendanceCheckIn', () => {
     })
   })
 
+  it('tells the student when a CAT check-in created a submission pending verification', async () => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: vi.fn((success) => success({
+          coords: { latitude: -1.286389, longitude: 36.817223, accuracy: 10 },
+        })),
+      },
+    })
+    checkInStudentAttendance.mockResolvedValue({
+      success: true,
+      data: {
+        session: {
+          sessionType: 'CAT',
+          courseUnit: { code: 'IN101', name: 'Computing' },
+        },
+        catSubmission: { status: 'PENDING_REVIEW' },
+      },
+    })
+    render(
+      <MemoryRouter initialEntries={['/student/attendance/check-in?token=' + 'a'.repeat(64)]}>
+        <StudentAttendanceCheckIn />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Verify location and check in/ }))
+    expect(await screen.findByText('Your CAT submission is awaiting lecturer verification.')).not.toBeNull()
+  })
+
   it('explains that students need a valid scanned attendance link', () => {
     render(
       <MemoryRouter initialEntries={['/student/attendance/check-in']}>

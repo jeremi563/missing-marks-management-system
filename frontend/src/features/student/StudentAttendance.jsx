@@ -12,10 +12,11 @@ import {
   AlertCircle,
   Search,
 } from 'lucide-react'
-import { getStudentAttendance } from '../../api/student'
+import { getStudentAttendance, getStudentCatSubmissions } from '../../api/student'
 
 function StudentAttendance() {
   const [records, setRecords] = useState([])
+  const [catSubmissions, setCatSubmissions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -34,10 +35,15 @@ function StudentAttendance() {
         setLoading(true)
         setError('')
 
-        const response = await getStudentAttendance()
+        const [response, catResponse] = await Promise.all([
+          getStudentAttendance({ page: 1, limit: 100 }),
+          getStudentCatSubmissions({ page: 1, limit: 100 }),
+        ])
         const data = response?.data ?? response
 
         setRecords(Array.isArray(data) ? data : data?.records ?? [])
+        const catData = catResponse?.data ?? catResponse
+        setCatSubmissions(Array.isArray(catData) ? catData : catData?.items ?? [])
       } catch (err) {
         setError(
           err.response?.data?.message ||
@@ -360,6 +366,49 @@ function StudentAttendance() {
           </div>
         )}
 
+      </section>
+
+      <section className="attendance-records" aria-label="CAT submissions">
+        <div className="attendance-records-header">
+          <div>
+            <h2>CAT submissions</h2>
+            <p>CAT submissions are created automatically when CAT attendance is verified.</p>
+          </div>
+        </div>
+        {catSubmissions.length === 0 ? (
+          <div className="attendance-empty">
+            <ClipboardList size={38} />
+            <h3>No CAT submissions</h3>
+            <p>Successful CAT check-ins will appear here for lecturer verification.</p>
+          </div>
+        ) : (
+          <div className="attendance-table-wrapper">
+            <table className="attendance-table">
+              <thead>
+                <tr><th>Assessment</th><th>Course unit</th><th>Academic period</th><th>Submitted</th><th>Status</th><th>Decision details</th></tr>
+              </thead>
+              <tbody>
+                {catSubmissions.map((submission) => (
+                  <tr key={submission.id}>
+                    <td>{submission.assessment?.code || submission.assessment?.name || 'CAT assessment'}</td>
+                    <td>{submission.assessment?.courseUnit?.code} · {submission.assessment?.courseUnit?.name}</td>
+                    <td>
+                      {submission.academicYear || 'Not available'}
+                      {submission.academicPeriods?.map((period) => <small key={period.id}>{period.name}</small>)}
+                    </td>
+                    <td>{formatDate(submission.createdAt)}</td>
+                    <td><span className={`attendance-status ${submission.status.toLowerCase()}`}>{submission.status.replaceAll('_', ' ')}</span></td>
+                    <td>
+                      {submission.rejectionReason && <span><strong>Reason:</strong> {submission.rejectionReason}</span>}
+                      {submission.comments && <span><strong>Comments:</strong> {submission.comments}</span>}
+                      {!submission.rejectionReason && !submission.comments && submission.status === 'PENDING_REVIEW' && 'Awaiting lecturer verification'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
     </div>

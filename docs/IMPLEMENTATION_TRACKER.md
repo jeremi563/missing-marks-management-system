@@ -46,7 +46,7 @@
 
 ## Assessment and CAT management
 
-- [~] **Complete CAT submission and assessment-attendance workflows.** Assessment setup and CAT/EXAM attendance sessions exist, and COD has read-only assessment-attendance/report-detail queries. `CatSubmission` and `AssessmentAttendance` are represented in Prisma, but no application create/verification workflow or corresponding student/lecturer submission UI was found.
+- [x] **Complete the CAT submission lifecycle.** Successful CAT check-in creates a pending `CatSubmission` atomically with attendance history, audit and lecturer notification. The owning lecturer can verify/reject with an audited decision; students can view their own statuses and rejection reasons. Assessment-attendance discrepancy and COD read-only review remain separate.
 - [ ] **Specify the exam-booklet QR process.** Scanning, matching, and exception handling are still described as a discussed workflow in `docs/WORKFLOW.md`, not an implemented feature.
 
 ## Evidence management

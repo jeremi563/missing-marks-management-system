@@ -26,6 +26,10 @@ export const getStudentMarks = async (params = {}) => {
   const response = await apiClient.get('/student/marks', { params })
   return response.data
 }
+export const getStudentCatSubmissions = async (params = {}) => {
+  const response = await apiClient.get('/student/cat-submissions', { params })
+  return response.data
+}
 
 // Missing-mark reports
 export const getStudentReports = async (params = {}) => {

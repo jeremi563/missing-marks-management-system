@@ -23,6 +23,7 @@ export const navigation = {
     { label: 'Assigned reports', to: '/lecturer/reports', icon: FileText },
     { label: 'Notifications', to: '/lecturer/notifications', icon: Bell },
     { label: 'Attendance', to: '/lecturer/attendance', icon: ClipboardList },
+    { label: 'CAT submissions', to: '/lecturer/cat-submissions', icon: ClipboardList },
     { label: 'Special cases', to: '/lecturer/special-cases', icon: Users },
     { label: 'Settings', to: '/lecturer/settings', icon: Settings },
   ],

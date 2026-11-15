@@ -473,6 +473,7 @@ model AttendanceRecord {
   corrections    AttendanceCorrection[]
   discrepancies  AttendanceDiscrepancy[]
   excuseRequests AttendanceExcuseRequest[]
+  catSubmission  CatSubmission?
 
   @@unique([sessionId, studentProfileId])
   @@index([studentProfileId, recordedAt])
@@ -673,6 +674,9 @@ model CatSubmission {
   id                   String    @id @default(uuid()) @db.Uuid
   assessmentId         String    @map("assessment_id") @db.Uuid
   studentProfileId     String    @map("student_profile_id") @db.Uuid
+  attendanceRecordId   String?   @unique @map("attendance_record_id") @db.Uuid
+  status               String    @default("PENDING_REVIEW")
+  rejectionReason      String?   @map("rejection_reason")
   confirmedAt          DateTime? @map("confirmed_at")
   verifiedByLecturerId String?   @map("verified_by_lecturer_id") @db.Uuid
   verifiedAt           DateTime? @map("verified_at")
@@ -682,10 +686,12 @@ model CatSubmission {
 
   assessment Assessment       @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
   student    StudentProfile   @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  attendanceRecord AttendanceRecord? @relation(fields: [attendanceRecordId], references: [id], onDelete: Restrict)
   verifiedBy LecturerProfile? @relation("CatVerifier", fields: [verifiedByLecturerId], references: [id], onDelete: Restrict)
 
   @@unique([assessmentId, studentProfileId])
   @@index([verifiedByLecturerId, verifiedAt])
+  @@index([status, createdAt])
   @@map("cat_submissions")
 }
 

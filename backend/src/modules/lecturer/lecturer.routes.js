@@ -24,6 +24,9 @@ import {
   extendAttendanceSessionController,
   endAttendanceSessionController,
   getAttendanceSessionRecordsController,
+  getCatSubmissionsController,
+  getCatSubmissionController,
+  postCatSubmissionDecisionController,
 } from './lecturer.controller.js';
 import { getAssessmentTypes, getLecturerCaseById, getLecturerCases, createLecturerCase, startReportWork } from '../feature5/feature5.controller.js';
 import { createSpecialCaseBody, pageQuery, specialCaseIdParams } from '../feature5/feature5.validation.js';
@@ -40,6 +43,9 @@ import {
   courseUnitAssessmentsQuerySchema,
   courseUnitIdParamsSchema,
   lecturerStudentsQuerySchema,
+  catSubmissionsQuerySchema,
+  catSubmissionParamsSchema,
+  catSubmissionDecisionSchema,
 } from './lecturer.validation.js';
 import { createLecturerDiscrepancy, getLecturerDiscrepancy, getLecturerDiscrepancies, reviewLecturerDiscrepancy, respondLecturerDiscrepancy } from './attendance-discrepancy.controller.js';
 import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema, createAttendanceDiscrepancySchema, reviewAttendanceDiscrepancySchema } from './lecturer.validation.js';
@@ -68,6 +74,9 @@ router.get('/notifications', authenticate, authorize('lecturer'), validate(userN
 router.patch('/notifications/read-all', authenticate, authorize('lecturer'), patchAllUserNotificationsRead);
 router.patch('/notifications/:notificationId/read', authenticate, authorize('lecturer'), validate(userNotificationIdParams, 'params'), patchUserNotificationRead);
 router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCourseUnits);
+router.get('/cat-submissions', authenticate, authorize('lecturer'), validate(catSubmissionsQuerySchema, 'query'), getCatSubmissionsController);
+router.get('/cat-submissions/:submissionId', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), getCatSubmissionController);
+router.post('/cat-submissions/:submissionId/decision', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), validate(catSubmissionDecisionSchema, 'body'), postCatSubmissionDecisionController);
 router.get('/course-units/:courseUnitId/assessments', authenticate, authorize('lecturer'), validate(courseUnitIdParamsSchema, 'params'), validate(courseUnitAssessmentsQuerySchema, 'query'), getAssignedCourseUnitAssessments);
 router.get('/marks/options', authenticate, authorize('lecturer'), validate(markOptionsQuery, 'query'), getLecturerMarkOptionsController);
 router.get('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), validate(assessmentMarkParams, 'params'), validate(assessmentRosterQuery, 'query'), getAssessmentRosterController);

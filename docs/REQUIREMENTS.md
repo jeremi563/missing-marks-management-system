@@ -31,6 +31,7 @@ A student should be able to:
 - Submit an appeal where permitted by the agreed appeal policy.
 - View their own attendance history and relevant attendance-related information.
 - View their own official marks by academic period, including assessment and course-unit details.
+- Check in to a CAT session using the existing QR/location flow; a successful check-in creates one CAT submission and the student can view its verification status and any rejection reason.
 - Receive notifications about report progress and required action.
 
 A student must not view another student's private report or change official marks.
@@ -47,6 +48,7 @@ A lecturer should be able to:
 - Submit initial marks for enrolled students in assessments belonging to course units assigned to them; submitted marks become official immediately and cannot be overwritten by another initial submission.
 - Propose corrections to marks through an audited departmental review process.
 - Review relevant CAT and examination attendance information.
+- Verify or reject CAT submissions created by successful check-in to CAT sessions they own; rejection requires a reason, while verification comments are optional.
 - View only the students, units and records they are authorised to access.
 
 A lecturer must not access unrelated departmental or system administration functions.

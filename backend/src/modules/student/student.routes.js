@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
 import { authorize } from "../../middleware/authorize.js";
-import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, checkInToAttendance, getNotifications, updateReport, withdrawReport, getReportComments, addClarification, submitAppeal, markNotificationRead, createAttendanceDiscrepancy, getAttendanceDiscrepancies, getAttendanceDiscrepancy, respondAttendanceDiscrepancy } from "./student.controller.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody, validateCreateStudentCommentBody, validateStudentNotificationId, validateAttendanceDiscrepancySource, validateAttendanceDiscrepancyParams, validateStudentAttendanceCheckIn } from "./student.validation.js";
+import { getProfile, getReportOptions, getReports, getReportById, createReport, getAttendance, checkInToAttendance, getCatSubmissions, getNotifications, updateReport, withdrawReport, getReportComments, addClarification, submitAppeal, markNotificationRead, createAttendanceDiscrepancy, getAttendanceDiscrepancies, getAttendanceDiscrepancy, respondAttendanceDiscrepancy } from "./student.controller.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateUpdateReportBody, validateCreateAppealBody, validateCreateStudentCommentBody, validateStudentNotificationId, validateAttendanceDiscrepancySource, validateAttendanceDiscrepancyParams, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery } from "./student.validation.js";
 import { validate } from "../../middleware/validate.js";
 import { appealIdParams, createSpecialCaseBody, pageQuery, reportIdParams, specialCaseIdParams } from "../feature5/feature5.validation.js";
 import { createStudentCase, getStudentAppealById, getStudentAppeals, getStudentCaseById, getStudentCases } from "../feature5/feature5.controller.js";
@@ -15,6 +15,7 @@ const router = Router();
 
 router.get("/profile", authenticate, authorize("student"), getProfile);
 router.get("/marks", authenticate, authorize("student"), validate(studentMarksQuery, "query"), getStudentMarksController);
+router.get("/cat-submissions", authenticate, authorize("student"), validateStudentCatSubmissionsQuery, getCatSubmissions);
 router.get("/enrollment-options", authenticate, authorize("student"), getStudentEnrollmentOptions);
 router.post("/enrollment-requests", authenticate, authorize("student"), validate(studentEnrollmentRequestBody), postStudentEnrollmentRequests);
 router.get("/report-options", authenticate, authorize("student"), getReportOptions);

@@ -96,7 +96,8 @@ All routes below are mounted under `/api/v1`. Each requires a valid authenticate
 | POST | `/api/v1/student/reports/:reportId/withdraw` | UUID `reportId`; no body. | `200`, report with `Withdrawn` status. |
 | POST | `/api/v1/student/reports/:reportId/appeals` | UUID `reportId`; `{ "reason": "...", "comments": "..." }`, where `comments` is optional. | `201`, submitted appeal. |
 | GET | `/api/v1/student/attendance` | Optional `page` and `limit`. | `200`, own attendance history and pagination. |
-| POST | `/api/v1/student/attendance/check-in` | `{ "token": "64-character QR token", "latitude": -1.28, "longitude": 36.81, "accuracyMeters": 10 }`. | `201`, verified attendance record and session summary. |
+| POST | `/api/v1/student/attendance/check-in` | `{ "token": "64-character QR token", "latitude": -1.28, "longitude": 36.81, "accuracyMeters": 10 }`. | `201`, verified attendance record and session summary; a successful CAT check-in also creates or returns the student's CAT submission. |
+| GET | `/api/v1/student/cat-submissions` | Optional `page`, `limit` (maximum 100), and status (`PENDING_REVIEW`, `VERIFIED`, `REJECTED`, `LEGACY_REVIEWED`, or `LEGACY_UNVERIFIED`). No student ID is accepted. | `200`, own CAT submissions with assessment, course unit, academic year/period, status, and rejection reason when applicable. |
 | GET | `/api/v1/student/notifications` | Optional `page` and `limit`. | `200`, own notifications, unread count, and pagination. |
 | PATCH | `/api/v1/student/notifications/:notificationId/read` | UUID `notificationId`; no body. | `200`, own notification with `readAt` set. |
 | GET | `/api/v1/student/enrollment-options` | No body. | `200`, department course units, assigned lecturers, periods whose admin-configured enrollment window is open, existing enrollment, and request status. |
@@ -112,6 +113,7 @@ All routes below are mounted under `/api/v1`. Each requires a valid authenticate
 - Student and lecturer report comment bodies are trimmed and must contain 1-2,000 characters. Students can post clarification comments only to their own report; lecturer comments on an assigned report are student-visible feedback. The API assigns authorship from the authenticated identity. The student read endpoint returns comments marked `isStudentVisible: true` plus comments authored by the requesting student.
 - Student marks are always derived from the authenticated user's `StudentProfile`; an optional `academicPeriodId` filters the result. The response includes each mark's assessment, course unit, academic period, value, and version. No student identifier can be supplied to read another student's marks.
 - Attendance check-in requires a valid student account, a session course unit matching the department and course in the student's registration number, enrollment in that unit for the session's academic year, and device-reported coordinates inside the configured classroom boundary. Duplicate check-ins are rejected. Only the server-computed verification result is stored; submitted coordinates are not persisted. Browser/device location is client-reported and cannot by itself prevent GPS spoofing.
+- A successful CAT attendance check-in creates one `CatSubmission` for the student and assessment in the same transaction as the attendance record and history. Rechecking into another valid session for that same assessment may record its distinct attendance record, but never changes or duplicates the existing CAT submission. Students can only list their own submissions. `LEGACY_REVIEWED` and `LEGACY_UNVERIFIED` identify historical rows whose final outcome cannot be inferred safely.
 - Attendance reads the student's `AttendanceHistory` snapshots, newest sign-in first, including available correction history. Notifications are queried by authenticated user ID, newest first, and include `readAt`, linked report summary when available, and an unread count. Mark-as-read is idempotent and owner-scoped; another user's notification returns `404`.
 - Student registration numbers use `LLCC/DDDDD/YY`: two department-initial letters, the department's two-digit course identifier, a five-digit student number, and an admission year from `13` through the current year (for example `IN16/00111/26`). The department and course must exist. Enrollment options, existing enrollment/request details, and report options are restricted to units in both the encoded department and course. Enrollment requests require an active, approved lecturer assignment. Only academic periods whose administrator-configured enrollment opening and closing dates contain the current time are offered. Course units remain browseable outside an open enrollment window, but requests are rejected until enrollment opens. The API independently enforces the course and enrollment-window restrictions on every request submission. The student can request multiple course units for one period in one submission; duplicate, pending, approved, and already-enrolled requests are rejected or omitted as appropriate.
 
@@ -168,6 +170,9 @@ All routes below are mounted under `/api/v1/lecturer`. Routes require a valid au
 | GET | `/api/v1/lecturer/marks/options` | No body. | `200`, active assigned course units, matching academic periods, and assessments. |
 | GET | `/api/v1/lecturer/assessments/:assessmentId/marks` | UUID `assessmentId`; required UUID `academicPeriodId` query. | `200`, enrolled roster and any existing official marks, limited to an active assignment for that period's academic year. |
 | POST | `/api/v1/lecturer/assessments/:assessmentId/marks` | `{ "academicPeriodId": "UUID", "marks": [{ "studentProfileId": "UUID", "value": 82.5 }] }`; 1-1,000 unique students. | `201`, transactionally created official marks. A duplicate mark returns `409`; existing marks are never overwritten. |
+| GET | `/api/v1/lecturer/cat-submissions` | Optional `page`, `limit` (maximum 100), `status`, `courseUnitId`, and `assessmentId`. | `200`, submissions created by CAT sessions owned by the authenticated lecturer. |
+| GET | `/api/v1/lecturer/cat-submissions/:submissionId` | UUID `submissionId`; no body. | `200`, submission, CAT session/check-in, assessment, student, academic year, and decision information. |
+| POST | `/api/v1/lecturer/cat-submissions/:submissionId/decision` | `{ "decision": "VERIFY", "comments": "Optional" }` or `{ "decision": "REJECT", "reason": "Required" }`. | `200`, final verified/rejected submission. Only `PENDING_REVIEW` can be decided. |
 | GET | `/api/v1/lecturer/students` | Optional `page`, `limit` (maximum 100), and comma-separated `departmentIds`. | `200`, students in assigned course units, sorted and grouped by course unit. |
 | GET | `/api/v1/lecturer/reports` | Optional pagination and supported report filters. No body. | `200`, assigned reports and pagination. |
 | GET | `/api/v1/lecturer/reports/:reportId` | UUID `reportId`; no body. | `200`, individual assigned report with CAT/exam attendance checks and class-attendance percentage for the report's academic year. Missing assessment attendance is `Unknown` unless a completed matching session exists, in which case no student check-in is shown as `Not present`. The class percentage is advisory and uses the configured attendance threshold (80% by default). |
@@ -209,6 +214,9 @@ All routes below are mounted under `/api/v1/lecturer`. Routes require a valid au
 - Leading and trailing whitespace is trimmed.
 - Comments must contain between 1 and 2,000 characters.
 - The lecturer's identity is derived from authentication rather than supplied by the client.
+- CAT submissions are available only to the lecturer who owns the linked CAT attendance session. The session was created only after an active course-unit assignment was checked for the academic year derived from `startsAt`; students must also be enrolled in that unit for that year at check-in. The API validates the assessment is CAT and matches the session course unit.
+- The review endpoint accepts only `VERIFY` or `REJECT`. Verification comments are optional; rejection requires a trimmed 1-2,000 character reason. Decisions are conditional on `PENDING_REVIEW`; duplicate or concurrent decisions return `409`. The final decision actor/time, audit event, and student notification are committed together.
+- CAT submission creation, attendance record/history, audit event, and lecturer notification-outbox entry are committed in the same transaction. The assessment/student unique constraint prevents duplicates; an existing rejected submission is not reset by another session check-in.
 - Report decisions support approval and rejection.
 - A lecturer may escalate only their assigned report after an `APPROVED` or `REJECTED` decision. Escalation records `APPROVED`/`REJECTED` → `ESCALATED` status history and a `REPORT_ESCALATED` audit event in one transaction; the lecturer decision history remains unchanged.
 - Appeals following a lecturer's rejection are handled by the COD module, not the Lecturer Module.
@@ -307,13 +315,9 @@ GPS is an additional verification mechanism, not conclusive proof of physical pr
 
 The Lecturer Module's session creation, listing, and individual retrieval endpoints are implemented. Student-side QR scanning and GPS verification are separate integration responsibilities and should not be considered operational until implemented and tested.
 
-#### 6. CAT submission and examination review
+#### 6. CAT submission review
 
-CAT submission review and examination-specific academic review are separate from attendance session management.
-
-The unified attendance API supports CAT and EXAM session creation. It does not, by itself, implement CAT submission review or examination-specific academic review endpoints.
-
-No additional CAT submission or examination-review routes should be treated as available until they are registered and verified in the implementation.
+The CAT submission endpoints listed above are implemented separately from attendance session management. Successful CAT check-in creates the submission; only the lecturer who owns its CAT attendance session can review it. The COD's CAT information remains read-only. Examination-specific academic review is not part of this workflow.
 
 ### Validation and response behaviour
 
@@ -372,7 +376,7 @@ The attendance session creation response additionally provides the generated QR 
 | Retrieve attendance records | Implemented |
 | Student QR-code scanning and submission | Student Module integration pending |
 | Student GPS collection and verification | Student Module integration pending |
-| CAT submission review | Not confirmed |
+| CAT submission review | Implemented |
 | Examination-specific academic review | Not confirmed |
 
 **Integration note:** This API reference describes the Lecturer Module development record. Before integrating, confirm the exact request payload fields and response structures against the corresponding validation schemas and controllers. Also confirm that the routes have been merged into the shared `develop` branch before treating them as available to other modules.

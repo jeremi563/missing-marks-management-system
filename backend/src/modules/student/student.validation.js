@@ -52,6 +52,11 @@ const studentAttendanceCheckInSchema = z.object({
 	longitude: z.number().finite().min(-180).max(180),
 	accuracyMeters: z.number().finite().min(0).max(20_000_000),
 }).strict();
+const studentCatSubmissionsQuerySchema = z.object({
+	page: z.coerce.number().int().min(1).default(1),
+	limit: z.coerce.number().int().min(1).max(100).default(20),
+	status: z.enum(["PENDING_REVIEW", "VERIFIED", "REJECTED", "LEGACY_REVIEWED", "LEGACY_UNVERIFIED"]).optional(),
+}).strict();
 
 export function validateReportListQuery(req, res, next) {
 	const result = reportListQuerySchema.safeParse(req.query);
@@ -160,5 +165,17 @@ export function validateStudentAttendanceCheckIn(req, res, next) {
 	const result = studentAttendanceCheckInSchema.safeParse(req.body);
 	if (!result.success) return next(Object.assign(new Error("Request validation failed"), { statusCode: 400, details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })) }));
 	req.validatedBody = result.data;
+	return next();
+}
+
+export function validateStudentCatSubmissionsQuery(req, res, next) {
+	const result = studentCatSubmissionsQuerySchema.safeParse(req.query);
+	if (!result.success) {
+		return next(Object.assign(new Error("Request validation failed"), {
+			statusCode: 400,
+			details: result.error.issues.map(({ path, message }) => ({ path: path.join("."), message })),
+		}));
+	}
+	req.validatedQuery = result.data;
 	return next();
 }

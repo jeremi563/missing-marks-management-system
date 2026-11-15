@@ -5,6 +5,7 @@ import { AppError } from '../../shared/utils/app-error.js';
 import { loadAttendanceDiscrepancySource } from '../../shared/services/attendance-discrepancy-source.service.js';
 import { evaluateConfiguredAttendanceEligibility } from '../../shared/services/eligibility.service.js';
 import { createNotification } from '../../shared/services/notification.service.js';
+import { enqueueNotificationOnce } from '../../shared/services/notification-outbox.service.js';
 import { isActiveCodDepartmentMember } from '../../shared/services/designated-cod-authorization.service.js';
 import { academicYearBounds, academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
 
@@ -1516,4 +1517,179 @@ export async function respondToLecturerAttendanceDiscrepancy(db, userId, discrep
 		}
 		throw error;
 	}
+}
+
+const catSubmissionSelect = {
+	id: true,
+	status: true,
+	rejectionReason: true,
+	comments: true,
+	createdAt: true,
+	confirmedAt: true,
+	verifiedAt: true,
+	verifiedBy: {
+		select: { id: true, staffNumber: true, user: { select: { displayName: true } } },
+	},
+	student: {
+		select: { id: true, studentNumber: true, user: { select: { displayName: true } } },
+	},
+	assessment: {
+		select: {
+			id: true,
+			code: true,
+			name: true,
+			type: true,
+			courseUnitId: true,
+			courseUnit: { select: { id: true, code: true, name: true } },
+		},
+	},
+	attendanceRecord: {
+		select: {
+			id: true,
+			status: true,
+			locationVerified: true,
+			recordedAt: true,
+			session: {
+				select: {
+					id: true,
+					sessionType: true,
+					lecturerProfileId: true,
+					courseUnitId: true,
+					startsAt: true,
+					endsAt: true,
+				},
+			},
+		},
+	},
+};
+
+function catSubmissionScope(lecturerProfileId, { courseUnitId, assessmentId } = {}) {
+	return {
+		...(assessmentId ? { assessmentId } : {}),
+		assessment: {
+			is: {
+				...(courseUnitId ? { courseUnitId } : {}),
+				type: "CAT",
+			},
+		},
+		attendanceRecord: {
+			is: {
+				session: {
+					is: {
+						sessionType: "CAT",
+						lecturerProfileId,
+						...(courseUnitId ? { courseUnitId } : {}),
+					},
+				},
+			},
+		},
+	};
+}
+
+function hasValidCatSubmissionSource(item) {
+	return item?.attendanceRecord
+		&& item.attendanceRecord.session?.sessionType === "CAT"
+		&& item.assessment?.type === "CAT"
+		&& item.assessment.courseUnitId === item.attendanceRecord.session.courseUnitId;
+}
+
+export async function listLecturerCatSubmissions(db, userId, { page = 1, limit = 20, status, courseUnitId, assessmentId } = {}) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const where = {
+		...catSubmissionScope(lecturer.id, { courseUnitId, assessmentId }),
+		...(status ? { status } : {}),
+	};
+	const [items, total] = await db.$transaction([
+		db.catSubmission.findMany({
+			where,
+			skip: (page - 1) * limit,
+			take: limit,
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+			select: catSubmissionSelect,
+		}),
+		db.catSubmission.count({ where }),
+	]);
+	return {
+		items: items.filter(hasValidCatSubmissionSource).map((item) => ({
+			...item,
+			academicYear: academicYearForDate(item.attendanceRecord.session.startsAt),
+		})),
+		pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+	};
+}
+
+export async function getLecturerCatSubmission(db, userId, submissionId) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const item = await db.catSubmission.findFirst({
+		where: { id: submissionId, ...catSubmissionScope(lecturer.id) },
+		select: catSubmissionSelect,
+	});
+	if (!item || !hasValidCatSubmissionSource(item)) throw new AppError(404, "CAT submission not found");
+	return { ...item, academicYear: academicYearForDate(item.attendanceRecord.session.startsAt) };
+}
+
+export async function decideLecturerCatSubmission(db, userId, submissionId, { decision, comments, reason }) {
+	return db.$transaction(async (tx) => {
+		const lecturer = await getDiscrepancyLecturer(tx, userId);
+		const item = await tx.catSubmission.findFirst({
+			where: { id: submissionId, ...catSubmissionScope(lecturer.id) },
+			select: {
+				...catSubmissionSelect,
+				student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
+			},
+		});
+		if (!item || !hasValidCatSubmissionSource(item)) throw new AppError(404, "CAT submission not found");
+		if (item.status !== "PENDING_REVIEW") throw new AppError(409, "This CAT submission has already been decided");
+
+		const now = new Date();
+		const status = decision === "VERIFY" ? "VERIFIED" : "REJECTED";
+		const updated = await tx.catSubmission.updateMany({
+			where: {
+				id: item.id,
+				status: "PENDING_REVIEW",
+				verifiedByLecturerId: null,
+				verifiedAt: null,
+			},
+			data: {
+				status,
+				verifiedByLecturerId: lecturer.id,
+				verifiedAt: now,
+				rejectionReason: decision === "REJECT" ? reason.trim() : null,
+				comments: decision === "VERIFY" ? (comments?.trim() || null) : null,
+			},
+		});
+		if (updated.count !== 1) throw new AppError(409, "This CAT submission was decided concurrently; reload before reviewing");
+
+		await recordAuditEvent({
+			prismaClient: tx,
+			actorId: userId,
+			action: `CAT_SUBMISSION_${status}`,
+			entityType: "CatSubmission",
+			entityId: item.id,
+			metadata: {
+				assessmentId: item.assessment.id,
+				attendanceRecordId: item.attendanceRecord.id,
+				attendanceSessionId: item.attendanceRecord.session.id,
+				previousStatus: item.status,
+				status,
+				...(decision === "REJECT" ? { rejectionReason: reason.trim() } : {}),
+			},
+		});
+		await enqueueNotificationOnce(tx, {
+			dedupeKey: `CAT_SUBMISSION_DECISION:${item.id}:${status}`,
+			eventType: `CAT_SUBMISSION_${status}`,
+			entityType: "CatSubmission",
+			entityId: item.id,
+			recipientUserId: item.student.user.id,
+			title: status === "VERIFIED" ? "CAT submission verified" : "CAT submission rejected",
+			message: status === "VERIFIED"
+				? `Your CAT submission for ${item.assessment.courseUnit.code} has been verified.`
+				: `Your CAT submission for ${item.assessment.courseUnit.code} was rejected. Reason: ${reason.trim()}`,
+		});
+		const result = await tx.catSubmission.findUnique({
+			where: { id: item.id },
+			select: catSubmissionSelect,
+		});
+		return { ...result, academicYear: academicYearForDate(item.attendanceRecord.session.startsAt) };
+	});
 }

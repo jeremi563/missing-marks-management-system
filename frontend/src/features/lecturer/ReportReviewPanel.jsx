@@ -21,11 +21,14 @@ function unwrap(response) {
 
 function AttendanceCheck({ label, check }) {
   const statusLabels = { present: 'Present', absent: 'Not present', unknown: 'Unknown' }
+  const status = check?.status ?? 'unknown'
+  const items = Array.isArray(check?.items) ? check.items : []
+
   return (
-    <article className={`report-attendance-check report-attendance-check-${check.status}`}>
-      <div><strong>{label}</strong><span>{statusLabels[check.status] || statusLabels.unknown}</span></div>
-      {check.items.length > 0
-        ? check.items.map((item) => <small key={item.assessmentId}>{item.code || item.name}: {statusLabels[item.status] || statusLabels.unknown}</small>)
+    <article className={`report-attendance-check report-attendance-check-${status}`}>
+      <div><strong>{label}</strong><span>{statusLabels[status] || statusLabels.unknown}</span></div>
+      {items.length > 0
+        ? items.map((item) => <small key={item.assessmentId || item.id || item.code || item.name}>{item.code || item.name}: {statusLabels[item.status] || statusLabels.unknown}</small>)
         : <small>No matching assessment attendance data is available.</small>}
     </article>
   )
@@ -48,11 +51,15 @@ export default function ReportReviewPanel({ reportId, onClose }) {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    const correctionLoader = typeof getLecturerReportCorrections === 'function'
+      ? getLecturerReportCorrections(reportId)
+      : Promise.resolve({ success: true, data: [] })
+
     const [reportResponse, commentsResponse, typesResponse, correctionsResponse] = await Promise.all([
       getLecturerReport(reportId),
       getLecturerReportComments(reportId),
       getLecturerAssessmentTypes(),
-      getLecturerReportCorrections(reportId),
+      correctionLoader,
     ])
     return {
       report: unwrap(reportResponse),
