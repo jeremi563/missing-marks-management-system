@@ -16,8 +16,6 @@
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 28px 80px #173a3e18, 0 4px 14px #173a3e08;
 }
 
 .login-back {
@@ -47,19 +45,6 @@
     radial-gradient(ellipse at 50% 44%, rgba(var(--primary-rgb), .62) 0, transparent 55%),
     linear-gradient(145deg, #52676b, #354a4e 72%, #263b3f);
 }
-
-.login-visual::before,
-.login-visual::after {
-  position: absolute;
-  width: 390px;
-  height: 390px;
-  border: 1px solid #c1e7df20;
-  border-radius: 50%;
-  content: "";
-}
-
-.login-visual::before { transform: translate(-11%, 7%); }
-.login-visual::after { width: 500px; height: 500px; transform: translate(10%, -8%); }
 
 .login-visual-orbit {
   position: absolute;
@@ -103,8 +88,6 @@
   padding: 82px clamp(36px, 5vw, 68px) 48px;
   border: 0;
   border-radius: 0;
-  background: #fff;
-  box-shadow: none;
 }
 
 .login-card > .public-brand { margin-bottom: 48px; }
@@ -150,7 +133,7 @@
   margin-top: 20px !important;
   border-radius: 10px;
   font-size: 14px;
-  box-shadow: 0 8px 18px rgba(var(--primary-rgb), .2);
+  box-shadow: 0 6px 16px rgba(74, 25, 181, .16);
 }
 
 .login-switch {
@@ -183,7 +166,8 @@
 }
 
 .login-account-tabs button:hover { color: #425b60; }
-.login-account-tabs button.active { color: #fff; background: var(--primary); box-shadow: 0 3px 8px rgba(var(--primary-rgb), .2); }
+.login-account-tabs button.active { color: #fff; background: var(--button-primary); box-shadow: 0 3px 8px rgba(74, 25, 181, .16); }
+.login-account-tabs button.active:hover { background: var(--button-primary-hover); }
 .login-account-tabs button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 @media (max-width: 760px) {
@@ -220,7 +204,6 @@
   border: 1px solid rgba(var(--primary-rgb), .25);
   border-radius: 20px;
   background: transparent;
-  box-shadow: 0 44px 112px rgba(25, 55, 60, .4), 0 12px 36px rgba(25, 55, 60, .22);
   backdrop-filter: blur(16px);
 }
 
@@ -235,9 +218,6 @@
     radial-gradient(ellipse at 50% 40%, rgba(var(--primary-rgb), .44), transparent 58%),
     linear-gradient(145deg, #52676b, #354a4e 72%, #263b3f);
 }
-
-.auth-page.login-page .login-visual::before,
-.auth-page.login-page .login-visual::after { display: none; }
 
 .login-visual img {
   display: block;
@@ -264,7 +244,6 @@
   width: 100%;
   max-width: none;
   padding: 24px clamp(24px, 4vw, 40px);
-  background: rgba(255, 255, 255, .24);
 }
 
 .auth-page.login-page .login-card h1 {

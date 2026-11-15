@@ -13,7 +13,6 @@ import {
   Search,
 } from 'lucide-react'
 import { getStudentAttendance } from '../../api/student'
-import '../../styles/StudentAttendance.css'
 
 function StudentAttendance() {
   const [records, setRecords] = useState([])

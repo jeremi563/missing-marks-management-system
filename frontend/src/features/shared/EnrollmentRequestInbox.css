@@ -5,7 +5,7 @@
 .enrollment-inbox-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .enrollment-inbox-tabs { display: flex; gap: 4px; padding: 4px; background: var(--secondary-soft); border: 1px solid var(--line); border-radius: 11px; }
 .enrollment-inbox-tabs button { min-height: 36px; padding: 0 13px; color: #60777b; background: transparent; border: 0; border-radius: 8px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
-.enrollment-inbox-tabs button.active { color: var(--primary); background: #fff; box-shadow: 0 2px 6px rgba(var(--primary-rgb), .12); }
+.enrollment-inbox-tabs button.active { color: var(--primary); background: var(--account-surface); box-shadow: 0 2px 6px rgba(var(--primary-rgb), .12); }
 .enrollment-inbox-search { position: relative; display: block; width: min(100%, 340px); }
 .enrollment-inbox-search svg { position: absolute; top: 50%; left: 13px; color: #839a9b; transform: translateY(-50%); pointer-events: none; }
 .enrollment-inbox-search input { padding-left: 40px; }
@@ -16,7 +16,7 @@
 .enrollment-bulk-actions .button { min-height: 38px; font-size: 12px; }
 .enrollment-reject-button { color: #974d49; }
 .enrollment-request-list { display: grid; gap: 9px; }
-.enrollment-review-card { display: grid; grid-template-columns: 19px 38px minmax(140px, 1.1fr) minmax(150px, 1.2fr) minmax(120px, .9fr) auto auto; align-items: center; gap: 13px; min-height: 82px; padding: 13px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; transition: border-color .16s ease, box-shadow .16s ease; }
+.enrollment-review-card { display: grid; grid-template-columns: 19px 38px minmax(140px, 1.1fr) minmax(150px, 1.2fr) minmax(120px, .9fr) auto auto; align-items: center; gap: 13px; min-height: 82px; padding: 13px 16px; border-radius: 12px; transition: border-color .16s ease, box-shadow .16s ease; }
 .enrollment-review-card:not(:has(.enrollment-request-checkbox)) { grid-template-columns: 38px minmax(140px, 1.1fr) minmax(150px, 1.2fr) minmax(120px, .9fr) auto auto; }
 .enrollment-review-card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(var(--primary-rgb), .12); }
 .enrollment-request-checkbox { display: grid; place-items: center; width: 19px; height: 19px; cursor: pointer; }

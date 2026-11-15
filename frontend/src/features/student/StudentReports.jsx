@@ -11,7 +11,6 @@ import ErrorState from '../../components/ui/ErrorState'
 import EmptyState from '../../components/ui/EmptyState'
 import Pager from '../../components/ui/Pager'
 
-import '../../styles/StudentReports.css'
 
 const PAGE_SIZE = 10
 

@@ -1,4 +1,4 @@
-.student-attendance-checkin { display: grid; gap: 18px; max-width: 680px; margin: 0 auto; padding: clamp(20px, 4vw, 36px); background: var(--surface, #fff); border: 1px solid var(--border, #dce8e7); border-radius: 16px; }
+.student-attendance-checkin { display: grid; gap: 18px; max-width: 680px; margin: 0 auto; padding: clamp(20px, 4vw, 36px); border: 1px solid var(--border, #dce8e7); border-radius: 16px; }
 .student-attendance-checkin > header { display: grid; justify-items: start; gap: 9px; }
 .student-attendance-checkin-icon { display: grid; place-items: center; width: 46px; height: 46px; color: var(--primary); background: var(--secondary-soft); border-radius: 13px; }
 .student-attendance-checkin-actions > p svg { flex: 0 0 auto; margin-top: 1px; color: var(--primary); }
