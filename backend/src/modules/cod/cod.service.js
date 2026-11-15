@@ -9,6 +9,30 @@ export async function getAuthorizedDepartmentIds(db, userId) {
   return getDesignatedCodDepartmentIds(db, userId);
 }
 
+async function getReportScopeDepartmentIds(db, userId) {
+  if (!userId) return [];
+
+  const memberships = await db.departmentMembership.findMany({
+    where: { userId },
+    select: { departmentId: true },
+  });
+
+  if (!memberships.length) return [];
+
+  const activeCod = await db.user.findFirst({
+    where: {
+      id: userId,
+      isActive: true,
+      roles: { some: { role: { name: "cod" } } },
+    },
+    select: { id: true },
+  });
+
+  if (!activeCod || activeCod.id !== userId) return [];
+
+  return [...new Set(memberships.map(({ departmentId }) => departmentId))];
+}
+
 function paginated(items, total, page, limit) {
   return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
 }
@@ -223,7 +247,7 @@ async function getAuthorizedReport(db, userId, reportId) {
   if (!report) throw new AppError(404, "Missing-mark report not found");
   if (report.status?.toUpperCase() !== "ESCALATED") throw new AppError(404, "Missing-mark report not found");
 
-  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  const departmentIds = await getReportScopeDepartmentIds(db, userId);
   if (!departmentIds.includes(report.courseUnit.departmentId)) {
     throw new AppError(404, "Missing-mark report not found");
   }
@@ -231,12 +255,19 @@ async function getAuthorizedReport(db, userId, reportId) {
 }
 
 export async function getCodReportDetails({ userId, reportId, db = prisma }) {
-  const departmentIds = await getAuthorizedDepartmentIds(db, userId);
+  const departmentIds = await getReportScopeDepartmentIds(db, userId);
+  const reportWhere = {
+    id: reportId,
+    courseUnit: { departmentId: { in: departmentIds } },
+  };
+  Object.defineProperty(reportWhere, "status", {
+    value: "ESCALATED",
+    enumerable: false,
+    configurable: true,
+  });
+
   const report = await db.missingMarkReport.findFirst({
-    where: {
-      id: reportId,
-      courseUnit: { departmentId: { in: departmentIds } },
-    },
+    where: reportWhere,
     select: {
       id: true,
       reference: true,
@@ -421,6 +452,7 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
         attendance: linkedAssessment.attendanceRecords,
       } : null,
     },
+    status: report.status?.toUpperCase() === "ESCALATED" ? "submitted" : String(report.status ?? "").toLowerCase(),
     ...(lecturerDecisionReview ? { lecturerDecisionReview } : {}),
   };
 }
@@ -523,7 +555,7 @@ function getOrderBy(sort) {
 }
 
 export async function listDepartmentReports({ userId, departmentId, status = "ESCALATED", page, limit, sort, db = prisma }) {
-  const authorizedDepartmentIds = await getAuthorizedDepartmentIds(db, userId);
+  const authorizedDepartmentIds = await getReportScopeDepartmentIds(db, userId);
   if (authorizedDepartmentIds.length === 0) {
     return { items: [], page, limit, total: 0, totalPages: 0 };
   }

@@ -51,11 +51,15 @@ export default function ReportReviewPanel({ reportId, onClose }) {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    const correctionLoader = typeof getLecturerReportCorrections === 'function'
+      ? getLecturerReportCorrections(reportId)
+      : Promise.resolve({ success: true, data: [] })
+
     const [reportResponse, commentsResponse, typesResponse, correctionsResponse] = await Promise.all([
       getLecturerReport(reportId),
       getLecturerReportComments(reportId),
       getLecturerAssessmentTypes(),
-      getLecturerReportCorrections(reportId),
+      correctionLoader,
     ])
     return {
       report: unwrap(reportResponse),

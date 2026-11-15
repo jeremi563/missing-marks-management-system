@@ -47,6 +47,7 @@
 ## Assessment and CAT management
 
 - [x] **Complete the CAT submission lifecycle.** Successful CAT check-in creates a pending `CatSubmission` atomically with attendance history, audit and lecturer notification. The owning lecturer can verify/reject with an audited decision; students can view their own statuses and rejection reasons. Assessment-attendance discrepancy and COD read-only review remain separate.
+- [ ] **Implement examination attendance verification.** EXAM check-ins create pending verification data on `AttendanceRecord`; the owning lecturer can verify/reject, students can view their own status, and audit/decision notifications are transactional. CLASS attendance and CAT submissions remain separate.
 - [ ] **Specify the exam-booklet QR process.** Scanning, matching, and exception handling are still described as a discussed workflow in `docs/WORKFLOW.md`, not an implemented feature.
 
 ## Evidence management

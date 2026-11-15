@@ -27,6 +27,9 @@ import {
   getCatSubmissionsController,
   getCatSubmissionController,
   postCatSubmissionDecisionController,
+  getLecturerExamAttendanceController,
+  getLecturerExamAttendanceRecordController,
+  postLecturerExamAttendanceDecisionController,
 } from './lecturer.controller.js';
 import { getAssessmentTypes, getLecturerCaseById, getLecturerCases, createLecturerCase, startReportWork } from '../feature5/feature5.controller.js';
 import { createSpecialCaseBody, pageQuery, specialCaseIdParams } from '../feature5/feature5.validation.js';
@@ -46,6 +49,9 @@ import {
   catSubmissionsQuerySchema,
   catSubmissionParamsSchema,
   catSubmissionDecisionSchema,
+  examAttendanceQuerySchema,
+  examAttendanceParamsSchema,
+  examAttendanceDecisionSchema,
 } from './lecturer.validation.js';
 import { createLecturerDiscrepancy, getLecturerDiscrepancy, getLecturerDiscrepancies, reviewLecturerDiscrepancy, respondLecturerDiscrepancy } from './attendance-discrepancy.controller.js';
 import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema, createAttendanceDiscrepancySchema, reviewAttendanceDiscrepancySchema } from './lecturer.validation.js';
@@ -78,6 +84,15 @@ router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCour
 router.get('/cat-submissions', authenticate, authorize('lecturer'), validate(catSubmissionsQuerySchema, 'query'), getCatSubmissionsController);
 router.get('/cat-submissions/:submissionId', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), getCatSubmissionController);
 router.post('/cat-submissions/:submissionId/decision', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), validate(catSubmissionDecisionSchema, 'body'), postCatSubmissionDecisionController);
+router.get('/exam-attendance', authenticate, authorize('lecturer'), validate(examAttendanceQuerySchema, 'query'), getLecturerExamAttendanceController);
+router.get('/exam-attendance/:recordId', authenticate, authorize('lecturer'), validate(examAttendanceParamsSchema, 'params'), getLecturerExamAttendanceRecordController);
+router.post('/exam-attendance/:recordId/decision', authenticate, authorize('lecturer'), validate(examAttendanceParamsSchema, 'params'), validate(examAttendanceDecisionSchema, 'body'), postLecturerExamAttendanceDecisionController);
+router.post('/exam-booklets/sessions/:sessionId/allocate', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletSessionParams, postExamBookletAllocations);
+router.post('/exam-booklets/sessions/:sessionId/scan/preview', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletSessionParams, validate(invigilatorBookletPreviewBody), postInvigilatorExamBookletPreview);
+router.post('/exam-booklets/sessions/:sessionId/scan', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletSessionParams, validate(invigilatorBookletScanBody), postInvigilatorExamBookletScan);
+router.post('/exam-booklets/sessions/:sessionId/manual-lookup', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletSessionParams, validate(manualBookletLookupBody), postExamBookletManualLookup);
+router.get('/exam-booklets/sessions/:sessionId/scans', authenticate, authorize('lecturer'), validateExamBookletSessionParams, validateExamBookletHistoryQuery, getExamBookletScanHistory);
+router.post('/exam-booklets/:bookletId/replacements', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletParams, validate(replaceBookletBody), postLecturerExamBookletReplacement);
 router.get('/course-units/:courseUnitId/assessments', authenticate, authorize('lecturer'), validate(courseUnitIdParamsSchema, 'params'), validate(courseUnitAssessmentsQuerySchema, 'query'), getAssignedCourseUnitAssessments);
 router.get('/marks/options', authenticate, authorize('lecturer'), validate(markOptionsQuery, 'query'), getLecturerMarkOptionsController);
 router.get('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), validate(assessmentMarkParams, 'params'), validate(assessmentRosterQuery, 'query'), getAssessmentRosterController);

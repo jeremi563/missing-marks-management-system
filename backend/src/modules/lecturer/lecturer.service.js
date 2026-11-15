@@ -1693,3 +1693,160 @@ export async function decideLecturerCatSubmission(db, userId, submissionId, { de
 		return { ...result, academicYear: academicYearForDate(item.attendanceRecord.session.startsAt) };
 	});
 }
+
+const examAttendanceRecordSelect = {
+	id: true,
+	status: true,
+	locationVerified: true,
+	recordedAt: true,
+	examVerificationStatus: true,
+	examVerifiedAt: true,
+	examVerificationMethod: true,
+	examVerificationActorAt: true,
+	examRejectionReason: true,
+	examComments: true,
+	examVerifiedBy: { select: { id: true, staffNumber: true, user: { select: { displayName: true } } } },
+	examVerificationActor: { select: { id: true, displayName: true } },
+	student: { select: { id: true, studentNumber: true, user: { select: { displayName: true } } } },
+	session: {
+		select: {
+			id: true,
+			sessionType: true,
+			lecturerProfileId: true,
+			courseUnitId: true,
+			startsAt: true,
+			endsAt: true,
+			courseUnit: { select: { id: true, code: true, name: true } },
+			classroom: { select: { id: true, name: true } },
+			assessment: {
+				select: {
+					id: true,
+					code: true,
+					name: true,
+					type: true,
+					courseUnitId: true,
+					courseUnit: { select: { id: true, code: true, name: true } },
+				},
+			},
+		},
+	},
+};
+
+function isValidExamAttendanceRecord(item) {
+	return item?.session?.sessionType === "EXAM"
+		&& item.session.assessment?.type === "EXAM"
+		&& item.session.assessment.courseUnitId === item.session.courseUnitId;
+}
+
+function examAttendanceScope(lecturerProfileId, { courseUnitId, assessmentId } = {}) {
+	return {
+		session: {
+			is: {
+				sessionType: "EXAM",
+				lecturerProfileId,
+				...(courseUnitId ? { courseUnitId } : {}),
+				...(assessmentId ? { assessmentId } : {}),
+			},
+		},
+	};
+}
+
+export async function listLecturerExamAttendance(db, userId, { page = 1, limit = 20, status, courseUnitId, assessmentId } = {}) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const where = {
+		...examAttendanceScope(lecturer.id, { courseUnitId, assessmentId }),
+		...(status ? { examVerificationStatus: status } : {}),
+	};
+	const [items, total] = await db.$transaction([
+		db.attendanceRecord.findMany({
+			where,
+			skip: (page - 1) * limit,
+			take: limit,
+			orderBy: [{ recordedAt: "desc" }, { id: "desc" }],
+			select: examAttendanceRecordSelect,
+		}),
+		db.attendanceRecord.count({ where }),
+	]);
+	const validItems = items.filter(isValidExamAttendanceRecord);
+	return {
+		items: validItems.map((item) => ({ ...item, academicYear: academicYearForDate(item.session.startsAt) })),
+		pagination: { page, limit, total: validItems.length === items.length ? total : validItems.length, totalPages: Math.ceil((validItems.length === items.length ? total : validItems.length) / limit) },
+	};
+}
+
+export async function getLecturerExamAttendanceRecord(db, userId, recordId) {
+	const lecturer = await getDiscrepancyLecturer(db, userId);
+	const item = await db.attendanceRecord.findFirst({
+		where: { id: recordId, ...examAttendanceScope(lecturer.id) },
+		select: examAttendanceRecordSelect,
+	});
+	if (!item || !isValidExamAttendanceRecord(item)) throw new AppError(404, "Examination attendance record not found");
+	return { ...item, academicYear: academicYearForDate(item.session.startsAt) };
+}
+
+export async function decideLecturerExamAttendance(db, userId, recordId, { decision, comments, reason }) {
+	return db.$transaction(async (tx) => {
+		const lecturer = await getDiscrepancyLecturer(tx, userId);
+		const item = await tx.attendanceRecord.findFirst({
+			where: { id: recordId, ...examAttendanceScope(lecturer.id) },
+			select: {
+				...examAttendanceRecordSelect,
+				student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
+			},
+		});
+		if (!item || !isValidExamAttendanceRecord(item)) throw new AppError(404, "Examination attendance record not found");
+		if (item.examVerificationStatus !== "PENDING_REVIEW") throw new AppError(409, "This examination attendance record has already been decided");
+
+		const now = new Date();
+		const status = decision === "VERIFY" ? "VERIFIED" : "REJECTED";
+		const rejectionReason = decision === "REJECT" ? reason.trim() : null;
+		const verificationComments = decision === "VERIFY" ? comments?.trim() || null : null;
+		const updated = await tx.attendanceRecord.updateMany({
+			where: {
+				id: item.id,
+				examVerificationStatus: "PENDING_REVIEW",
+				examVerifiedByLecturerId: null,
+				examVerifiedAt: null,
+			},
+			data: {
+				examVerificationStatus: status,
+				examVerifiedByLecturerId: lecturer.id,
+				examVerifiedAt: now,
+				examRejectionReason: rejectionReason,
+				examComments: verificationComments,
+			},
+		});
+		if (updated.count !== 1) throw new AppError(409, "This examination attendance record was decided concurrently; reload before reviewing");
+
+		await recordAuditEvent({
+			prismaClient: tx,
+			actorId: userId,
+			action: `EXAM_ATTENDANCE_${status}`,
+			entityType: "AttendanceRecord",
+			entityId: item.id,
+			metadata: {
+				assessmentId: item.session.assessment.id,
+				attendanceSessionId: item.session.id,
+				previousStatus: item.examVerificationStatus,
+				status,
+				...(rejectionReason ? { rejectionReason } : {}),
+			},
+		});
+		await enqueueNotificationOnce(tx, {
+			dedupeKey: `EXAM_ATTENDANCE_DECISION:${item.id}:${status}`,
+			eventType: `EXAM_ATTENDANCE_${status}`,
+			entityType: "AttendanceRecord",
+			entityId: item.id,
+			recipientUserId: item.student.user.id,
+			title: status === "VERIFIED" ? "Examination attendance verified" : "Examination attendance rejected",
+			message: status === "VERIFIED"
+				? `Your examination attendance for ${item.session.courseUnit.code} has been verified.`
+				: `Your examination attendance for ${item.session.courseUnit.code} was rejected. Reason: ${rejectionReason}`,
+		});
+		const result = await tx.attendanceRecord.findUnique({
+			where: { id: item.id },
+			select: examAttendanceRecordSelect,
+		});
+		return { ...result, academicYear: academicYearForDate(item.session.startsAt) };
+	});
+}

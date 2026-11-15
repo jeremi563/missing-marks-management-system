@@ -30,7 +30,9 @@ A student should be able to:
 - Edit or withdraw a report only when its status and system rules permit.
 - Submit an appeal where permitted by the agreed appeal policy.
 - View their own attendance history and relevant attendance-related information.
+- View their own examination attendance verification status and any rejection reason.
 - View their own official marks by academic period, including assessment and course-unit details.
+- Check in to a CAT session using the existing QR/location flow; a successful check-in creates one CAT submission and the student can view its verification status and any rejection reason.
 - Receive notifications about report progress and required action.
 
 A student must not view another student's private report or change official marks.
@@ -48,6 +50,7 @@ A lecturer should be able to:
 - Propose corrections to marks through an audited departmental review process.
 - Review relevant CAT and examination attendance information.
 - Verify or reject CAT submissions created by successful check-in to CAT sessions they own; rejection requires a reason, while verification comments are optional.
+- Verify or reject examination attendance recorded in EXAM sessions they own; rejection requires a reason, while verification comments are optional.
 - View only the students, units and records they are authorised to access.
 
 A lecturer must not access unrelated departmental or system administration functions.
@@ -103,7 +106,11 @@ The following are project rules previously discussed or proposed. Confirm their 
 - Attendance eligibility is based on an 80% attendance threshold, if this remains the approved project rule.
 - CAT and examination attendance are relevant evidence in the workflow.
 - Attendance may be captured through a QR code or link, with location validation where approved.
-- The exam booklet may use a QR code for the agreed verification process.
+- Each enrolled student receives one booklet allocation per EXAM assessment. Its QR contains only a cryptographically random token; the backend stores only a hash.
+- Students can verify only their own allocated booklet. An authorized lecturer assigned to the examination session can scan after confirming the student's physical identity against the allocation.
+- A successful booklet verification atomically marks the booklet and the corresponding `AttendanceRecord` as `VERIFIED`, recording the scan method, authenticated actor and time. It does not populate `examVerifiedByLecturerId` for a student scan or overwrite an earlier lecturer decision.
+- Invalid, mismatched, inactive, duplicate, missing and replaced booklet scans are rejected and audited. An authorized session lecturer may use confirmed manual student lookup for an unreadable QR. A designated COD or the session lecturer may approve a replacement with a recorded reason; the old token is invalidated and its history retained.
+- Examination booklet QR verification does not replace CLASS/CAT attendance workflows. GPS remains supporting evidence and is not proof of physical presence.
 - General evidence uploads are not part of the default workflow unless the team approves a specific special-case requirement.
 - Define who can approve, reject, reopen or escalate a report.
 - Define whether a report can be edited or withdrawn after submission or assignment.

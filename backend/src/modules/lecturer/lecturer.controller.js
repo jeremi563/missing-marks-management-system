@@ -16,6 +16,9 @@ import {
   listLecturerCatSubmissions,
   getLecturerCatSubmission,
   decideLecturerCatSubmission,
+  listLecturerExamAttendance,
+  getLecturerExamAttendanceRecord,
+  decideLecturerExamAttendance,
 } from './lecturer.service.js';
 import { submitMarkCorrection } from '../marks/marks.service.js';
 import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
@@ -837,6 +840,44 @@ export async function postCatSubmissionDecisionController(req, res, next) {
       req.validatedBody,
     );
     return res.status(200).json({ success: true, message: 'CAT submission decision recorded successfully.', data: submission });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getLecturerExamAttendanceController(req, res, next) {
+  try {
+    const result = await listLecturerExamAttendance(req.app.locals.prisma, req.user.id, req.validatedQuery);
+    return res.status(200).json({
+      success: true,
+      message: 'Examination attendance records retrieved successfully.',
+      count: result.items.length,
+      data: result.items,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function getLecturerExamAttendanceRecordController(req, res, next) {
+  try {
+    const record = await getLecturerExamAttendanceRecord(req.app.locals.prisma, req.user.id, req.validatedParams.recordId);
+    return res.status(200).json({ success: true, message: 'Examination attendance record retrieved successfully.', data: record });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function postLecturerExamAttendanceDecisionController(req, res, next) {
+  try {
+    const record = await decideLecturerExamAttendance(
+      req.app.locals.prisma,
+      req.user.id,
+      req.validatedParams.recordId,
+      req.validatedBody,
+    );
+    return res.status(200).json({ success: true, message: 'Examination attendance decision recorded successfully.', data: record });
   } catch (error) {
     return next(error);
   }

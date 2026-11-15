@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { getStudentProfile, getStudentReportOptions, buildAcademicYearOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, listStudentCatSubmissions, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
+import { getStudentProfile, getStudentReportOptions, buildAcademicYearOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, listStudentCatSubmissions, listStudentExamAttendance, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
 
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
@@ -485,6 +485,43 @@ test("CAT check-in atomically creates a pending submission and notifies its sess
 	assert.equal(state.outbox[0].eventType, "CAT_SUBMISSION_CREATED");
 });
 
+test("EXAM check-in creates a pending verification state and audits it without creating a CAT submission", async () => {
+	const { prisma, state } = createCheckInPrisma({
+		session: { sessionType: "EXAM", assessmentId: "assessment-1" },
+	});
+	const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z"));
+
+	assert.equal(state.records.length, 1);
+	assert.equal(state.histories.length, 1);
+	assert.equal(state.records[0].examVerificationStatus, "PENDING_REVIEW");
+	assert.equal(result.record.examVerificationStatus, "PENDING_REVIEW");
+	assert.equal(state.catSubmissions.length, 0);
+	assert.equal(state.auditEvents[0].action, "EXAM_ATTENDANCE_VERIFICATION_CREATED");
+	assert.equal(state.auditEvents[0].entityId, "record-1");
+	assert.equal(state.outbox.length, 0);
+});
+
+test("EXAM attendance history, record and creation audit roll back together when audit writing fails", async () => {
+	const { prisma, state } = createCheckInPrisma({
+		session: { sessionType: "EXAM", assessmentId: "assessment-1" },
+		transaction: { auditLog: { create: async () => { throw new Error("audit failure"); } } },
+	});
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), /audit failure/);
+	assert.equal(state.records.length, 0);
+	assert.equal(state.histories.length, 0);
+	assert.equal(state.auditEvents.length, 0);
+});
+
 test("CAT submission, attendance history, audit and notification roll back together on outbox failure", async () => {
 	const { prisma, state } = createCheckInPrisma({
 		session: { sessionType: "CAT", assessmentId: "assessment-1" },
@@ -587,6 +624,39 @@ test("lists only the authenticated student's CAT submissions with matching acade
 	assert.equal(result.items[0].rejectionReason, "Not legible");
 	assert.equal(result.items[0].academicYear, "2026/27");
 	assert.equal(result.items[0].academicPeriods[0].id, "period-1");
+	assert.deepEqual(result.pagination, { page: 2, limit: 5, total: 1, totalPages: 1 });
+});
+
+test("lists examination verification records only for the authenticated student", async () => {
+	const calls = {};
+	const prisma = {
+		studentProfile: { findUnique: async ({ where }) => { calls.profile = where; return { id: "student-1" }; } },
+		attendanceRecord: {
+			findMany: async (args) => {
+				calls.findMany = args;
+				return [{
+					id: "record-1",
+					examVerificationStatus: "REJECTED",
+					examRejectionReason: "Not on register",
+					session: {
+						startsAt: new Date("2026-11-13T06:00:00.000Z"),
+						courseUnit: { id: "unit-1", code: "IN101", name: "Computing" },
+						assessment: { id: "exam-1", type: "EXAM", name: "Final Exam" },
+					},
+				}];
+			},
+			count: async (args) => { calls.count = args; return 1; },
+		},
+		$transaction: async (operations) => Promise.all(operations),
+	};
+	const result = await listStudentExamAttendance(prisma, "user-1", { page: 2, limit: 5, status: "REJECTED" });
+	assert.deepEqual(calls.profile, { userId: "user-1" });
+	assert.equal(calls.findMany.where.studentProfileId, "student-1");
+	assert.equal(calls.findMany.where.session.is.sessionType, "EXAM");
+	assert.equal(calls.findMany.where.examVerificationStatus, "REJECTED");
+	assert.deepEqual(calls.count.where, calls.findMany.where);
+	assert.equal(result.items[0].examRejectionReason, "Not on register");
+	assert.equal(result.items[0].academicYear, "2026/27");
 	assert.deepEqual(result.pagination, { page: 2, limit: 5, total: 1, totalPages: 1 });
 });
 

@@ -21,6 +21,9 @@ import {
 	postCodMarkCorrectionDecisionController,
 } from "../marks/marks.controller.js";
 import { codCorrectionsQuery, correctionDecisionBody, correctionParams } from "../marks/marks.validation.js";
+import { examBookletScanRateLimit } from "../exam-booklet/exam-booklet.rate-limit.js";
+import { postCodExamBookletReplacement } from "../exam-booklet/exam-booklet.controller.js";
+import { replaceBookletBody, validateExamBookletParams } from "../exam-booklet/exam-booklet.validation.js";
 
 export const codRoutes = Router();
 
@@ -43,6 +46,7 @@ codRoutes.post("/mark-corrections/:correctionId/decision", validate(correctionPa
 codRoutes.get("/students", validate(codDirectoryQuerySchema, "query"), getCodDepartmentStudents);
 codRoutes.get("/lecturers", validate(codDirectoryQuerySchema, "query"), getCodDepartmentLecturers);
 codRoutes.post("/course-units/:courseUnitId/lecturers", validate(codCourseUnitParamsSchema, "params"), validate(createCodCourseUnitLecturerBodySchema), postCodCourseUnitLecturer);
+codRoutes.post("/exam-booklets/:bookletId/replacements", examBookletScanRateLimit, validateExamBookletParams, validate(replaceBookletBody), postCodExamBookletReplacement);
 codRoutes.get("/attendance-records", validate(codAttendanceRecordsQuerySchema, "query"), getCodAttendanceRecords);
 codRoutes.get("/assessment-attendance", validate(codAssessmentAttendanceQuerySchema, "query"), getCodAssessmentAttendance);
 codRoutes.get("/attendance-attempts", validate(codAttendanceAttemptsQuerySchema, "query"), getCodAttendanceAttempts);

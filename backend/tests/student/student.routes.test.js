@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
-import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery } from "../../src/modules/student/student.validation.js";
+import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery, validateStudentExamAttendanceQuery } from "../../src/modules/student/student.validation.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
@@ -99,6 +99,20 @@ test("registers a student-scoped CAT submission list and validates pagination an
 	assert.deepEqual(req.validatedQuery, { page: 2, limit: 25, status: "REJECTED" });
 	let invalidError;
 	validateStudentCatSubmissionsQuery({ query: { studentProfileId: "other-student" } }, {}, (error) => { invalidError = error; });
+	assert.equal(invalidError.statusCode, 400);
+});
+
+test("registers a student-scoped examination attendance list with status and pagination filters", () => {
+	const route = router.stack.find((layer) => layer.route?.path === "/exam-attendance" && layer.route.methods.get);
+	assert.ok(route);
+	assert.equal(route.route.stack.length, 4);
+	const req = { query: { page: "2", limit: "25", status: "REJECTED" } };
+	let capturedError;
+	validateStudentExamAttendanceQuery(req, {}, (error) => { capturedError = error; });
+	assert.equal(capturedError, undefined);
+	assert.deepEqual(req.validatedQuery, { page: 2, limit: 25, status: "REJECTED" });
+	let invalidError;
+	validateStudentExamAttendanceQuery({ query: { studentProfileId: "another-student" } }, {}, (error) => { invalidError = error; });
 	assert.equal(invalidError.statusCode, 400);
 });
 
