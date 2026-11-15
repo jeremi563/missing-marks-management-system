@@ -1,4 +1,5 @@
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import { defineConfig, loadEnv } from 'vite'
@@ -12,6 +13,9 @@ export default defineConfig(({ mode }) => {
       babel({ presets: [reactCompilerPreset()] })
     ],
     server: {
+      fs: {
+        allow: [fileURLToPath(new URL('../', import.meta.url))],
+      },
       proxy: {
         '/api': {
           target: env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3000',

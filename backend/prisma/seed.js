@@ -93,15 +93,19 @@ async function main() {
 	});
 	const academicPeriod = await prisma.academicPeriod.upsert({
 		where: { code: "DEMO-PERIOD-2026" },
-		update: {},
-		create: { code: "DEMO-PERIOD-2026", name: "Demo Academic Period" },
+		update: { startsAt: new Date("2026-08-31T21:00:00.000Z") },
+		create: { code: "DEMO-PERIOD-2026", name: "Demo Academic Period", startsAt: new Date("2026-08-31T21:00:00.000Z") },
 	});
 	const academicYear = academicYearForDate(new Date());
-	await prisma.courseUnitLecturer.upsert({
-		where: { courseUnitId_academicYear: { courseUnitId: courseUnit.id, academicYear } },
-		update: {},
-		create: { courseUnitId: courseUnit.id, lecturerProfileId: lecturer.id, academicYear },
+	const existingAssignment = await prisma.courseUnitLecturer.findFirst({
+		where: { courseUnitId: courseUnit.id, academicYear, isActive: true },
+		select: { id: true },
 	});
+	if (!existingAssignment) {
+		await prisma.courseUnitLecturer.create({
+			data: { courseUnitId: courseUnit.id, lecturerProfileId: lecturer.id, academicYear, isActive: true },
+		});
+	}
 	await prisma.unitEnrollment.upsert({
 		where: {
 			studentProfileId_courseUnitId_academicPeriodId: {

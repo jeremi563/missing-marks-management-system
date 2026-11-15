@@ -229,7 +229,7 @@ test("COD report detail remains department-scoped", async () => {
     missingMarkReport: { findFirst: async (args) => { reportWhere = args.where; return null; } },
   };
   await assert.rejects(() => getCodReportDetails({ userId: "cod-user-1", reportId: "report-1", db }), { statusCode: 404 });
-  assert.deepEqual(reportWhere, { id: "report-1", status: "ESCALATED", courseUnit: { departmentId: { in: ["dept-2"] } } });
+  assert.deepEqual(reportWhere, { id: "report-1", courseUnit: { departmentId: { in: ["dept-2"] } } });
 });
 
 test("COD report list is restricted to escalated reports in authorized departments", async () => {

@@ -1,6 +1,7 @@
 import { prisma } from "../../config/database.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { AppError } from "../../shared/utils/app-error.js";
+import { academicYearForDate } from "../../shared/utils/academic-year.js";
 
 async function paginated(model, { where = {}, page, limit, orderBy = { createdAt: "desc" }, include, select }) {
 	const [items, total] = await Promise.all([
@@ -56,13 +57,24 @@ export const updateCourseUnit = ({ db = prisma, actorUserId, id, ...data }) => m
 		if (nextDepartmentId !== current.departmentId && Object.values(current._count).some((count) => count > 0)) throw new AppError(409, "A course unit with academic history cannot move departments");
 		return tx.courseUnit.update({ where: { id }, data: { ...data, ...(course ? { departmentId: course.departmentId } : {}) } });
 	} });
-export const createAcademicPeriod = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ACADEMIC_PERIOD_CREATED", entityType: "AcademicPeriod", operation: (tx) => tx.academicPeriod.create({ data }) });
+export const createAcademicPeriod = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ACADEMIC_PERIOD_CREATED", entityType: "AcademicPeriod", operation: (tx) => {
+	if (!data.startsAt) throw new AppError(422, "An academic period start date is required");
+	const academicYear = academicYearForDate(data.startsAt);
+	if (data.endsAt && academicYearForDate(data.endsAt) !== academicYear) {
+		throw new AppError(422, "An academic period must start and end within the same academic year");
+	}
+	return tx.academicPeriod.create({ data });
+} });
 export const updateAcademicPeriod = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ACADEMIC_PERIOD_UPDATED", entityType: "AcademicPeriod", entityId: id, operation: async (tx) => {
 		const current = await tx.academicPeriod.findUnique({ where: { id }, select: { id: true, startsAt: true, endsAt: true, enrollmentOpensAt: true, enrollmentClosesAt: true } });
 		if (!current) throw new AppError(404, "Academic period not found");
-		const startsAt = data.startsAt ?? current.startsAt;
-		const endsAt = data.endsAt ?? current.endsAt;
+		const startsAt = data.startsAt === undefined ? current.startsAt : data.startsAt;
+		const endsAt = data.endsAt === undefined ? current.endsAt : data.endsAt;
+		if (!startsAt) throw new AppError(422, "An academic period start date is required");
 		if (startsAt && endsAt && endsAt <= startsAt) throw new AppError(422, "The end date must be later than the start date");
+		if (endsAt && academicYearForDate(startsAt) !== academicYearForDate(endsAt)) {
+			throw new AppError(422, "An academic period must start and end within the same academic year");
+		}
 		const enrollmentOpensAt = data.enrollmentOpensAt === undefined ? current.enrollmentOpensAt : data.enrollmentOpensAt;
 		const enrollmentClosesAt = data.enrollmentClosesAt === undefined ? current.enrollmentClosesAt : data.enrollmentClosesAt;
 		if (enrollmentOpensAt && enrollmentClosesAt && enrollmentClosesAt <= enrollmentOpensAt) {
@@ -104,4 +116,16 @@ async function remove({ db, actorUserId, id, model, action, entityType, message 
 }
 
 export const deleteEnrollment = ({ db = prisma, actorUserId, id }) => remove({ db, actorUserId, id, model: "unitEnrollment", action: "ADMIN_ENROLLMENT_DELETED", entityType: "UnitEnrollment", message: "Enrolment not found" });
-export const deleteMapping = ({ db = prisma, actorUserId, id }) => remove({ db, actorUserId, id, model: "courseUnitLecturer", action: "ADMIN_LECTURER_MAPPING_DELETED", entityType: "CourseUnitLecturer", message: "Lecturer mapping not found" });
+export const deleteMapping = ({ db = prisma, actorUserId, id }) => db.$transaction(async (tx) => {
+	const mapping = await tx.courseUnitLecturer.findUnique({ where: { id }, select: { id: true, isActive: true } });
+	if (!mapping) throw new AppError(404, "Lecturer mapping not found");
+	if (!mapping.isActive) throw new AppError(409, "Lecturer mapping is already inactive");
+	const endedAt = new Date();
+	const updated = await tx.courseUnitLecturer.updateMany({
+		where: { id, isActive: true },
+		data: { isActive: false, endedAt },
+	});
+	if (updated.count !== 1) throw new AppError(409, "Lecturer mapping changed; reload before deactivating it");
+	await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_LECTURER_MAPPING_DEACTIVATED", entityType: "CourseUnitLecturer", entityId: id, metadata: { isActive: false, endedAt } });
+	return { id, isActive: false, endedAt };
+});

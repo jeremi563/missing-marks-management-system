@@ -35,7 +35,7 @@ export async function loadAttendanceDiscrepancySource(db, input) {
 	let assignedLecturerProfileId = source.session?.lecturerProfileId ?? null;
 	if (assignedLecturerProfileId) {
 		const validSessionLecturer = await db.lecturerProfile.findFirst({
-			where: { id: assignedLecturerProfileId, unitAssignments: { some: { courseUnitId, academicYear } }, user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } } },
+			where: { id: assignedLecturerProfileId, unitAssignments: { some: { courseUnitId, academicYear, isActive: true } }, user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } } },
 			select: { id: true },
 		});
 		if (!validSessionLecturer) assignedLecturerProfileId = null;
@@ -45,6 +45,7 @@ export async function loadAttendanceDiscrepancySource(db, input) {
 			where: {
 				courseUnitId,
 				academicYear,
+				isActive: true,
 				lecturer: { user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } } },
 			},
 			orderBy: { lecturerProfileId: "asc" },

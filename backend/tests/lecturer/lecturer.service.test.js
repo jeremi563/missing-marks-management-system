@@ -66,7 +66,7 @@ const createReportDetailsPrisma = ({
     status: 'PENDING',
     student: { studentNumber: 'STU-001' },
     courseUnit: { code: 'CSC101', name: 'Programming' },
-    academicPeriod: { name: '2026 Semester 1', startsAt: new Date('2026-08-01') },
+    academicPeriod: { name: '2026 Semester 1', startsAt: new Date('2026-09-01') },
     assessment: { name: 'CAT 1', type: 'CAT' },
   },
   assessments = [],

@@ -600,13 +600,8 @@ export async function submitMissingMarkReport(prisma, userId, input) {
 
 	const submittedAt = new Date();
 	return prisma.$transaction(async (transaction) => {
-		const assignment = await transaction.courseUnitLecturer.findUnique({
-			where: {
-				courseUnitId_academicYear: {
-					courseUnitId: input.courseUnitId,
-					academicYear: input.academicYear,
-				},
-			},
+		const assignment = await transaction.courseUnitLecturer.findFirst({
+			where: { courseUnitId: input.courseUnitId, academicYear: input.academicYear, isActive: true },
 			select: {
 				lecturerProfileId: true,
 				lecturer: { select: { userId: true } },

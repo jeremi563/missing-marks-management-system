@@ -3,6 +3,7 @@ import { AppError } from "../../shared/utils/app-error.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { getDesignatedCodDepartmentIds } from "../../shared/services/designated-cod-authorization.service.js";
 import { academicYearForDate } from "../../shared/utils/academic-year.js";
+import { reassignReport } from "../admin/maintenance.service.js";
 
 export async function getAuthorizedDepartmentIds(db, userId) {
   return getDesignatedCodDepartmentIds(db, userId);
@@ -43,7 +44,7 @@ export async function listCodDepartmentCourseUnits({ userId, departmentId, page 
         department: { select: { id: true, name: true, code: true } },
         course: { select: { id: true, code: true, name: true } },
         lecturerMappings: {
-          where: { academicYear },
+          where: { academicYear, isActive: true },
           select: {
             id: true,
             lecturer: {
@@ -87,20 +88,31 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
     });
     if (!lecturer) throw new AppError(422, "Select an active, approved lecturer from this department");
 
-    const existingAssignment = await tx.courseUnitLecturer.findUnique({
-      where: { courseUnitId_academicYear: { courseUnitId, academicYear } },
-      select: { id: true },
+    const existingAssignment = await tx.courseUnitLecturer.findFirst({
+      where: { courseUnitId, academicYear, isActive: true },
+      select: { id: true, lecturerProfileId: true },
     });
-    if (existingAssignment) throw new AppError(409, `This course unit already has a lecturer assigned for ${academicYear}`);
+    if (existingAssignment?.lecturerProfileId === lecturerProfileId) {
+      throw new AppError(409, `This lecturer is already assigned to the course unit for ${academicYear}`);
+    }
+
+    if (existingAssignment) {
+      const deactivated = await tx.courseUnitLecturer.updateMany({
+        where: { id: existingAssignment.id, isActive: true },
+        data: { isActive: false, endedAt: now },
+      });
+      if (deactivated.count !== 1) throw new AppError(409, "The course-unit assignment changed; reload before replacing it");
+    }
 
     let mapping;
     try {
       mapping = await tx.courseUnitLecturer.create({
-        data: { courseUnitId, lecturerProfileId, academicYear },
+        data: { courseUnitId, lecturerProfileId, academicYear, isActive: true },
         select: {
           id: true,
           courseUnitId: true,
           lecturerProfileId: true,
+          isActive: true,
           lecturer: {
             select: {
               staffNumber: true,
@@ -116,10 +128,16 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
     await recordAuditEvent({
       prismaClient: tx,
       actorId: userId,
-      action: "COD_COURSE_UNIT_LECTURER_ASSIGNED",
+      action: existingAssignment ? "COD_COURSE_UNIT_LECTURER_REPLACED" : "COD_COURSE_UNIT_LECTURER_ASSIGNED",
       entityType: "CourseUnitLecturer",
       entityId: mapping.id,
-      metadata: { courseUnitId, lecturerProfileId, departmentId, academicYear },
+      metadata: {
+        courseUnitId,
+        previousLecturerProfileId: existingAssignment?.lecturerProfileId ?? null,
+        lecturerProfileId,
+        departmentId,
+        academicYear,
+      },
     });
     return mapping;
   });
@@ -217,7 +235,6 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
   const report = await db.missingMarkReport.findFirst({
     where: {
       id: reportId,
-      status: "ESCALATED",
       courseUnit: { departmentId: { in: departmentIds } },
     },
     select: {
@@ -285,6 +302,9 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
   });
 
   if (!report) {
+    throw new AppError(404, "Missing-mark report not found");
+  }
+  if (["APPROVED", "REJECTED", "WITHDRAWN"].includes(report.status.toUpperCase())) {
     throw new AppError(404, "Missing-mark report not found");
   }
 
@@ -502,7 +522,7 @@ function getOrderBy(sort) {
   }
 }
 
-export async function listDepartmentReports({ userId, departmentId, page, limit, sort, db = prisma }) {
+export async function listDepartmentReports({ userId, departmentId, status = "ESCALATED", page, limit, sort, db = prisma }) {
   const authorizedDepartmentIds = await getAuthorizedDepartmentIds(db, userId);
   if (authorizedDepartmentIds.length === 0) {
     return { items: [], page, limit, total: 0, totalPages: 0 };
@@ -515,7 +535,7 @@ export async function listDepartmentReports({ userId, departmentId, page, limit,
   const effectiveDepartmentIds = departmentId ? [departmentId] : authorizedDepartmentIds;
 
   const where = {
-    status: "ESCALATED",
+    status: status === "OUTSTANDING" ? { notIn: ["APPROVED", "REJECTED", "WITHDRAWN"] } : "ESCALATED",
     courseUnit: {
       departmentId: { in: effectiveDepartmentIds },
     },
@@ -604,4 +624,19 @@ export async function listDepartmentReports({ userId, departmentId, page, limit,
     total,
     totalPages: total === 0 ? 0 : Math.ceil(total / limit),
   };
+}
+
+export async function reassignCodReport({ userId, reportId, lecturerProfileId, reason, db = prisma }) {
+  return reassignReport({
+    db,
+    actorUserId: userId,
+    reportId,
+    lecturerProfileId,
+    reason,
+    auditAction: "COD_REPORT_REASSIGNED",
+    authorizeDepartment: async (tx, departmentId) => {
+      const departmentIds = await getAuthorizedDepartmentIds(tx, userId);
+      if (!departmentIds.includes(departmentId)) throw new AppError(404, "Missing-mark report not found");
+    },
+  });
 }

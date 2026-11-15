@@ -9,6 +9,7 @@ import {
   getAdminCourseUnits,
   getAdminDepartments,
 } from '../../api/admin'
+import { nairobiDateAtEndOfDay, nairobiDateAtStartOfDay } from '../../shared/academic-year'
 import { extractRecords } from '../shared/recordUtils'
 
 const initialForms = {
@@ -67,13 +68,16 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
       } else if (resourceKey === 'units') {
         await createAdminCourseUnit({ ...form, code: form.code.trim(), name: form.name.trim() })
       } else if (resourceKey === 'periods') {
+        const startsAt = nairobiDateAtStartOfDay(form.startsAt)
+        const endsAt = form.endsAt ? nairobiDateAtEndOfDay(form.endsAt) : null
+        if (!startsAt || (form.endsAt && !endsAt)) throw new Error('Enter valid academic-period dates.')
         await createAdminAcademicPeriod({
           name: form.name.trim(),
           ...(form.code.trim() ? { code: form.code.trim() } : {}),
-          ...(form.startsAt ? { startsAt: new Date(`${form.startsAt}T00:00:00.000Z`).toISOString() } : {}),
-          ...(form.endsAt ? { endsAt: new Date(`${form.endsAt}T00:00:00.000Z`).toISOString() } : {}),
-          ...(form.enrollmentOpensAt ? { enrollmentOpensAt: new Date(`${form.enrollmentOpensAt}T00:00:00.000Z`).toISOString() } : {}),
-          ...(form.enrollmentClosesAt ? { enrollmentClosesAt: new Date(`${form.enrollmentClosesAt}T23:59:59.999Z`).toISOString() } : {}),
+          startsAt: startsAt.toISOString(),
+          ...(endsAt ? { endsAt: endsAt.toISOString() } : {}),
+          ...(form.enrollmentOpensAt ? { enrollmentOpensAt: nairobiDateAtStartOfDay(form.enrollmentOpensAt).toISOString() } : {}),
+          ...(form.enrollmentClosesAt ? { enrollmentClosesAt: nairobiDateAtEndOfDay(form.enrollmentClosesAt).toISOString() } : {}),
         })
       } else if (resourceKey === 'classrooms') {
         await createAdminClassroom({
@@ -135,7 +139,7 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
         <div className="form-grid">
           <div className="form-field"><label htmlFor="period-name">Academic period name</label><input id="period-name" name="name" value={form.name} onChange={update} maxLength={200} required /></div>
           <div className="form-field"><label htmlFor="period-code">Period code (optional)</label><input id="period-code" name="code" value={form.code} onChange={update} maxLength={80} /></div>
-          <div className="form-field"><label htmlFor="period-start">Start date (optional)</label><input id="period-start" type="date" name="startsAt" value={form.startsAt} onChange={update} /></div>
+          <div className="form-field"><label htmlFor="period-start">Start date</label><input id="period-start" type="date" name="startsAt" value={form.startsAt} onChange={update} required /><small>Academic-year boundaries use Africa/Nairobi time; the period must remain within one academic year.</small></div>
           <div className="form-field"><label htmlFor="period-end">End date (optional)</label><input id="period-end" type="date" name="endsAt" value={form.endsAt} onChange={update} /></div>
           <div className="form-field"><label htmlFor="period-enrollment-opens">Course enrollment opens (optional)</label><input id="period-enrollment-opens" type="date" name="enrollmentOpensAt" value={form.enrollmentOpensAt} onChange={update} /><small>Students can request enrollment from this date.</small></div>
           <div className="form-field"><label htmlFor="period-enrollment-closes">Course enrollment closes (optional)</label><input id="period-enrollment-closes" type="date" name="enrollmentClosesAt" value={form.enrollmentClosesAt} onChange={update} /><small>The closing date remains open through the end of that day. Leave both window dates blank to keep enrollment closed.</small></div>

@@ -19,23 +19,32 @@ test("academic structure validators accept valid department relationships", () =
 	assert.equal(departmentUpdateBody.safeParse({ name: "Computing", initials: "IN", code: "COMP" }).success, true);
 });
 
-test("academic period validation enforces academic and enrollment-window date pairs", () => {
+test("academic period validation requires dates within one Nairobi academic year", () => {
 	const result = academicPeriodCreateBody.safeParse({ name: "2026 Semester 1", startsAt: "2026-01-01T00:00:00Z", endsAt: "2025-12-31T00:00:00Z" });
 	assert.equal(result.success, false);
 	assert.equal(academicPeriodCreateBody.safeParse({
-		name: "2026/27",
-		enrollmentOpensAt: "2026-09-01T00:00:00Z",
-		enrollmentClosesAt: "2026-10-01T23:59:59Z",
+		name: "misleading 2019/20",
+		startsAt: "2026-09-01T00:00:00+03:00",
+		endsAt: "2027-08-31T23:59:59+03:00",
+		enrollmentOpensAt: "2026-09-01T00:00:00+03:00",
+		enrollmentClosesAt: "2026-10-01T23:59:59+03:00",
 	}).success, true);
 	assert.equal(academicPeriodCreateBody.safeParse({
 		name: "2026/27",
-		enrollmentOpensAt: "2026-10-01T00:00:00Z",
-		enrollmentClosesAt: "2026-09-01T23:59:59Z",
+		startsAt: "2026-09-01T00:00:00+03:00",
+		endsAt: "2027-09-01T00:00:00+03:00",
 	}).success, false);
 	assert.equal(academicPeriodCreateBody.safeParse({
 		name: "2026/27",
-		enrollmentOpensAt: "2026-09-01T00:00:00Z",
+		enrollmentOpensAt: "2026-10-01T00:00:00+03:00",
+		enrollmentClosesAt: "2026-09-01T23:59:59+03:00",
 	}).success, false);
+	assert.equal(academicPeriodCreateBody.safeParse({
+		name: "2026/27",
+		startsAt: "2026-09-01T00:00:00+03:00",
+		enrollmentOpensAt: "2026-09-01T00:00:00+03:00",
+	}).success, false);
+	assert.equal(academicPeriodCreateBody.safeParse({ name: "No dates" }).success, false);
 });
 
 test("classroom validation enforces coordinate and boundary ranges", () => {

@@ -33,7 +33,7 @@ async function eligibleLecturer(tx, courseUnitId, lecturerProfileId, academicYea
 		where: {
 			id: lecturerProfileId,
 			user: { isActive: true, roles: { some: { role: { name: "lecturer" } } } },
-			unitAssignments: { some: { courseUnitId, academicYear } },
+			unitAssignments: { some: { courseUnitId, academicYear, isActive: true } },
 		},
 		select: { id: true },
 	});
@@ -54,11 +54,21 @@ export async function reopenReport({ db = prisma, actorUserId, reportId, reason 
 	});
 }
 
-export async function reassignReport({ db = prisma, actorUserId, reportId, lecturerProfileId, reason }) {
+export async function reassignReport({
+	db = prisma,
+	actorUserId,
+	reportId,
+	lecturerProfileId,
+	reason,
+	authorizeDepartment,
+	auditAction = "ADMIN_REPORT_REASSIGNED",
+}) {
 	return db.$transaction(async (tx) => {
 		const initial = await loadReport(tx, reportId);
+		if (authorizeDepartment) await authorizeDepartment(tx, initial.courseUnit.departmentId);
 		await lockDepartmentForReview(tx, initial.courseUnit.departmentId);
 		const report = await loadReport(tx, reportId);
+		if (authorizeDepartment) await authorizeDepartment(tx, report.courseUnit.departmentId);
 		if (["APPROVED", "REJECTED", "WITHDRAWN"].includes(report.status.toUpperCase())) throw new AppError(409, "Only unresolved reports may be reassigned");
 		await rejectOpenReviews(tx, reportId);
 		const academicYear = academicYearForPeriod(report.academicPeriod);
@@ -70,7 +80,7 @@ export async function reassignReport({ db = prisma, actorUserId, reportId, lectu
 		if (updated.count !== 1) throw new AppError(409, "Report assignment changed; reload before reassigning");
 		const assignment = await tx.reportAssignment.create({ data: { reportId, actorUserId, previousLecturerProfileId: report.assignedLecturerProfileId, newLecturerProfileId: lecturerProfileId, reason } });
 		if (report.status.toUpperCase() === "SUBMITTED") await tx.reportStatusHistory.create({ data: { reportId, actorUserId, previousStatus: report.status, newStatus: "PENDING", reason } });
-		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_REPORT_REASSIGNED", entityType: "MissingMarkReport", entityId: reportId, metadata: { previousLecturerProfileId: report.assignedLecturerProfileId, newLecturerProfileId: lecturerProfileId } });
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: auditAction, entityType: "MissingMarkReport", entityId: reportId, metadata: { previousLecturerProfileId: report.assignedLecturerProfileId, newLecturerProfileId: lecturerProfileId } });
 		return { reportId, assignedLecturerProfileId: lecturerProfileId, assignment };
 	});
 }

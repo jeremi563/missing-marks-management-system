@@ -63,15 +63,15 @@ test("lists the student's enrolled course units and periods within their departm
 	}]);
 });
 
-test("generates academic years from 2013/14 through the current August-July year only", () => {
+test("generates academic years from 2013/14 through the current September-August year only", () => {
 	const periods = [{ id: "future", startsAt: new Date("2027-09-01") }];
-	const beforeAugust = buildAcademicYearOptions(periods, new Date("2026-07-31T23:59:59Z"));
-	const afterAugust = buildAcademicYearOptions(periods, new Date("2026-08-01T00:00:00Z"));
+	const beforeSeptember = buildAcademicYearOptions(periods, new Date("2026-08-31T20:59:59Z"));
+	const afterSeptember = buildAcademicYearOptions(periods, new Date("2026-08-31T21:00:00Z"));
 
-	assert.deepEqual(beforeAugust, []);
-	assert.equal(afterAugust.at(-1).value, "2026/27");
-	assert.equal(afterAugust.some(({ value }) => value === "2027/28"), false);
-	assert.equal(buildAcademicYearOptions([{ id: "period-2026", startsAt: new Date("2026-08-31T00:00:00Z") }], new Date("2026-11-13T00:00:00Z")).at(-1).academicPeriodId, "period-2026");
+	assert.deepEqual(beforeSeptember, []);
+	assert.equal(afterSeptember.at(-1).value, "2026/27");
+	assert.equal(afterSeptember.some(({ value }) => value === "2027/28"), false);
+	assert.equal(buildAcademicYearOptions([{ id: "period-2026", startsAt: new Date("2026-09-01T00:00:00Z") }], new Date("2026-11-13T00:00:00Z")).at(-1).academicPeriodId, "period-2026");
 });
 
 test("does not list report options when the authenticated user has no student profile", async () => {
@@ -188,7 +188,7 @@ test("submits an enrolled student's report with status history and audit atomica
 		},
 		assessment: { findFirst: async () => ({ id: "assessment-1" }) },
 		$transaction: async (callback) => callback({
-			courseUnitLecturer: { findUnique: async () => null },
+			courseUnitLecturer: { findFirst: async () => null },
 			missingMarkReport: { create: async ({ data }) => { reportData = data; return report; } },
 			reportStatusHistory: { create: async ({ data }) => { transactionCalls.push({ type: "history", data }); } },
 			auditLog: { create: async ({ data }) => { transactionCalls.push({ type: "audit", data }); } },
@@ -220,7 +220,7 @@ test("submits a report without assessment metadata using the default component l
 		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
 		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
 		$transaction: async (callback) => callback({
-			courseUnitLecturer: { findUnique: async () => null },
+			courseUnitLecturer: { findFirst: async () => null },
 			missingMarkReport: { create: async ({ data }) => { reportData = data; return { id: "report-1" }; } },
 			reportStatusHistory: { create: async () => {} },
 			auditLog: { create: async () => {} },
@@ -250,8 +250,8 @@ test("automatically assigns new reports to the lecturer owning the unit for that
 		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
 		$transaction: async (callback) => callback({
 			courseUnitLecturer: {
-				findUnique: async ({ where }) => {
-					assert.deepEqual(where, { courseUnitId_academicYear: { courseUnitId: "unit-1", academicYear: "2026/27" } });
+				findFirst: async ({ where }) => {
+					assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2026/27", isActive: true });
 					return { lecturerProfileId: "lecturer-1", lecturer: { userId: "lecturer-user-1" } };
 				},
 			},
@@ -390,7 +390,7 @@ function createCheckInPrisma(overrides = {}) {
 			},
 		},
 		unitEnrollment: {
-			findMany: async () => [{ academicPeriod: { startsAt: new Date("2026-08-01"), code: "2026-T1", name: "2026 Term 1" } }],
+			findMany: async () => [{ academicPeriod: { startsAt: new Date("2026-09-01"), code: "2026-T1", name: "2026 Term 1" } }],
 		},
 		attendanceAttempt: { create: async ({ data }) => state.attempts.push(data) },
 		attendanceRecord: { findUnique: async () => null },

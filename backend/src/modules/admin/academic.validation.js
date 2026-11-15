@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { academicYearForDate } from "../../shared/utils/academic-year.js";
 
 const uuid = z.string().uuid();
 const pageQuery = z.object({
@@ -12,6 +13,11 @@ const dateRange = (schema) => schema.refine((value) => !value.startsAt || !value
 	message: "The end date must be later than the start date.",
 	path: ["endsAt"],
 });
+const oneAcademicYear = (schema) => schema.refine((value) =>
+	!value.startsAt || !value.endsAt || academicYearForDate(value.startsAt) === academicYearForDate(value.endsAt), {
+		message: "An academic period must start and end within the same academic year.",
+		path: ["endsAt"],
+	});
 
 export const departmentListQuery = pageQuery;
 export const departmentIdParams = idParams;
@@ -37,26 +43,26 @@ const enrollmentWindow = (schema) => schema.refine((value) =>
 		message: "The enrollment closing date must be later than its opening date.",
 		path: ["enrollmentClosesAt"],
 	});
-export const academicPeriodCreateBody = enrollmentWindow(dateRange(z.object({
+export const academicPeriodCreateBody = enrollmentWindow(oneAcademicYear(dateRange(z.object({
 	code: z.string().trim().min(1).max(80).optional(),
 	name: z.string().trim().min(1).max(200),
-	startsAt: dateTime.optional(),
+	startsAt: dateTime,
 	endsAt: dateTime.optional(),
 	enrollmentOpensAt: dateTime.optional(),
 	enrollmentClosesAt: dateTime.optional(),
-}).strict())).refine(({ enrollmentOpensAt, enrollmentClosesAt }) =>
+}).strict()))).refine(({ enrollmentOpensAt, enrollmentClosesAt }) =>
 	Boolean(enrollmentOpensAt) === Boolean(enrollmentClosesAt), {
 	message: "Set both enrollment window dates, or leave both unset.",
 	path: ["enrollmentClosesAt"],
 });
-export const academicPeriodUpdateBody = enrollmentWindow(dateRange(z.object({
+export const academicPeriodUpdateBody = enrollmentWindow(oneAcademicYear(dateRange(z.object({
 	code: z.string().trim().min(1).max(80).nullable().optional(),
 	name: z.string().trim().min(1).max(200).optional(),
 	startsAt: dateTime.nullable().optional(),
 	endsAt: dateTime.nullable().optional(),
 	enrollmentOpensAt: dateTime.nullable().optional(),
 	enrollmentClosesAt: dateTime.nullable().optional(),
-}).strict().refine((body) => Object.keys(body).length > 0, "At least one academic-period field must be provided.")));
+}).strict().refine((body) => Object.keys(body).length > 0, "At least one academic-period field must be provided."))));
 
 export const enrollmentListQuery = pageQuery.extend({ studentProfileId: uuid.optional(), courseUnitId: uuid.optional(), academicPeriodId: uuid.optional() }).strict();
 export const enrollmentIdParams = idParams;

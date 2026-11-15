@@ -15,7 +15,7 @@ export const codDirectoryQuerySchema = z.object({
 
 export const getCodReportsQuerySchema = z.object({
   departmentId: z.string().uuid().optional(),
-  status: z.literal("ESCALATED").default("ESCALATED"),
+  status: z.enum(["ESCALATED", "OUTSTANDING"]).default("ESCALATED"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
   sort: z.enum(["newest", "oldest", "status", "studentNumber"]).default("newest"),
@@ -31,6 +31,10 @@ export const createCodReportCommentBodySchema = z.object({
 
 export const codReportDecisionBodySchema = z.object({
   decision: z.enum(["APPROVE", "REJECT"]),
+  reason: z.string().trim().min(1).max(2000),
+}).strict();
+export const codReportReassignmentBodySchema = z.object({
+  lecturerProfileId: z.string().uuid(),
   reason: z.string().trim().min(1).max(2000),
 }).strict();
 
