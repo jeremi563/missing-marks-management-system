@@ -65,7 +65,8 @@
 ## Administration
 
 - [x] **Provide core administration screens.** The frontend includes user management, approvals, department management, academic records, settings, and COD/lecturer assignment views; corresponding protected APIs exist.
-- [~] **Expose remaining administrative APIs in the UI.** API wrappers/routes exist for roster import, report/audit views and exports, report reopen/reassignment, public-holiday management, and attendance correction, but no corresponding admin feature screens/call sites were found.
+- [x] **Import student rosters from the admin UI.** Administrators can load CSV files, preview and edit/remove invalid rows, detect within-file duplicates, and submit valid entries through the existing protected roster-import API. Per-row results, privacy-safe error reports, and actor-attributed audit outcomes are covered by focused frontend and backend tests. Existing eligibility/profile/login records are skipped without overwrite; the API still validates department/course mapping. Excel and remote file storage are not supported or required.
+- [~] **Expose remaining administrative APIs in the UI.** API wrappers/routes exist for report/audit views and exports, report reopen/reassignment, public-holiday management, and attendance correction, but no corresponding admin feature screens/call sites were found.
 
 ## Notifications
 

@@ -45,6 +45,7 @@ import AdminUsers from './features/admin/AdminUsers'
 import AdminApprovals from './features/admin/AdminApprovals'
 import AdminAcademic from './features/admin/AdminAcademic'
 import AdminSettings from './features/admin/AdminSettings'
+import AdminRosterImport from './features/admin/AdminRosterImport'
 import EnrollmentRequestInbox from './features/shared/EnrollmentRequestInbox'
 import StaffNotifications from './features/shared/StaffNotifications'
 
@@ -172,6 +173,7 @@ function App() {
               <Route path="approvals" element={<AdminApprovals />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="students" element={<AdminUsers roleFilter="student" />} />
+              <Route path="roster-import" element={<AdminRosterImport />} />
               <Route path="lecturers" element={<AdminUsers roleFilter="lecturer" />} />
               <Route path="academic" element={<AdminAcademic />} />
               <Route path="settings" element={<AdminSettings />} />

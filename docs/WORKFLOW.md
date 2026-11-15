@@ -2,11 +2,14 @@
 
 ## Student roster sign-in
 
-1. The administrator imports each eligible student's registration number, full name, and institutional email into the authoritative roster after creating the corresponding department and course.
-2. The student signs in with their registration number as both the identifier and temporary password. No student self-registration form is available.
-3. On the first successful sign-in, the system verifies the roster/course match and atomically creates the student user (including the roster full name), role, login identifier, and profile, then links the roster entry.
-4. The student must choose a new private password before accessing other authenticated features. The temporary password is no longer accepted after the change.
-5. Later sign-ins use the selected password. Existing linked student accounts are not recreated.
+1. After creating the corresponding department and course, the administrator opens **Roster import** and selects a CSV with `studentNumber`, `fullName`, and `email` columns. The browser previews the rows, identifies missing/invalid fields and duplicates, and allows corrections or removals before submission.
+2. The administrator confirms valid rows. The protected import API validates the department/course mapping, skips existing roster entries and student accounts without overwriting their information, and returns per-row imported/skipped/failed outcomes. The audit trail records the administrator, time, and outcome without storing student identifiers or contact details in import metadata.
+3. The student signs in with their registration number as both the identifier and temporary password. No student self-registration form is available.
+4. On the first successful sign-in, the system verifies the roster/course match and atomically creates the student user (including the roster full name), role, login identifier, and profile, then links the roster entry.
+5. The student must choose a new private password before accessing other authenticated features. The temporary password is no longer accepted after the change.
+6. Later sign-ins use the selected password. Existing linked student accounts are not recreated.
+
+The roster screen supports CSV only; Excel workbooks and server-side file storage are not supported.
 
 ## 1. Purpose
 

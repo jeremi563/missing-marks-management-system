@@ -83,13 +83,7 @@ export const rosterImportBody = z.object({
 		fullName: z.string().trim().min(1).max(200),
 		email: z.string().trim().email().max(254),
 	}).strict()).min(1).max(1000),
-}).strict().refine(({ students }) => new Set(students.map(({ studentNumber }) => studentNumber.toUpperCase())).size === students.length, {
-	message: "Student registration numbers must be unique in the import.",
-	path: ["students"],
-}).refine(({ students }) => new Set(students.map(({ email }) => email.toLowerCase())).size === students.length, {
-	message: "Student email addresses must be unique in the import.",
-	path: ["students"],
-});
+}).strict();
 
 export const accountApprovalBody = z.object({
 	status: z.enum(["APPROVED", "REJECTED"]),
