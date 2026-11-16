@@ -14,8 +14,8 @@ function sanitizeMetadata(value) {
 	return value;
 }
 
-export async function recordAuditEvent({ actorId, action, entityType, entityId, metadata, prismaClient = prisma }) {
-	return prismaClient.auditLog.create({
+export async function recordAuditEvent({ actorId, action, entityType, entityId, metadata }) {
+	return prisma.auditLog.create({
 		data: {
 			actorId,
 			action,
