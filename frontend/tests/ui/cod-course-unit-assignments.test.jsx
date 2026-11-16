@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodCourseUnitAssignments from '../../src/features/cod/CodCourseUnitAssignments'
 import { academicYearForDate } from '../../src/shared/academic-year'
@@ -47,13 +47,18 @@ describe('CodCourseUnitAssignments', () => {
     render(<CodCourseUnitAssignments />)
 
     const yearLabel = await screen.findByText(academicYear)
-    expect(yearLabel.parentElement.textContent).toContain('Current academic year:')
+    expect(yearLabel.closest('.cod-unit-delegation__year').textContent).toContain('Academic year')
     expect(await screen.findByText('16 — Computing')).toBeTruthy()
     expect(screen.getByText('17 — Networking')).toBeTruthy()
     expect(screen.getAllByText('IN101')).toHaveLength(1)
     expect(screen.getByText('IN102')).toBeTruthy()
-    expect(screen.queryByText('Introduction to Computing')).toBeNull()
-    expect(screen.queryByText('Computer Systems')).toBeNull()
+    expect(screen.getByText('Introduction to Computing')).toBeTruthy()
+    expect(screen.getByText('Computer Systems')).toBeTruthy()
+    expect(screen.getByText('Needs assignment')).toBeTruthy()
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search course units' }), { target: { value: 'Networks' } })
+    expect(screen.getByText('IN201')).toBeTruthy()
+    expect(screen.queryByText('IN101')).toBeNull()
   })
 
   it('shows the current lecturer and offers replacement for an existing assignment', async () => {

@@ -54,7 +54,7 @@ describe('StudentReportCreate', () => {
         courseUnitId: 'course-1',
         academicYear: '2026/27',
         description: 'My mark is missing.',
-      })
+      }, [])
     })
   })
 })

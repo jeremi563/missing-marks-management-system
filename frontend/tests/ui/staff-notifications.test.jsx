@@ -38,6 +38,7 @@ describe('StaffNotifications', () => {
     fireEvent.click(screen.getByRole('button', { name: /Mark all as read/ }))
 
     await waitFor(() => expect(markAllCodNotificationsRead).toHaveBeenCalledOnce())
-    await waitFor(() => expect(getCodNotifications).toHaveBeenCalledTimes(2))
+    expect(await screen.findByText('0 unread')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Mark all as read/ }).disabled).toBe(true)
   })
 })

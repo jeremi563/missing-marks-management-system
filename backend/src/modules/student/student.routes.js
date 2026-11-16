@@ -11,6 +11,10 @@ import { studentEnrollmentRequestBody } from "../enrollment/enrollment-request.v
 import { getStudentMarksController } from "../marks/marks.controller.js";
 import { studentMarksQuery } from "../marks/marks.validation.js";
 import { uploadEvidence } from "../../middleware/evidence-upload.js";
+import { getStudentExamBooklets, postStudentExamBookletScan } from "../exam-booklet/exam-booklet.controller.js";
+import { examBookletScanRateLimit } from "../exam-booklet/exam-booklet.rate-limit.js";
+import { studentBookletScanBody } from "../exam-booklet/exam-booklet.validation.js";
+import { patchAllUserNotificationsRead } from "../../shared/controllers/user-notifications.controller.js";
 
 const router = Router();
 
@@ -44,6 +48,7 @@ router.post("/attendance-discrepancies", authenticate, authorize("student"), val
 router.get("/attendance-discrepancies/:id", authenticate, authorize("student"), validateAttendanceDiscrepancyParams, getAttendanceDiscrepancy);
 router.post("/attendance-discrepancies/:id/clarifications", authenticate, authorize("student"), validateAttendanceDiscrepancyParams, validateCreateStudentCommentBody, respondAttendanceDiscrepancy);
 router.get("/notifications", authenticate, authorize("student"), validateReportListQuery, getNotifications);
+router.patch("/notifications/read-all", authenticate, authorize("student"), patchAllUserNotificationsRead);
 router.patch("/notifications/:notificationId/read", authenticate, authorize("student"), validateStudentNotificationId, markNotificationRead);
 
 export default router;

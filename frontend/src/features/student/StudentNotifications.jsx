@@ -11,15 +11,20 @@ import {
 } from 'lucide-react'
 import {
   getStudentNotifications,
+  markAllStudentNotificationsAsRead,
   markStudentNotificationAsRead,
 } from '../../api/student'
+
+function isNotificationRead(notification) {
+  return Boolean(notification.readAt ?? notification.isRead)
+}
 
 function StudentNotifications() {
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState('ALL')
-  const [refreshKey, setRefreshKey] = useState(0)
+  const [saving, setSaving] = useState(false)
 
   const loadNotifications = useCallback(async () => {
     const response = await getStudentNotifications()
@@ -61,16 +66,18 @@ function StudentNotifications() {
     return () => {
       isCurrent = false
     }
-  }, [loadNotifications, refreshKey])
+  }, [loadNotifications])
 
   const handleMarkAsRead = async (notificationId) => {
+    setSaving(true)
+    setError('')
     try {
       await markStudentNotificationAsRead(notificationId)
 
       setNotifications((previous) =>
         previous.map((notification) =>
           notification.id === notificationId
-            ? { ...notification, isRead: true, readAt: new Date().toISOString() }
+            ? { ...notification, isRead: true, readAt: notification.readAt || new Date().toISOString() }
             : notification
         )
       )
@@ -79,46 +86,39 @@ function StudentNotifications() {
         err.response?.data?.message ||
         'Failed to update notification.'
       )
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleMarkAllAsRead = async () => {
-    const unreadNotifications = notifications.filter(
-      (notification) => !notification.isRead
-    )
-
-    const failedNotifications = []
-
-    for (const notification of unreadNotifications) {
-      try {
-        await markStudentNotificationAsRead(notification.id)
-      } catch (err) {
-        failedNotifications.push({
-          id: notification.id,
-          message:
-            err.response?.data?.message ||
-            'Unable to mark this notification as read.',
-        })
-      }
-    }
-
-    if (failedNotifications.length > 0) {
+    setSaving(true)
+    setError('')
+    try {
+      await markAllStudentNotificationsAsRead()
+      const readAt = new Date().toISOString()
+      setNotifications((previous) => previous.map((notification) => ({
+        ...notification,
+        isRead: true,
+        readAt: notification.readAt || readAt,
+      })))
+    } catch (err) {
       setError(
-        `${failedNotifications.length} notification(s) could not be marked as read.`
+        err.response?.data?.message ||
+        'Failed to mark notifications as read.'
       )
+    } finally {
+      setSaving(false)
     }
-
-    setLoading(true)
-    setRefreshKey((key) => key + 1)
   }
 
   const unreadCount = notifications.filter(
-    (notification) => !notification.isRead
+    (notification) => !isNotificationRead(notification)
   ).length
 
   const filteredNotifications = notifications.filter((notification) => {
-    if (filter === 'UNREAD') return !notification.isRead
-    if (filter === 'READ') return notification.isRead
+    if (filter === 'UNREAD') return !isNotificationRead(notification)
+    if (filter === 'READ') return isNotificationRead(notification)
     return true
   })
 
@@ -188,10 +188,10 @@ function StudentNotifications() {
         <button
           className="mark-all-button"
           onClick={handleMarkAllAsRead}
-          disabled={unreadCount === 0}
+          disabled={unreadCount === 0 || saving}
         >
           <CheckCheck size={17} />
-          Mark all as read
+          {saving ? 'Marking…' : 'Mark all as read'}
         </button>
       </div>
 
@@ -211,7 +211,7 @@ function StudentNotifications() {
             <div
               key={notification.id}
               className={`notification-card ${
-                notification.isRead ? 'read' : 'unread'
+                isNotificationRead(notification) ? 'read' : 'unread'
               }`}
             >
               <div className="notification-icon">
@@ -222,7 +222,7 @@ function StudentNotifications() {
                 <div className="notification-title-row">
                   <h3>{notification.title || 'Notification'}</h3>
 
-                  {!notification.isRead && (
+                  {!isNotificationRead(notification) && (
                     <span className="unread-indicator">
                       New
                     </span>
@@ -243,9 +243,10 @@ function StudentNotifications() {
                 </div>
               </div>
 
-              {!notification.isRead && (
+              {!isNotificationRead(notification) && (
                 <button
                   className="mark-read-button"
+                  disabled={saving}
                   onClick={() => handleMarkAsRead(notification.id)}
                 >
                   Mark as read

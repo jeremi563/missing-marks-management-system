@@ -140,11 +140,6 @@ export const getStudentAttendance = async (params = {}) => {
   return response.data
 }
 
-export const getStudentCatSubmissions = async (params = {}) => {
-  const response = await apiClient.get('/student/cat-submissions', { params })
-  return response.data
-}
-
 export const checkInStudentAttendance = async (data) => {
   const response = await apiClient.post('/student/attendance/check-in', data)
   return response.data
@@ -180,5 +175,10 @@ export const markStudentNotificationAsRead = async (notificationId) => {
   const response = await apiClient.patch(
     `/student/notifications/${notificationId}/read`
   )
+  return response.data
+}
+
+export const markAllStudentNotificationsAsRead = async () => {
+  const response = await apiClient.patch('/student/notifications/read-all')
   return response.data
 }

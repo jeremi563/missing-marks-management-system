@@ -74,6 +74,24 @@ import {
   reportCorrectionParams,
   submitMarksBody,
 } from '../marks/marks.validation.js';
+import {
+  getExamBookletScanHistory,
+  postExamBookletAllocations,
+  postExamBookletManualLookup,
+  postInvigilatorExamBookletPreview,
+  postInvigilatorExamBookletScan,
+  postLecturerExamBookletReplacement,
+} from '../exam-booklet/exam-booklet.controller.js';
+import { examBookletScanRateLimit } from '../exam-booklet/exam-booklet.rate-limit.js';
+import {
+  invigilatorBookletPreviewBody,
+  invigilatorBookletScanBody,
+  manualBookletLookupBody,
+  replaceBookletBody,
+  validateExamBookletHistoryQuery,
+  validateExamBookletParams,
+  validateExamBookletSessionParams,
+} from '../exam-booklet/exam-booklet.validation.js';
 
 const router = express.Router();
 
