@@ -9,6 +9,7 @@ import FirstLoginPasswordChange from './pages/FirstLoginPasswordChange'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
 import LecturerDepartmentRegistration from './pages/LecturerDepartmentRegistration'
+import LecturerApprovalPending from './pages/LecturerApprovalPending'
 import EmailVerificationPage from './pages/EmailVerificationPage'
 import NotFound from './pages/NotFound'
 import AccessDenied from './pages/AccessDenied'
@@ -69,8 +70,9 @@ function App() {
           </Route>
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route element={<RequireRole allowedRoles={['lecturer']} allowPendingRegistration />}>
-            <Route path="/lecturer-department-registration" element={<LecturerDepartmentRegistration />} />
+          <Route path="/lecturer-department-registration" element={<LecturerDepartmentRegistration />} />
+          <Route element={<RequireRole allowedRoles={['lecturer']} />}>
+            <Route path="/lecturer/pending-approval" element={<LecturerApprovalPending />} />
           </Route>
           <Route path="/verify-email" element={<EmailVerificationPage />} />
           <Route path="/403" element={<AccessDenied />} />

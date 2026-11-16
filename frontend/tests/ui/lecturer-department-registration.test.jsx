@@ -8,14 +8,6 @@ vi.mock('../../src/api/auth', () => ({
   registerLecturerDepartment: vi.fn(),
 }))
 
-vi.mock('../../src/auth/useAuth', () => ({
-  useAuth: () => ({
-    user: { roles: ['lecturer'], approvalStatus: 'PENDING' },
-    isAuthenticated: true,
-    isLoading: false,
-  }),
-}))
-
 import { getRegistrationDepartments, registerLecturerDepartment } from '../../src/api/auth'
 
 afterEach(() => {

@@ -11,6 +11,7 @@ vi.mock('../../src/api/cod', () => ({
 }))
 
 import {
+  assignCodLecturerToCourseUnit,
   getCodDepartmentCourseUnits,
   getCodDepartmentLecturers,
   getCodDepartments,
@@ -53,5 +54,42 @@ describe('CodCourseUnitAssignments', () => {
     expect(screen.getByText('IN102')).toBeTruthy()
     expect(screen.queryByText('Introduction to Computing')).toBeNull()
     expect(screen.queryByText('Computer Systems')).toBeNull()
+  })
+
+  it('shows the current lecturer and offers replacement for an existing assignment', async () => {
+    const course = { id: 'course-in16', code: '16', name: 'Computing' }
+    getCodDepartments.mockResolvedValue({
+      success: true,
+      data: [{ id: 'department-in', name: 'Information Technology', code: 'IN' }],
+    })
+    getCodDepartmentCourseUnits.mockResolvedValue({
+      success: true,
+      data: { items: [{
+        id: 'unit-in101',
+        code: 'IN101',
+        course,
+        lecturerMappings: [{
+          id: 'mapping-1',
+          lecturer: {
+            id: 'lecturer-profile-1',
+            user: { displayName: 'Current Lecturer', email: 'current@example.test' },
+          },
+        }],
+      }] },
+    })
+    getCodDepartmentLecturers.mockResolvedValue({
+      success: true,
+      data: { items: [
+        { displayName: 'Current Lecturer', lecturerProfile: { id: 'lecturer-profile-1' } },
+        { displayName: 'Replacement Lecturer', lecturerProfile: { id: 'lecturer-profile-2', staffNumber: 'AB/1234/STAFF1' } },
+      ] },
+    })
+
+    render(<CodCourseUnitAssignments />)
+
+    expect(await screen.findByText('Current Lecturer')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
+    expect(screen.getByRole('option', { name: /Replacement Lecturer/ })).toBeTruthy()
+    expect(assignCodLecturerToCourseUnit).not.toHaveBeenCalled()
   })
 })

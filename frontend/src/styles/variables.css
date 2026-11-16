@@ -16,10 +16,10 @@
   --button-primary-hover: rgba(var(--primary-rgb), .82);
   --secondary: #A679FF;
   --secondary-soft: #F2EBFF;
-  --canvas: #DCEDF6;
+  --canvas: #C9DDE8;
   --surface: var(--account-surface);
   --card: #F8F8FA;
-  --account-surface: #E0EEF5;
+  --account-surface: #D7E6EE;
   --account-card: #b8ebe84e;
   --account-card-shadow: 0 8px 20px rgba(22, 60, 64, .12);
   --account-card-shadow-hover: 0 12px 24px rgba(22, 60, 64, .16);

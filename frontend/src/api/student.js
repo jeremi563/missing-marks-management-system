@@ -140,6 +140,11 @@ export const getStudentAttendance = async (params = {}) => {
   return response.data
 }
 
+export const getStudentCatSubmissions = async (params = {}) => {
+  const response = await apiClient.get('/student/cat-submissions', { params })
+  return response.data
+}
+
 export const checkInStudentAttendance = async (data) => {
   const response = await apiClient.post('/student/attendance/check-in', data)
   return response.data

@@ -1,4 +1,4 @@
-.landing-page { min-height: 100vh; background: #98cbe456; }
+.landing-page { min-height: 100vh; background: var(--canvas); }
 .public-nav { display: flex; align-items: center; justify-content: space-between; max-width: 1160px; height: 82px; margin: auto; padding: 0 24px; }
 .public-nav nav, .hero-actions, .hero-points { display: flex; align-items: center; gap: 15px; }
 .public-login-link {
@@ -67,7 +67,7 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(121, 218, 216, 0.463) 0%, rgba(27, 126, 144, 0.48) 58%, rgba(85, 162, 174, 0.502) 100%), linear-gradient(0deg, rgba(18,12,30,0.28), transparent 55%);
+  background: linear-gradient(90deg, rgba(12, 24, 35, 0.38) 0%, rgba(12, 24, 35, 0.16) 58%, rgba(12, 24, 35, 0.08) 100%), linear-gradient(0deg, rgba(18,12,30,0.16), transparent 55%);
 }
 .landing-preview {
   position: absolute;
@@ -104,7 +104,7 @@
   .landing-hero { min-height: 0; padding: 0; }
   .hero-visual { inset: 12px; border-radius: 22px; }
   .hero-visual-image { animation-duration: 36s; }
-  .hero-visual-image::before { background: linear-gradient(90deg, rgba(18,12,30,0.76), rgba(18,12,30,0.48)), linear-gradient(0deg, rgba(18,12,30,0.42), transparent 70%); }
+  .hero-visual-image::before { background: linear-gradient(90deg, rgba(18,12,30,0.42), rgba(18,12,30,0.22)), linear-gradient(0deg, rgba(18,12,30,0.18), transparent 70%); }
   .hero-copy { position: relative; top: auto; left: auto; width: auto; padding: 54px 24px 16px; transform: none; }
   .hero-copy h1 { font-size: 43px; }
   .hero-description { font-size: 15px; }
@@ -115,7 +115,7 @@
 @media (prefers-reduced-motion: reduce) {
   .hero-visual-image { animation: none; }
 }
-.landing-page { min-height: 100vh; color: var(--ink); background: #98cbe456; }
+.landing-page { min-height: 100vh; color: var(--ink); background: var(--canvas); }
 .public-nav { position: relative; z-index: 2; width: min(100%, 1240px); height: 82px; padding: 0 32px; }
 .public-nav nav { gap: 24px; }
 .public-nav nav > a:first-child, .public-login-link { color: #567177; font-size: 13px; font-weight: 650; }

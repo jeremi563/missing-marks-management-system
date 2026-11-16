@@ -37,6 +37,7 @@ router.post("/reports/:reportId/special-cases", authenticate, authorize("student
 router.get("/special-cases", authenticate, authorize("student"), validate(pageQuery, "query"), getStudentCases);
 router.get("/special-cases/:caseId", authenticate, authorize("student"), validate(specialCaseIdParams, "params"), getStudentCaseById);
 router.get("/attendance", authenticate, authorize("student"), validateReportListQuery, getAttendance);
+router.get("/cat-submissions", authenticate, authorize("student"), validateStudentCatSubmissionsQuery, getCatSubmissions);
 router.post("/attendance/check-in", authenticate, authorize("student"), validateStudentAttendanceCheckIn, checkInToAttendance);
 router.get("/attendance-discrepancies", authenticate, authorize("student"), validateReportListQuery, getAttendanceDiscrepancies);
 router.post("/attendance-discrepancies", authenticate, authorize("student"), validateAttendanceDiscrepancySource, createAttendanceDiscrepancy);
