@@ -78,7 +78,7 @@ test("validates student report IDs as UUIDs", () => {
 test("registers POST /reports with auth, student-role, and body validation", () => {
 	const reportsRoute = router.stack.find((layer) => layer.route?.path === "/reports" && layer.route.methods.post);
 	assert.equal(reportsRoute.route.methods.post, true);
-	assert.equal(reportsRoute.route.stack.length, 4);
+	assert.equal(reportsRoute.route.stack.length, 5);
 });
 
 test("registers GET /attendance with auth, student-role, and pagination validation", () => {

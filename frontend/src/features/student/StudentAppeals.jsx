@@ -15,19 +15,25 @@ import {
 import {
   getStudentReports,
   createStudentAppeal,
+  getStudentAppeals,
 } from '../../api/student'
+import EvidenceList from '../shared/EvidenceList'
+import { formatEvidenceSize, validateEvidenceSelection } from '../shared/evidenceFiles'
 
 function extractReports(response) {
   if (Array.isArray(response)) return response
 
-  const result = response?.data?.reports || response?.data?.data || response?.data || response?.reports || []
+  const result = response?.data?.reports || response?.data?.items || response?.data?.data || response?.data || response?.reports || response?.items || []
   return Array.isArray(result) ? result : []
 }
 
 function StudentAppeals() {
   const [reports, setReports] = useState([])
+  const [appeals, setAppeals] = useState([])
   const [selectedReport, setSelectedReport] = useState(null)
   const [appealReason, setAppealReason] = useState('')
+  const [evidenceFiles, setEvidenceFiles] = useState([])
+  const [evidenceError, setEvidenceError] = useState('')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -36,15 +42,35 @@ function StudentAppeals() {
   const fetchReports = useCallback(async () => {
     return extractReports(await getStudentReports())
   }, [])
+  const fetchAppeals = useCallback(async () => {
+    return extractReports(await getStudentAppeals())
+  }, [])
+
+  const selectEvidence = (event) => {
+    const nextFiles = [...evidenceFiles, ...Array.from(event.currentTarget.files || [])]
+    const validationError = validateEvidenceSelection(nextFiles)
+    if (validationError) setEvidenceError(validationError)
+    else {
+      setEvidenceFiles(nextFiles)
+      setEvidenceError('')
+    }
+    event.currentTarget.value = ''
+  }
+
+  const removeEvidence = (index) => {
+    setEvidenceFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))
+    setEvidenceError('')
+  }
 
   useEffect(() => {
     let active = true
 
     async function load() {
       try {
-        const nextReports = await fetchReports()
+        const [nextReports, nextAppeals] = await Promise.all([fetchReports(), fetchAppeals()])
         if (active) {
           setReports(nextReports)
+          setAppeals(nextAppeals)
           setError('')
         }
       } catch (err) {
@@ -58,7 +84,7 @@ function StudentAppeals() {
 
     load()
     return () => { active = false }
-  }, [fetchReports])
+  }, [fetchAppeals, fetchReports])
 
   const rejectedReports = reports.filter(
     (report) => report.status?.toLowerCase() === 'rejected'
@@ -85,13 +111,16 @@ function StudentAppeals() {
 
       await createStudentAppeal(selectedReport.id, {
         reason: appealReason.trim(),
-      })
+      }, evidenceFiles)
 
       setSuccess('Your appeal has been submitted successfully.')
       setSelectedReport(null)
       setAppealReason('')
+      setEvidenceFiles([])
 
-      setReports(await fetchReports())
+      const [nextReports, nextAppeals] = await Promise.all([fetchReports(), fetchAppeals()])
+      setReports(nextReports)
+      setAppeals(nextAppeals)
     } catch (err) {
       setError(
         err.response?.data?.message ||
@@ -149,6 +178,17 @@ function StudentAppeals() {
         </div>
       )}
 
+      {appeals.length > 0 && <section className="appeals-section">
+        <h2>Your submitted appeals</h2>
+        <div className="appeals-list">
+          {appeals.map((appeal) => <article className="appeal-report-card" key={appeal.id}>
+            <h3>Appeal · {appeal.status || 'Submitted'}</h3>
+            <p>{appeal.reason}</p>
+            <EvidenceList evidence={appeal.evidence} title="Appeal evidence" />
+          </article>)}
+        </div>
+      </section>}
+
       <section className="appeals-section">
         <div className="appeals-section-heading">
           <div>
@@ -170,7 +210,7 @@ function StudentAppeals() {
         ) : (
           <div className="appeals-list">
             {rejectedReports.map((report) => {
-              const existingAppeal = report.appeals?.[0]
+              const existingAppeal = report.appeals?.[0] || appeals.find(({ reportId }) => reportId === report.id)
 
               return (
                 <div className="appeal-report-card" key={report.id}>
@@ -239,6 +279,8 @@ function StudentAppeals() {
                       onClick={() => {
                         setSelectedReport(report)
                         setAppealReason('')
+                        setEvidenceFiles([])
+                        setEvidenceError('')
                         setError('')
                       }}
                     >
@@ -308,6 +350,13 @@ function StudentAppeals() {
                 maxLength={2000}
                 required
               />
+              <label htmlFor="appeal-evidence">Evidence files (optional)</label>
+              <input id="appeal-evidence" type="file" accept=".pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple onChange={selectEvidence} />
+              <small>PDF, JPG, JPEG, PNG or DOCX; up to 3 files, 5 MB each.</small>
+              {evidenceError && <p className="form-error" role="alert">{evidenceError}</p>}
+              {evidenceFiles.length > 0 && <ul className="evidence-list">{evidenceFiles.map((file, index) => (
+                <li key={`${file.name}-${index}`}><span>{file.name} · {formatEvidenceSize(file.size)}</span><button className="button button-secondary" type="button" onClick={() => removeEvidence(index)}>Remove</button></li>
+              ))}</ul>}
 
               <div className="appeal-character-count">
                 {appealReason.length}/2000 characters
@@ -329,7 +378,7 @@ function StudentAppeals() {
                 <button
                   type="submit"
                   className="confirm-appeal-button"
-                  disabled={submitting || !appealReason.trim()}
+                  disabled={submitting || !appealReason.trim() || Boolean(evidenceError)}
                 >
                   {submitting ? (
                     <LoaderCircle

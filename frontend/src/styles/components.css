@@ -87,14 +87,11 @@
 .record-card,
 .panel,
 .state-card,
-
 .settings-card,
 .auth-card,
 .student-report-card,
 .notification-card,
-.details-card,
-.attendance-card,
-.appeal-card {
+.details-card {
   animation: revealUp 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
@@ -134,9 +131,9 @@
   border-color: rgba(110, 38, 255, 0.4);
 }
 .button-full { width: 100%; margin-top: 20px; }
-.icon-button, .menu-button, .sidebar-close { display: inline-grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 9px; color: var(--ink); background: transparent; }
-.icon-button, .menu-button { color: #49666c; }
-.icon-button:hover, .menu-button:hover { background: var(--card); }
+.menu-button, .sidebar-close { display: inline-grid; place-items: center; width: 38px; height: 38px; border: 0; border-radius: 9px; color: var(--ink); background: transparent; }
+.menu-button { color: #49666c; }
+.menu-button:hover { background: var(--card); }
 .eyebrow { color: var(--primary); font-size: 11px; font-weight: 750; letter-spacing: .12em; }
 .status-page { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 12px; padding: 32px; text-align: center; }
 .status-page h1, .status-page p { margin: 0; }
@@ -159,8 +156,6 @@
   .student-report-card,
   .student-recent-section,
   .details-card,
-  .appeal-card,
-  .attendance-card,
   .notification-card,
   .student-portal .attendance-records,
   .student-portal .appeals-section,
@@ -247,3 +242,5 @@ tr:last-child td { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
   .button, .public-login-link, .footer-links a { transition: none; }
 }
+.evidence-list { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.evidence-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }

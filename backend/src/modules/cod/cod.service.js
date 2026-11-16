@@ -90,81 +90,88 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
   const departmentIds = await getAuthorizedDepartmentIds(db, userId);
   if (!departmentIds.includes(departmentId)) throw new AppError(404, "Department not found");
   const academicYear = academicYearForDate(now);
-
-  return db.$transaction(async (tx) => {
-    const courseUnit = await tx.courseUnit.findFirst({
-      where: { id: courseUnitId, departmentId },
-      select: { id: true, course: { select: { id: true } } },
-    });
-    if (!courseUnit?.course) throw new AppError(404, "Course unit not found in an administered course");
-
-    const lecturer = await tx.lecturerProfile.findFirst({
-      where: {
-        id: lecturerProfileId,
-        user: {
-          isActive: true,
-          approvalStatus: "APPROVED",
-          roles: { some: { role: { name: "lecturer" } } },
-          departmentMemberships: { some: { departmentId } },
-        },
+  const assignmentSelect = {
+    id: true,
+    courseUnitId: true,
+    lecturerProfileId: true,
+    isActive: true,
+    lecturer: {
+      select: {
+        staffNumber: true,
+        user: { select: { displayName: true, email: true } },
       },
-      select: { id: true },
-    });
-    if (!lecturer) throw new AppError(422, "Select an active, approved lecturer from this department");
+    },
+  };
 
-    const existingAssignment = await tx.courseUnitLecturer.findFirst({
-      where: { courseUnitId, academicYear, isActive: true },
-      select: { id: true, lecturerProfileId: true },
-    });
-    if (existingAssignment?.lecturerProfileId === lecturerProfileId) {
-      throw new AppError(409, `This lecturer is already assigned to the course unit for ${academicYear}`);
-    }
-
-    if (existingAssignment) {
-      const deactivated = await tx.courseUnitLecturer.updateMany({
-        where: { id: existingAssignment.id, isActive: true },
-        data: { isActive: false, endedAt: now },
+  try {
+    return await db.$transaction(async (tx) => {
+      const courseUnit = await tx.courseUnit.findFirst({
+        where: { id: courseUnitId, departmentId },
+        select: { id: true, course: { select: { id: true } } },
       });
-      if (deactivated.count !== 1) throw new AppError(409, "The course-unit assignment changed; reload before replacing it");
-    }
+      if (!courseUnit?.course) throw new AppError(404, "Course unit not found in an administered course");
 
-    let mapping;
-    try {
-      mapping = await tx.courseUnitLecturer.create({
-        data: { courseUnitId, lecturerProfileId, academicYear, isActive: true },
-        select: {
-          id: true,
-          courseUnitId: true,
-          lecturerProfileId: true,
-          isActive: true,
-          lecturer: {
-            select: {
-              staffNumber: true,
-              user: { select: { displayName: true, email: true } },
-            },
+      const lecturer = await tx.lecturerProfile.findFirst({
+        where: {
+          id: lecturerProfileId,
+          user: {
+            isActive: true,
+            approvalStatus: "APPROVED",
+            roles: { some: { role: { name: "lecturer" } } },
+            departmentMemberships: { some: { departmentId } },
           },
         },
+        select: { id: true },
       });
-    } catch (error) {
-      if (error.code === "P2002") throw new AppError(409, `This course unit already has a lecturer assigned for ${academicYear}`);
-      throw error;
-    }
-    await recordAuditEvent({
-      prismaClient: tx,
-      actorId: userId,
-      action: existingAssignment ? "COD_COURSE_UNIT_LECTURER_REPLACED" : "COD_COURSE_UNIT_LECTURER_ASSIGNED",
-      entityType: "CourseUnitLecturer",
-      entityId: mapping.id,
-      metadata: {
-        courseUnitId,
-        previousLecturerProfileId: existingAssignment?.lecturerProfileId ?? null,
-        lecturerProfileId,
-        departmentId,
-        academicYear,
-      },
+      if (!lecturer) throw new AppError(422, "Select an active, approved lecturer from this department");
+
+      const existingAssignment = await tx.courseUnitLecturer.findFirst({
+        where: { courseUnitId, academicYear, isActive: true },
+        select: assignmentSelect,
+      });
+      if (existingAssignment?.lecturerProfileId === lecturerProfileId) return existingAssignment;
+
+      if (existingAssignment) {
+        const deactivated = await tx.courseUnitLecturer.updateMany({
+          where: { id: existingAssignment.id, isActive: true },
+          data: { isActive: false, endedAt: now },
+        });
+        if (deactivated.count !== 1) throw new AppError(409, "The course-unit assignment changed; reload before replacing it");
+      }
+
+      const mapping = await tx.courseUnitLecturer.create({
+        data: { courseUnitId, lecturerProfileId, academicYear, isActive: true },
+        select: assignmentSelect,
+      });
+      await recordAuditEvent({
+        prismaClient: tx,
+        actorId: userId,
+        action: existingAssignment ? "COD_COURSE_UNIT_LECTURER_REPLACED" : "COD_COURSE_UNIT_LECTURER_ASSIGNED",
+        entityType: "CourseUnitLecturer",
+        entityId: mapping.id,
+        metadata: {
+          courseUnitId,
+          previousLecturerProfileId: existingAssignment?.lecturerProfileId ?? null,
+          lecturerProfileId,
+          departmentId,
+          academicYear,
+        },
+      });
+      return mapping;
     });
-    return mapping;
-  });
+  } catch (error) {
+    if (error.code !== "P2002") throw error;
+
+    const activeAssignment = await db.courseUnitLecturer.findFirst({
+      where: { courseUnitId, academicYear, isActive: true },
+      select: assignmentSelect,
+    });
+    if (activeAssignment?.lecturerProfileId === lecturerProfileId) return activeAssignment;
+    if (activeAssignment) {
+      throw new AppError(409, `This course unit was assigned to another lecturer for ${academicYear}; reload before replacing it`);
+    }
+    throw error;
+  }
 }
 
 export async function listCodDepartmentStudents({ userId, departmentId, page = 1, limit = 20, db = prisma }) {

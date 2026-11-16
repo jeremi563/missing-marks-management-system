@@ -6,6 +6,7 @@ import { createNotification } from "./notification.service.js";
 import { enqueueNotificationOnce } from "./notification-outbox.service.js";
 import { lockDepartmentForReview } from "./department-review-lock.service.js";
 import { getDesignatedCodDepartmentIds, isActiveCodDepartmentMember } from "./designated-cod-authorization.service.js";
+import { evidenceStorage, saveEvidenceFiles, withEvidenceFileCleanup } from "./evidence-storage.service.js";
 
 const PAGE_DEFAULT = 1;
 const LIMIT_DEFAULT = 20;
@@ -78,8 +79,8 @@ async function enqueueCodOverdue(db, { entityType, entityId, reportId, recipient
 	});
 }
 
-export async function createSpecialCase({ db = prisma, userId, role, reportId, categoryId, description }) {
-	return db.$transaction(async (tx) => {
+export async function createSpecialCase({ db = prisma, userId, role, reportId, categoryId, description, files = [], storage = evidenceStorage }) {
+	return withEvidenceFileCleanup((storageKeys) => db.$transaction(async (tx) => {
 		const initialReport = await reportContext(tx, reportId);
 		await lockDepartmentForReview(tx, initialReport.courseUnit.department.id);
 		const report = await reportContext(tx, reportId);
@@ -111,14 +112,23 @@ export async function createSpecialCase({ db = prisma, userId, role, reportId, c
 			select: { id: true, reportId: true, submittedByUserId: true, categoryId: true, category: true, description: true, status: true, reviewDeadlineAt: true, createdAt: true },
 		});
 		await recordAuditEvent({ prismaClient: tx, actorId: userId, action: "SPECIAL_CASE_SUBMITTED", entityType: "SpecialCase", entityId: specialCase.id, metadata: { reportId, categoryId: category.id, submitterRole: role } });
+		const evidence = await saveEvidenceFiles({
+			db: tx,
+			files,
+			reportId,
+			specialCaseId: specialCase.id,
+			uploaderId: userId,
+			storageKeys,
+			storage,
+		});
 		await enqueueCodOverdue(tx, {
 			entityType: "SpecialCase", entityId: specialCase.id, reportId,
 			recipientUserId: report.courseUnit.department.designatedCodUserId,
 			deadlineAt: reviewDeadlineAt, title: "Special case review overdue",
 			message: `Special case ${specialCase.id} is awaiting a departmental decision.`,
 		});
-		return specialCase;
-	});
+		return evidence.length ? { ...specialCase, evidence } : specialCase;
+	}), { storage });
 }
 
 export async function startAssignedReportWork({ db = prisma, userId, reportId }) {
@@ -293,7 +303,7 @@ async function getAuthorizedCase({ db, userId, role, caseId }) {
 	}
 	if (!allowed) throw new AppError(404, "Special case not found");
 	const isCurrentAssignee = role === "lecturer" && await db.lecturerProfile.findUnique({ where: { userId }, select: { id: true } }).then((lecturer) => lecturer?.id === item.report.assignedLecturerProfileId);
-	return serializeCase(db, item, role === "cod" || isCurrentAssignee);
+	return serializeCase(db, item, role === "cod" || role === "student" || isCurrentAssignee);
 }
 
 export async function getStudentSpecialCase({ db = prisma, userId, caseId }) {
@@ -366,7 +376,7 @@ export async function listStudentAppeals({ db = prisma, userId, page, limit }) {
 	const p = pageArgs(page, limit);
 	const where = { studentProfileId: student.id };
 	const [items, total] = await Promise.all([
-		db.appeal.findMany({ where, skip: p.skip, take: p.limit, orderBy: { createdAt: "desc" }, select: { id: true, reportId: true, reason: true, comments: true, status: true, decisionAt: true, decisionReason: true, createdAt: true } }),
+		db.appeal.findMany({ where, skip: p.skip, take: p.limit, orderBy: { createdAt: "desc" }, select: { id: true, reportId: true, reason: true, comments: true, status: true, decisionAt: true, decisionReason: true, createdAt: true, evidence: { orderBy: { createdAt: "asc" }, select: { id: true, originalName: true, mediaType: true, sizeBytes: true, createdAt: true } } } }),
 		db.appeal.count({ where }),
 	]);
 	return { items, pagination: { page: p.page, limit: p.limit, total, totalPages: Math.ceil(total / p.limit) } };
@@ -375,7 +385,7 @@ export async function listStudentAppeals({ db = prisma, userId, page, limit }) {
 export async function getStudentAppeal({ db = prisma, userId, appealId }) {
 	const student = await db.studentProfile.findUnique({ where: { userId }, select: { id: true } });
 	if (!student) throw new AppError(404, "Appeal not found");
-	const item = await db.appeal.findFirst({ where: { id: appealId, studentProfileId: student.id }, select: { id: true, reportId: true, reason: true, comments: true, status: true, decisionAt: true, decisionReason: true, createdAt: true } });
+	const item = await db.appeal.findFirst({ where: { id: appealId, studentProfileId: student.id }, select: { id: true, reportId: true, reason: true, comments: true, status: true, decisionAt: true, decisionReason: true, createdAt: true, evidence: { orderBy: { createdAt: "asc" }, select: { id: true, originalName: true, mediaType: true, sizeBytes: true, createdAt: true } } } });
 	if (!item) throw new AppError(404, "Appeal not found");
 	return item;
 }
@@ -397,6 +407,7 @@ export async function getCodAppeal({ db = prisma, userId, appealId }) {
 		select: {
 			id: true, reportId: true, studentProfileId: true, reason: true, comments: true, status: true,
 			decisionByUserId: true, decisionAt: true, decisionReason: true, reviewDeadlineAt: true, createdAt: true,
+			evidence: { orderBy: { createdAt: "asc" }, select: { id: true, originalName: true, mediaType: true, sizeBytes: true, createdAt: true, uploadedBy: { select: { id: true, displayName: true } } } },
 			report: {
 				select: {
 					status: true,

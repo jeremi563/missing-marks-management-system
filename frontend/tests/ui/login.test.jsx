@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import RequireRole from '../../src/auth/RequireRole'
 import FirstLoginPasswordChange from '../../src/pages/FirstLoginPasswordChange'
 import LoginPage from '../../src/pages/LoginPage'
 
@@ -114,6 +115,55 @@ describe('login flow', () => {
       hash: '',
       state,
     })
+  })
+
+  it('sends a registered pending lecturer to approval status, not department registration', async () => {
+    const login = vi.fn().mockResolvedValue({
+      approvalStatus: 'PENDING',
+      roles: ['lecturer'],
+      departmentMemberships: [{ departmentId: 'department-1' }],
+    })
+    useAuth.mockReturnValue({ login, isAuthenticated: false, user: null })
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/lecturer/pending-approval" element={<LocationProbe />} />
+          <Route path="/lecturer-department-registration" element={<p>Department registration step</p>} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Staff' }))
+    fireEvent.change(screen.getByLabelText('Staff number'), { target: { value: 'AB/0123/STAFF9' } })
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'staff-password' } })
+    fireEvent.click(screen.getByRole('button', { name: /Sign in/ }))
+
+    expect(JSON.parse((await screen.findByTestId('location')).textContent).pathname).toBe('/lecturer/pending-approval')
+    expect(screen.queryByText('Department registration step')).toBeNull()
+  })
+
+  it('keeps a pending lecturer out of the portal and directs them to approval status', async () => {
+    useAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+      user: { approvalStatus: 'PENDING', roles: ['lecturer'] },
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/lecturer']}>
+        <Routes>
+          <Route element={<RequireRole allowedRoles={['lecturer']} />}>
+            <Route path="/lecturer" element={<p>Lecturer portal</p>} />
+            <Route path="/lecturer/pending-approval" element={<LocationProbe />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(JSON.parse((await screen.findByTestId('location')).textContent).pathname).toBe('/lecturer/pending-approval')
+    expect(screen.queryByText('Lecturer portal')).toBeNull()
   })
 
   it('switches the identifier label between student and staff', () => {

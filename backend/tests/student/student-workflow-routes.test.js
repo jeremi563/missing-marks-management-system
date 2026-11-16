@@ -19,6 +19,10 @@ test("notification read-state route requires authentication, student role, and U
 	assert.equal(route("/notifications/:notificationId/read", "patch").stack.length, 4);
 });
 
+test("notification bulk read-state route requires authentication and student role", () => {
+	assert.equal(route("/notifications/read-all", "patch").stack.length, 3);
+});
+
 test("clarification validation trims text and rejects empty bodies or client authorship", () => {
 	const req = { body: { body: "  Please review my submission.  " } };
 	let validationError;

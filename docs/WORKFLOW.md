@@ -104,7 +104,7 @@ The request is unique per student, course unit, and academic period. Rejected re
 - Escalation changes the current status to `ESCALATED`, records the reason, appends status history and a `REPORT_ESCALATED` audit event, and notifies the designated COD transactionally.
 - CODs list escalated reports through the department-scoped report listing and may review the original lecturer decision, escalation reason, report history, linked academic application records, report-scoped audit events and safe evidence metadata available for that report.
 - A COD may make a final `APPROVE` or `REJECT` decision only while the report is `ESCALATED` and within the COD's authorized department membership. The final status history records actor, reason and time; the `COD_REPORT_DECISION_RECORDED` audit event is written in the same transaction.
-- Status history preserves the lecturer decision, escalation and COD final decision as separate entries. Evidence files are not uploaded, viewed or retrieved by this workflow; only metadata may be returned, without `storageKey`, until a storage approach is agreed.
+- Status history preserves the lecturer decision, escalation and COD final decision as separate entries. Private evidence may be attached when a report is submitted. The designated COD can view authorized metadata and download through the authenticated evidence endpoint; storage keys and filesystem paths are never returned.
 - Existing separate issue: student submission creates `Submitted`, while the lecturer decision endpoint expects `PENDING`; no transition was identified. Student and lecturer decision behavior is unchanged by Feature 4.
 
 ## 6. Attendance-related workflow
@@ -207,5 +207,7 @@ Working-day dates are evaluated in `Africa/Nairobi`, skip Saturdays, Sundays, an
 
 The attendance eligibility threshold defaults to 80% and may be changed through the administrator settings API. The student appeal window defaults to 14 calendar days and may be changed through the same API. Existing appeal and review deadline snapshots are not recalculated after a setting change. Overdue notification queuing is enabled by default and may be disabled by an administrator; failed notification delivery uses a configurable retry limit that defaults to five attempts.
 
-The schema retains provider-neutral evidence metadata relationships and API-level validation rules. Actual private file upload and download are pending selection of a storage provider; no storage key is exposed.
+Evidence may be attached to a report, appeal, or special case during submission. Authenticated multipart requests accept up to three PDF, JPG/JPEG, PNG, or DOCX files of at most 5 MiB each; the server verifies the content signature and records an upload audit event. Bytes are stored with random names in the private `backend/uploads/evidence/` directory, which is created automatically, ignored by Git, and never mounted as static content.
+
+Downloads use `GET /api/v1/evidence/:evidenceId`. The backend re-checks report ownership, lecturer assignment, or designated-COD department access before reading the file, returns a private attachment response, and records a download audit event. Students cannot access other students' records, lecturers cannot access appeal files, and administrators do not receive implicit evidence access. Missing database metadata or missing files are returned as not found.
 | Audit and record retention requirements |  | Open |

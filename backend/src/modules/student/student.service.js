@@ -9,6 +9,7 @@ import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { loadAttendanceDiscrepancySource } from "../../shared/services/attendance-discrepancy-source.service.js";
 import { academicYearForDate, academicYearForPeriod } from "../../shared/utils/academic-year.js";
 import { parseStudentRegistrationNumber } from "../../shared/utils/registration-number.js";
+import { evidenceStorage, saveEvidenceFiles, withEvidenceFileCleanup } from "../../shared/services/evidence-storage.service.js";
 
 const FIRST_REPORT_ACADEMIC_YEAR = 2026;
 
@@ -208,6 +209,10 @@ export async function getStudentReportById(prisma, userId, reportId) {
 			courseUnit: { select: { id: true, code: true, name: true } },
 			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
 			assessment: { select: { id: true, code: true, name: true, type: true } },
+			evidence: {
+				orderBy: { createdAt: "asc" },
+				select: { id: true, originalName: true, mediaType: true, sizeBytes: true, createdAt: true },
+			},
 		},
 	});
 
@@ -418,7 +423,7 @@ export async function respondToStudentAttendanceDiscrepancy(db, userId, discrepa
 	}
 }
 
-export async function submitStudentAppeal(prisma, userId, reportId, input = {}) {
+export async function submitStudentAppeal(prisma, userId, reportId, input = {}, files = [], storage = evidenceStorage) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
 		select: { id: true },
@@ -439,7 +444,7 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 
 	const comments = typeof input.comments === "string" ? input.comments.trim() : "";
 
-	return prisma.$transaction(async (transaction) => {
+	return withEvidenceFileCleanup((storageKeys) => prisma.$transaction(async (transaction) => {
 		const initialReport = await transaction.missingMarkReport.findFirst({
 			where: { id: reportId, studentProfileId: student.id },
 			select: { courseUnit: { select: { department: { select: { id: true } } } } },
@@ -551,6 +556,15 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 				metadata: { reportId: report.id },
 			},
 		});
+		const evidence = await saveEvidenceFiles({
+			db: transaction,
+			files,
+			reportId: report.id,
+			appealId: appeal.id,
+			uploaderId: userId,
+			storageKeys,
+			storage,
+		});
 		const codUserId = designatedCod;
 		if (codUserId) {
 			const deadlineAt = appeal.reviewDeadlineAt;
@@ -562,11 +576,11 @@ export async function submitStudentAppeal(prisma, userId, reportId, input = {}) 
 			});
 		}
 
-		return appeal;
-	});
+		return evidence.length ? { ...appeal, evidence } : appeal;
+	}), { storage });
 }
 
-export async function submitMissingMarkReport(prisma, userId, input) {
+export async function submitMissingMarkReport(prisma, userId, input, files = [], storage = evidenceStorage) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
 		select: { id: true, studentNumber: true },
@@ -599,7 +613,7 @@ export async function submitMissingMarkReport(prisma, userId, input) {
 	}
 
 	const submittedAt = new Date();
-	return prisma.$transaction(async (transaction) => {
+	return withEvidenceFileCleanup((storageKeys) => prisma.$transaction(async (transaction) => {
 		const assignment = await transaction.courseUnitLecturer.findFirst({
 			where: { courseUnitId: input.courseUnitId, academicYear: input.academicYear, isActive: true },
 			select: {
@@ -682,8 +696,16 @@ export async function submitMissingMarkReport(prisma, userId, input) {
 			},
 		});
 
-		return report;
-	});
+		const evidence = await saveEvidenceFiles({
+			db: transaction,
+			files,
+			reportId: report.id,
+			uploaderId: userId,
+			storageKeys,
+			storage,
+		});
+		return evidence.length ? { ...report, evidence } : report;
+	}), { storage });
 }
 
 function distanceBetweenMeters(latitudeA, longitudeA, latitudeB, longitudeB) {

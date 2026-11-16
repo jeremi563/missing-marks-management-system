@@ -19,21 +19,25 @@ function authorizedDb() {
 test("COD course-unit directory only queries designated department IDs", async () => {
 	const db = authorizedDb();
 	let observedWhere;
+	let observedSelect;
+	const now = new Date("2026-11-15T12:00:00.000Z");
 	db.courseUnit = {
 		count: async ({ where }) => {
 			observedWhere = where;
 			return 1;
 		},
-		findMany: async ({ where, skip, take }) => {
+		findMany: async ({ where, skip, take, select }) => {
 			assert.deepEqual(where, { departmentId: { in: ["department-1"] }, courseId: { not: null } });
 			assert.equal(skip, 20);
 			assert.equal(take, 20);
-			return [{ id: "unit-1", code: "COMP101", name: "Foundations", department: { id: "department-1", name: "Computing", code: "COMP" }, course: { id: "course-1", code: "16", name: "BSc Computing" } }];
+			observedSelect = select;
+			return [{ id: "unit-1", code: "COMP101", name: "Foundations", department: { id: "department-1", name: "Computing", code: "COMP" }, course: { id: "course-1", code: "16", name: "BSc Computing" }, lecturerMappings: [] }];
 		},
 	};
 
-	const result = await listCodDepartmentCourseUnits({ userId: "cod-1", departmentId: "department-1", page: 2, limit: 20, db });
+	const result = await listCodDepartmentCourseUnits({ userId: "cod-1", departmentId: "department-1", page: 2, limit: 20, db, now });
 	assert.deepEqual(observedWhere, { departmentId: { in: ["department-1"] }, courseId: { not: null } });
+	assert.deepEqual(observedSelect.lecturerMappings.where, { academicYear: "2026/27", isActive: true });
 	assert.equal(result.items[0].code, "COMP101");
 	assert.equal(result.items[0].course.code, "16");
 	assert.deepEqual(result.pagination, { page: 2, limit: 20, total: 1, totalPages: 1 });
@@ -204,6 +208,64 @@ test("COD can assign an active department lecturer to a department course unit a
 	assert.deepEqual(createdMapping, { courseUnitId: "unit-1", lecturerProfileId: "lecturer-profile-1", academicYear: "2026/27", isActive: true });
 	assert.equal(result.id, "mapping-1");
 	assert.equal(auditEvent.action, "COD_COURSE_UNIT_LECTURER_ASSIGNED");
+});
+
+test("COD assignment retries return the existing assignment instead of reporting a conflict", async () => {
+	const db = authorizedDb();
+	const existingAssignment = {
+		id: "mapping-1",
+		courseUnitId: "unit-1",
+		lecturerProfileId: "lecturer-profile-1",
+		isActive: true,
+		lecturer: { staffNumber: "AB/1234/lecturer", user: { displayName: "Lecturer", email: "lecturer@example.test" } },
+	};
+	db.$transaction = async (operation) => operation({
+		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
+		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
+		courseUnitLecturer: {
+			findFirst: async () => existingAssignment,
+			create: async () => assert.fail("An existing assignment must not be created again"),
+		},
+	});
+
+	const result = await assignCodCourseUnitLecturer({
+		userId: "cod-1",
+		courseUnitId: "unit-1",
+		departmentId: "department-1",
+		lecturerProfileId: "lecturer-profile-1",
+		db,
+	});
+	assert.deepEqual(result, existingAssignment);
+});
+
+test("COD assignment resolves concurrent duplicate requests as success for the winning lecturer", async () => {
+	const db = authorizedDb();
+	const existingAssignment = {
+		id: "mapping-1",
+		courseUnitId: "unit-1",
+		lecturerProfileId: "lecturer-profile-1",
+		isActive: true,
+		lecturer: { staffNumber: "AB/1234/lecturer", user: { displayName: "Lecturer", email: "lecturer@example.test" } },
+	};
+	const uniqueConflict = Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
+	db.$transaction = async (operation) => operation({
+		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
+		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
+		courseUnitLecturer: {
+			findFirst: async () => null,
+			create: async () => { throw uniqueConflict; },
+		},
+	});
+	db.courseUnitLecturer = { findFirst: async () => existingAssignment };
+
+	const result = await assignCodCourseUnitLecturer({
+		userId: "cod-1",
+		courseUnitId: "unit-1",
+		departmentId: "department-1",
+		lecturerProfileId: "lecturer-profile-1",
+		db,
+	});
+	assert.deepEqual(result, existingAssignment);
 });
 
 test("COD cannot assign an unclassified legacy course unit", async () => {

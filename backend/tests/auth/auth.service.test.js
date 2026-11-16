@@ -99,6 +99,38 @@ test("allows an active, approved lecturer to sign in without email verification"
 	assert.deepEqual(result.user.roles, ["lecturer"]);
 });
 
+test("requires lecturer department registration before allowing sign-in", async () => {
+	const user = await makeUser({
+		isActive: false,
+		approvalStatus: "PENDING",
+		roles: [{ role: { name: "lecturer" } }],
+		departmentMemberships: [],
+	});
+
+	await assert.rejects(loginWithCredentials("AB/0123/STAFF9", "student-password", {
+		accountLoginIdentifier: { findUnique: async () => ({ user }) },
+	}, { accountType: "staff" }), {
+		statusCode: 403,
+		message: "Complete lecturer department registration before signing in",
+	});
+});
+
+test("allows a lecturer to sign in after department registration while approval is pending", async () => {
+	const user = await makeUser({
+		isActive: false,
+		approvalStatus: "PENDING",
+		roles: [{ role: { name: "lecturer" } }],
+		departmentMemberships: [{ departmentId: "department-id" }],
+	});
+
+	const result = await loginWithCredentials("AB/0123/STAFF9", "student-password", {
+		accountLoginIdentifier: { findUnique: async () => ({ user }) },
+	}, { accountType: "staff" });
+
+	assert.equal(result.user.approvalStatus, "PENDING");
+	assert.deepEqual(result.user.roles, ["lecturer"]);
+});
+
 test("requires a registration number and blocks unapproved or unverified non-staff accounts", async () => {
 	const user = await makeUser();
 	let emailLookupAttempted = false;

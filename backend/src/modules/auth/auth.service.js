@@ -52,7 +52,14 @@ export async function loginWithCredentials(identifier, password, db = prisma, { 
 	}
 	const identifierRecord = await db.accountLoginIdentifier.findUnique({
 		where: { value: normalizeRegistrationNumber(normalizedIdentifier) },
-		include: { user: { include: { roles: { include: { role: true } } } } },
+		include: {
+			user: {
+				include: {
+					roles: { include: { role: true } },
+					departmentMemberships: { select: { departmentId: true } },
+				},
+			},
+		},
 	});
 	let user = identifierRecord?.user;
 	let provisionedFromRoster = false;
@@ -71,6 +78,9 @@ export async function loginWithCredentials(identifier, password, db = prisma, { 
 	const passwordToVerify = provisionedFromRoster ? normalizeRegistrationNumber(password) : password;
 	if (!user || !(isApprovedUser || isPendingLecturer) || (!isStaff && !user.emailVerifiedAt) || !(await bcrypt.compare(passwordToVerify, user.passwordHash)) || !matchesAccountType) {
 		throw new AppError(401, "Invalid identifier or password");
+	}
+	if (isPendingLecturer && !user.departmentMemberships?.length) {
+		throw new AppError(403, "Complete lecturer department registration before signing in");
 	}
 
 	return {

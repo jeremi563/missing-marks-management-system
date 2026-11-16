@@ -18,8 +18,8 @@ export const getStudentAppeals = handle((req) => listStudentAppeals({ userId: re
 export const getStudentAppealById = handle((req) => getStudentAppeal({ userId: req.user.id, appealId: req.params.appealId }), "Appeal retrieved successfully");
 export const getStudentCases = handle((req) => listStudentSpecialCases({ userId: req.user.id, ...req.query }), "Student special cases retrieved successfully");
 export const getStudentCaseById = handle((req) => getStudentSpecialCase({ userId: req.user.id, caseId: req.params.caseId }), "Special case retrieved successfully");
-export const createStudentCase = handle((req) => createSpecialCase({ userId: req.user.id, role: "student", reportId: req.params.reportId, ...req.body }), "Special case submitted successfully", 201);
-export const createLecturerCase = handle((req) => createSpecialCase({ userId: req.user.id, role: "lecturer", reportId: req.params.reportId, ...req.body }), "Special case submitted successfully", 201);
+export const createStudentCase = handle((req) => createSpecialCase({ userId: req.user.id, role: "student", reportId: req.params.reportId, ...req.body, files: req.evidenceFiles ?? [] }), "Special case submitted successfully", 201);
+export const createLecturerCase = handle((req) => createSpecialCase({ userId: req.user.id, role: "lecturer", reportId: req.params.reportId, ...req.body, files: req.evidenceFiles ?? [] }), "Special case submitted successfully", 201);
 export const startReportWork = handle((req) => startAssignedReportWork({ userId: req.user.id, reportId: req.params.reportId }), "Report work started successfully");
 export const getLecturerCaseById = handle((req) => getLecturerSpecialCase({ userId: req.user.id, caseId: req.params.caseId }), "Special case retrieved successfully");
 export const getLecturerCases = handle((req) => listLecturerSpecialCases({ userId: req.user.id, ...req.query }), "Lecturer special cases retrieved successfully");
