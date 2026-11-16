@@ -7,20 +7,20 @@ import '../styles/AuthPages.css'
 import './LoginPage.css'
 
 export default function LoginPage() {
+  const location = useLocation()
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [accountType, setAccountType] = useState('student')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(location.state?.notice || '')
   const [submitting, setSubmitting] = useState(false)
   const { login, isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
-  const location = useLocation()
 
   if (isAuthenticated) {
     if (user?.mustChangePassword) return <Navigate to="/change-password" replace />
     if (user?.approvalStatus === 'PENDING' && user?.roles?.includes('lecturer')) {
-      return <Navigate to="/lecturer-department-registration" replace />
+      return <Navigate to="/lecturer/pending-approval" replace />
     }
     return <Navigate to={getPostLoginDestination(user)} replace />
   }
@@ -36,7 +36,7 @@ export default function LoginPage() {
         return
       }
       if (authenticatedUser?.approvalStatus === 'PENDING' && authenticatedUser?.roles?.includes('lecturer')) {
-        navigate('/lecturer-department-registration', { replace: true })
+        navigate('/lecturer/pending-approval', { replace: true })
         return
       }
       const destination = getPostLoginDestination(authenticatedUser, location.state?.from)

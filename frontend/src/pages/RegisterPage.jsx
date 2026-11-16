@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, GraduationCap } from 'lucide-react'
-import { loginUser, registerUser } from '../api/auth'
+import { registerUser } from '../api/auth'
 import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../auth/password-policy'
 import '../styles/AuthPages.css'
 import './RegisterPage.css'
@@ -49,11 +49,6 @@ export default function RegisterPage() {
     try {
       const result = await registerUser(registration)
       if (result.data.requiresDepartmentRegistration) {
-        try {
-          await loginUser({ identifier: normalizedNumber, password, accountType: 'staff' })
-        } catch {
-          // The lecturer can still continue the pending registration flow manually.
-        }
         navigate('/lecturer-department-registration', { replace: true })
         return
       }

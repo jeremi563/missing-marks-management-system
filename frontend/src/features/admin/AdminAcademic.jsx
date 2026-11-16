@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import RecordListPage from '../shared/RecordListPage'
 import { extractRecords } from '../shared/recordUtils'
@@ -72,6 +72,10 @@ export default function AdminAcademic() {
   const [savingCourseUnit, setSavingCourseUnit] = useState(false)
   const [savingAcademicPeriod, setSavingAcademicPeriod] = useState(false)
   const [notice, setNotice] = useState('')
+  const courseUnitDialogRef = useRef(null)
+  const academicPeriodDialogRef = useRef(null)
+  const isEditingCourseUnit = Boolean(editingCourseUnit)
+  const isEditingAcademicPeriod = Boolean(editingAcademicPeriod)
   const resource = resources[resourceKey]
   const fetchRecords = useCallback((params) => resource.load({
     ...params,
@@ -98,6 +102,34 @@ export default function AdminAcademic() {
       })
     return () => { active = false }
   }, [resourceKey])
+
+  useEffect(() => {
+    const dialog = courseUnitDialogRef.current
+    if (!isEditingCourseUnit || !dialog) return undefined
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal()
+      else dialog.setAttribute('open', '')
+    }
+    return () => {
+      if (!dialog.open) return
+      if (typeof dialog.close === 'function') dialog.close()
+      else dialog.removeAttribute('open')
+    }
+  }, [isEditingCourseUnit])
+
+  useEffect(() => {
+    const dialog = academicPeriodDialogRef.current
+    if (!isEditingAcademicPeriod || !dialog) return undefined
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal()
+      else dialog.setAttribute('open', '')
+    }
+    return () => {
+      if (!dialog.open) return
+      if (typeof dialog.close === 'function') dialog.close()
+      else dialog.removeAttribute('open')
+    }
+  }, [isEditingAcademicPeriod])
 
   const startCourseUnitEdit = (courseUnit) => {
     setEditingCourseUnit({
@@ -261,8 +293,17 @@ export default function AdminAcademic() {
             </>
           )}
       </div>
-      {editingCourseUnit && (
-        <dialog open className="panel admin-edit-dialog" aria-labelledby="edit-course-unit-title">
+      {isEditingCourseUnit && (
+        <dialog
+          ref={courseUnitDialogRef}
+          className="panel admin-edit-dialog"
+          aria-labelledby="edit-course-unit-title"
+          aria-modal="true"
+          onCancel={(event) => {
+            event.preventDefault()
+            if (!savingCourseUnit) setEditingCourseUnit(null)
+          }}
+        >
             <header className="page-heading">
               <div>
                 <p className="eyebrow">COURSE UNIT</p>
@@ -276,6 +317,7 @@ export default function AdminAcademic() {
                 <label htmlFor="edit-course-unit-code">Course-unit code</label>
                 <input
                   id="edit-course-unit-code"
+                  autoFocus
                   value={editingCourseUnit.code}
                   onChange={(event) => setEditingCourseUnit((current) => ({ ...current, code: event.target.value }))}
                   maxLength={50}
@@ -319,8 +361,17 @@ export default function AdminAcademic() {
             </form>
         </dialog>
       )}
-      {editingAcademicPeriod && (
-        <dialog open className="panel admin-edit-dialog" aria-labelledby="edit-academic-period-title">
+      {isEditingAcademicPeriod && (
+        <dialog
+          ref={academicPeriodDialogRef}
+          className="panel admin-edit-dialog"
+          aria-labelledby="edit-academic-period-title"
+          aria-modal="true"
+          onCancel={(event) => {
+            event.preventDefault()
+            if (!savingAcademicPeriod) setEditingAcademicPeriod(null)
+          }}
+        >
           <header className="page-heading">
             <div>
               <p className="eyebrow">ACADEMIC PERIOD</p>
@@ -332,7 +383,7 @@ export default function AdminAcademic() {
           <form className="form-stack" onSubmit={saveAcademicPeriod}>
             <div className="form-field">
               <label htmlFor="edit-academic-period-name">Period name</label>
-              <input id="edit-academic-period-name" value={editingAcademicPeriod.name} onChange={(event) => setEditingAcademicPeriod((current) => ({ ...current, name: event.target.value }))} maxLength={200} required />
+              <input id="edit-academic-period-name" autoFocus value={editingAcademicPeriod.name} onChange={(event) => setEditingAcademicPeriod((current) => ({ ...current, name: event.target.value }))} maxLength={200} required />
             </div>
             <div className="form-field">
               <label htmlFor="edit-academic-period-code">Period code</label>

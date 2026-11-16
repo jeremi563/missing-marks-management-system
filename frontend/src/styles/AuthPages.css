@@ -1,4 +1,4 @@
-.auth-page { min-height: 100vh; padding: 28px 20px 50px; background: #98cbe456; }
+.auth-page { min-height: 100vh; padding: 28px 20px 50px; background: var(--canvas); }
 .auth-card { width: min(100%, 440px); margin: 0 auto; padding: 32px; border: 1px solid rgba(var(--primary-rgb), .22); border-radius: 17px; }
 .auth-card-wide { width: min(100%, 520px); }
 .auth-card > .public-brand { margin-bottom: 26px; }

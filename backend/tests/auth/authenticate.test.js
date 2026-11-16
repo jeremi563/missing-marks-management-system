@@ -8,7 +8,7 @@ process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
 const { authenticate } = await import("../../src/middleware/authenticate.js");
 
-function makeRequest(sessionVersion, userSessionVersion) {
+function makeRequest(sessionVersion, userSessionVersion, userOverrides = {}) {
 	const token = jwt.sign({ roles: ["student"], sessionVersion }, process.env.JWT_SECRET, { subject: "user-1", expiresIn: "15m" });
 	const req = {
 		originalUrl: "/api/v1/auth/me",
@@ -24,6 +24,8 @@ function makeRequest(sessionVersion, userSessionVersion) {
 							isActive: true,
 							approvalStatus: "APPROVED",
 							roles: [{ role: { name: "student" } }],
+							departmentMemberships: [],
+							...userOverrides,
 						}),
 					},
 				},
@@ -53,5 +55,32 @@ test("accepts pre-version tokens for accounts that have not changed their passwo
 	const req = makeRequest(undefined, 0);
 	let nextCalled = false;
 	await authenticate(req, {}, (error) => { if (error) throw error; nextCalled = true; });
+	assert.equal(nextCalled, true);
+});
+
+test("rejects pending lecturer sessions before department registration is complete", async () => {
+	const req = makeRequest(0, 0, {
+		isActive: false,
+		approvalStatus: "PENDING",
+		roles: [{ role: { name: "lecturer" } }],
+	});
+	let nextError;
+
+	await authenticate(req, {}, (error) => { nextError = error; });
+
+	assert.equal(nextError?.statusCode, 401);
+});
+
+test("accepts pending lecturer sessions after department registration is complete", async () => {
+	const req = makeRequest(0, 0, {
+		isActive: false,
+		approvalStatus: "PENDING",
+		roles: [{ role: { name: "lecturer" } }],
+		departmentMemberships: [{ departmentId: "department-id" }],
+	});
+	let nextCalled = false;
+
+	await authenticate(req, {}, (error) => { if (error) throw error; nextCalled = true; });
+
 	assert.equal(nextCalled, true);
 });

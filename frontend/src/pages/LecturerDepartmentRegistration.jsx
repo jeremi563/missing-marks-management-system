@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowLeft, Eye, EyeOff, GraduationCap } from 'lucide-react'
 import { getRegistrationDepartments, registerLecturerDepartment } from '../api/auth'
 import { extractRecords } from '../features/shared/recordUtils'
-import { useAuth } from '../auth/useAuth'
 import '../styles/AuthPages.css'
 
 const initialForm = {
@@ -16,7 +15,6 @@ const initialForm = {
 }
 
 export default function LecturerDepartmentRegistration() {
-  const { user, isAuthenticated, isLoading } = useAuth()
   const [form, setForm] = useState(initialForm)
   const [departments, setDepartments] = useState([])
   const [loadingDepartments, setLoadingDepartments] = useState(true)
@@ -36,11 +34,6 @@ export default function LecturerDepartmentRegistration() {
     })
     return () => { active = false }
   }, [])
-
-  if (isLoading) return null
-  if (!isAuthenticated) return <Navigate to="/login" replace />
-  if (!user?.roles?.includes('lecturer')) return <Navigate to="/403" replace />
-  if (user?.approvalStatus === 'APPROVED') return <Navigate to="/lecturer" replace />
 
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
 

@@ -110,6 +110,33 @@ describe('administrator lecturer and academic-period views', () => {
     expect(screen.queryByText('Create resource form')).toBeNull()
   })
 
+  it('opens the academic-period editor as an interactive modal dialog', async () => {
+    getAdminAcademicPeriods.mockResolvedValue({
+      success: true,
+      data: {
+        items: [{
+          id: 'period-1',
+          name: 'Semester One',
+          code: 'S1',
+          enrollmentOpensAt: null,
+          enrollmentClosesAt: null,
+        }],
+      },
+    })
+
+    render(<AdminAcademic />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Academic periods' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit window' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Edit enrollment window' })
+    expect(dialog.open).toBe(true)
+    fireEvent.change(screen.getByLabelText('Period name'), { target: { value: 'Semester Two' } })
+    expect(screen.getByLabelText('Period name').value).toBe('Semester Two')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Edit enrollment window' })).toBeNull()
+  })
+
   it('uses an in-app confirmation before deleting a student', async () => {
     getAdminUsers.mockResolvedValue({
       success: true,

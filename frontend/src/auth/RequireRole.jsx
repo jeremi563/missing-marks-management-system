@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from './useAuth'
 import LoadingPage from '../pages/LoadingPage'
 
-export default function RequireRole({ allowedRoles, allowPendingRegistration = false }) {
+export default function RequireRole({ allowedRoles }) {
   const { user, isLoading, isAuthenticated, authError } = useAuth()
   const location = useLocation()
 
@@ -19,23 +19,19 @@ export default function RequireRole({ allowedRoles, allowPendingRegistration = f
   if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />
 
   const roles = Array.isArray(user.roles) ? user.roles : [user.role].filter(Boolean)
-  const isPendingLecturer = user?.approvalStatus === 'PENDING' && roles.includes('lecturer')
-
   if (user?.mustChangePassword && location.pathname !== '/change-password') {
     return <Navigate to="/change-password" state={{ from: location }} replace />
   }
 
-  if (allowPendingRegistration) {
-    if (!roles.includes('lecturer')) return <Navigate to="/403" replace />
-    if (user?.approvalStatus === 'APPROVED') return <Navigate to="/lecturer" replace />
-    if (user?.approvalStatus !== 'PENDING') return <Navigate to="/login" replace />
+  const isPendingLecturer = user?.approvalStatus === 'PENDING' && roles.includes('lecturer')
+  if (isPendingLecturer) {
+    if (location.pathname !== '/lecturer/pending-approval') {
+      return <Navigate to="/lecturer/pending-approval" replace />
+    }
+    if (!allowedRoles.includes('lecturer')) return <Navigate to="/403" replace />
     return <Outlet />
   }
-
-  if (isPendingLecturer && location.pathname !== '/lecturer-department-registration') {
-    return <Navigate to="/lecturer-department-registration" replace />
-  }
-  if (user?.approvalStatus !== 'APPROVED' && roles.some((role) => ['student', 'lecturer', 'cod', 'administrator'].includes(role)) && location.pathname !== '/lecturer-department-registration') {
+  if (user?.approvalStatus !== 'APPROVED' && roles.some((role) => ['student', 'lecturer', 'cod', 'administrator'].includes(role))) {
     return <Navigate to="/login" replace />
   }
   if (!allowedRoles.some((role) => roles.includes(role))) {

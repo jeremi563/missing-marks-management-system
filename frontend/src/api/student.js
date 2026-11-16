@@ -177,3 +177,8 @@ export const markStudentNotificationAsRead = async (notificationId) => {
   )
   return response.data
 }
+
+export const markAllStudentNotificationsAsRead = async () => {
+  const response = await apiClient.patch('/student/notifications/read-all')
+  return response.data
+}

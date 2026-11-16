@@ -27,7 +27,6 @@ function StaffNotifications({ audience }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [refreshKey, setRefreshKey] = useState(0)
 
   const getNotifications = audience === 'lecturer' ? getLecturerNotifications : getCodNotifications
   const markNotificationRead = audience === 'lecturer' ? markLecturerNotificationRead : markCodNotificationRead
@@ -51,13 +50,21 @@ function StaffNotifications({ audience }) {
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [filter, getNotifications, page, refreshKey])
+  }, [filter, getNotifications, page])
 
   const handleMarkRead = async (id) => {
     setSaving(true)
+    setError('')
     try {
       await markNotificationRead(id)
-      setRefreshKey((key) => key + 1)
+      setNotifications((current) => filter === 'unread'
+        ? current.filter((notification) => notification.id !== id)
+        : current.map((notification) => (
+        notification.id === id
+          ? { ...notification, readAt: notification.readAt || new Date().toISOString() }
+          : notification
+        )))
+      setUnreadCount((count) => Math.max(0, count - 1))
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update notification.')
     } finally {
@@ -67,9 +74,17 @@ function StaffNotifications({ audience }) {
 
   const handleMarkAllRead = async () => {
     setSaving(true)
+    setError('')
     try {
       await markAllNotificationsRead()
-      setRefreshKey((key) => key + 1)
+      const readAt = new Date().toISOString()
+      setNotifications((current) => filter === 'unread'
+        ? []
+        : current.map((notification) => ({
+          ...notification,
+          readAt: notification.readAt || readAt,
+        })))
+      setUnreadCount(0)
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to mark notifications as read.')
     } finally {

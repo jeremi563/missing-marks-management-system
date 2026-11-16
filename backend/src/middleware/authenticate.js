@@ -28,10 +28,14 @@ export async function authenticate(req, res, next) {
 				isActive: true,
 				approvalStatus: true,
 				roles: { select: { role: { select: { name: true } } } },
+				departmentMemberships: { select: { departmentId: true } },
 			},
 		});
 		const roles = user?.roles.map(({ role }) => role.name) ?? [];
-		const isPendingLecturer = roles.includes("lecturer") && user?.approvalStatus === "PENDING" && !user?.isActive;
+		const isPendingLecturer = roles.includes("lecturer")
+			&& user?.approvalStatus === "PENDING"
+			&& !user?.isActive
+			&& Boolean(user?.departmentMemberships?.length);
 		const isApprovedUser = user?.isActive && user.approvalStatus === "APPROVED";
 		if (!user || !(isApprovedUser || isPendingLecturer)
 			|| (claims.sessionVersion ?? 0) !== (user.sessionVersion ?? 0)) {
