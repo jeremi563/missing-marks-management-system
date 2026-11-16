@@ -5,7 +5,7 @@
 .student-welcome p, .student-reports-header p, .notifications-header p, .profile-header p { color: var(--muted); }
 .student-primary-button, .student-reports-header a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 15px; border-radius: 10px; color: #fff; background: var(--button-primary); font-weight: 650; }
 .student-summary-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
-.student-summary-card, .student-report-card, .student-recent-section, .details-card, .appeal-card, .attendance-card, .notification-card { padding: 18px; border-radius: 13px; }
+.student-summary-card, .student-report-card, .student-recent-section, .details-card, .notification-card { padding: 18px; border-radius: 13px; }
 .student-summary-card { display: flex; align-items: center; gap: 13px; }
 .student-summary-card p { margin: 0; color: var(--muted); font-size: 12px; }
 .student-summary-card h3 { margin: 5px 0 0; font-size: 22px; }
@@ -94,20 +94,6 @@
   color: var(--student-ink);
   font-size: 13px;
   font-weight: 650;
-}
-
-.student-portal .topbar-user .icon-button {
-  width: 38px;
-  height: 38px;
-  color: var(--ink);
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 50%;
-}
-
-.student-portal .topbar-user .icon-button:hover {
-  color: #b64242;
-  background: #fff0ed;
 }
 
 .student-portal .dashboard-content {

@@ -35,6 +35,3 @@
   .settings-photo-hint { white-space: normal; }
   .settings-form .button { width: 100%; }
 }
-@media (max-width: 720px) {
-  .settings-password-form .button { width: 100%; }
-}
