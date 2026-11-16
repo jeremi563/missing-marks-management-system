@@ -1,5 +1,0 @@
--- RenameIndex
-ALTER INDEX "attendance_records_exam_verification_actor_user_id_exam_verific" RENAME TO "attendance_records_exam_verification_actor_user_id_exam_ver_idx";
-
--- RenameIndex
-ALTER INDEX "attendance_records_exam_verified_by_lecturer_id_exam_verified_a" RENAME TO "attendance_records_exam_verified_by_lecturer_id_exam_verifi_idx";

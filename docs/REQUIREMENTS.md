@@ -30,9 +30,6 @@ A student should be able to:
 - Edit or withdraw a report only when its status and system rules permit.
 - Submit an appeal where permitted by the agreed appeal policy.
 - View their own attendance history and relevant attendance-related information.
-- View their own examination attendance verification status and any rejection reason.
-- View their own official marks by academic period, including assessment and course-unit details.
-- Check in to a CAT session using the existing QR/location flow; a successful check-in creates one CAT submission and the student can view its verification status and any rejection reason.
 - Receive notifications about report progress and required action.
 
 A student must not view another student's private report or change official marks.
@@ -46,11 +43,7 @@ A lecturer should be able to:
 - Record an approval or rejection with a reason, where authorised.
 - Propose a correction or next action through the agreed workflow.
 - Create and manage attendance sessions for their assigned classes/units, subject to the approved attendance rules.
-- Submit initial marks for enrolled students in assessments belonging to course units assigned to them; submitted marks become official immediately and cannot be overwritten by another initial submission.
-- Propose corrections to marks through an audited departmental review process.
 - Review relevant CAT and examination attendance information.
-- Verify or reject CAT submissions created by successful check-in to CAT sessions they own; rejection requires a reason, while verification comments are optional.
-- Verify or reject examination attendance recorded in EXAM sessions they own; rejection requires a reason, while verification comments are optional.
 - View only the students, units and records they are authorised to access.
 
 A lecturer must not access unrelated departmental or system administration functions.
@@ -65,7 +58,6 @@ A COD / Academic Officer should be able to:
 - Review lecturer decisions.
 - Handle appeals and special cases under the agreed approval process.
 - Record departmental decisions and reasons.
-- Review and approve or reject lecturer mark-correction proposals within designated departments.
 - View relevant departmental summaries and audit information.
 
 The exact distinction between COD and Academic Officer permissions must be confirmed. If they are separate real-world roles, the team must decide whether they share a system role or have distinct permissions.
@@ -96,8 +88,6 @@ System administration does not automatically grant authority to alter official a
 9. Notifications.
 10. Administration, audit and reporting.
 
-Official marks are stored in the shared application database and are linked to a student's existing unit enrollment, an assessment, and the lecturer who entered the value. One official mark is allowed per enrollment and assessment. Initial lecturer submissions are immediately official. Later changes require a correction proposal and a COD decision; approval updates or creates the official mark transactionally, while rejection leaves it unchanged. Corrections retain their original/proposed/final values and reviewer decision history. A proposal captures a verified mark version so a stale proposal cannot overwrite a newer value.
-
 ## 5. Important business rules to confirm
 
 The following are project rules previously discussed or proposed. Confirm their exact interpretation with the team and relevant stakeholders before coding:
@@ -106,11 +96,7 @@ The following are project rules previously discussed or proposed. Confirm their 
 - Attendance eligibility is based on an 80% attendance threshold, if this remains the approved project rule.
 - CAT and examination attendance are relevant evidence in the workflow.
 - Attendance may be captured through a QR code or link, with location validation where approved.
-- Each enrolled student receives one booklet allocation per EXAM assessment. Its QR contains only a cryptographically random token; the backend stores only a hash.
-- Students can verify only their own allocated booklet. An authorized lecturer assigned to the examination session can scan after confirming the student's physical identity against the allocation.
-- A successful booklet verification atomically marks the booklet and the corresponding `AttendanceRecord` as `VERIFIED`, recording the scan method, authenticated actor and time. It does not populate `examVerifiedByLecturerId` for a student scan or overwrite an earlier lecturer decision.
-- Invalid, mismatched, inactive, duplicate, missing and replaced booklet scans are rejected and audited. An authorized session lecturer may use confirmed manual student lookup for an unreadable QR. A designated COD or the session lecturer may approve a replacement with a recorded reason; the old token is invalidated and its history retained.
-- Examination booklet QR verification does not replace CLASS/CAT attendance workflows. GPS remains supporting evidence and is not proof of physical presence.
+- The exam booklet may use a QR code for the agreed verification process.
 - General evidence uploads are not part of the default workflow unless the team approves a specific special-case requirement.
 - Define who can approve, reject, reopen or escalate a report.
 - Define whether a report can be edited or withdrawn after submission or assignment.
@@ -151,12 +137,3 @@ Record decisions here as the team confirms them.
 | What are the deadlines and escalation periods? |  | Open |
 | What evidence can be attached, and who can view it? |  | Open |
 | What is the exact appeal policy and one-appeal rule? |  | Open |
-
-Approved administrator policy settings for the current release:
-
-- Attendance eligibility minimum is administrator-configurable, with a default of 80%.
-- Appeal eligibility window is administrator-configurable in calendar days, with a default of 14 days.
-- Overdue notifications may be enabled or disabled by an administrator; the default is enabled.
-- Notification retry attempts are administrator-configurable, with a default of 5 attempts.
-- Existing deadline snapshots are not recalculated when settings change.
-- Lecturer, COD, and special-case review deadline settings remain deferred until their policy is approved.

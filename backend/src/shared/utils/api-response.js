@@ -1,7 +1,5 @@
-export function sendSuccess(res, message, data, statusCode = 200, pagination) {
-	const response = { success: true, message, data };
-	if (pagination) response.pagination = pagination;
-	return res.status(statusCode).json(response);
+export function sendSuccess(res, message, data, statusCode = 200) {
+	return res.status(statusCode).json({ success: true, message, data });
 }
 
 export function sendFailure(res, message, statusCode = 400, details) {
