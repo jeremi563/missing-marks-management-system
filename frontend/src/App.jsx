@@ -54,6 +54,8 @@ import AdminApprovals from './features/admin/AdminApprovals'
 import AdminAcademic from './features/admin/AdminAcademic'
 import AdminSettings from './features/admin/AdminSettings'
 import AdminRosterImport from './features/admin/AdminRosterImport'
+import AdminReports from './features/admin/AdminReports'
+import AdminAuditLogs from './features/admin/AdminAuditLogs'
 import EnrollmentRequestInbox from './features/shared/EnrollmentRequestInbox'
 import StaffNotifications from './features/shared/StaffNotifications'
 
@@ -192,6 +194,8 @@ function App() {
               <Route path="roster-import" element={<AdminRosterImport />} />
               <Route path="lecturers" element={<AdminUsers roleFilter="lecturer" />} />
               <Route path="academic" element={<AdminAcademic />} />
+              <Route path="reports" element={<AdminReports />} />
+              <Route path="audit-logs" element={<AdminAuditLogs />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="account-settings" element={<AccountSettings roleLabel="Administrator" />} />
             </Route>

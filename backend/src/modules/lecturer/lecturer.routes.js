@@ -59,6 +59,24 @@ import { getEnrollmentRequestsForReviewer, postEnrollmentRequestDecision } from 
 import { enrollmentRequestDecisionBody, enrollmentRequestListQuery } from '../enrollment/enrollment-request.validation.js';
 import { getLecturerDepartments } from '../department-membership/department-membership.controller.js';
 import { uploadEvidence } from '../../middleware/evidence-upload.js';
+import { examBookletScanRateLimit } from '../exam-booklet/exam-booklet.rate-limit.js';
+import {
+  getExamBookletScanHistory,
+  postExamBookletAllocations,
+  postExamBookletManualLookup,
+  postInvigilatorExamBookletPreview,
+  postInvigilatorExamBookletScan,
+  postLecturerExamBookletReplacement,
+} from '../exam-booklet/exam-booklet.controller.js';
+import {
+  invigilatorBookletScanBody,
+  invigilatorBookletPreviewBody,
+  manualBookletLookupBody,
+  replaceBookletBody,
+  validateExamBookletHistoryQuery,
+  validateExamBookletParams,
+  validateExamBookletSessionParams,
+} from '../exam-booklet/exam-booklet.validation.js';
 import { getUserNotifications, patchAllUserNotificationsRead, patchUserNotificationRead } from '../../shared/controllers/user-notifications.controller.js';
 import { userNotificationIdParams, userNotificationsQuery } from '../../shared/validation/user-notifications.validation.js';
 import {
@@ -74,24 +92,6 @@ import {
   reportCorrectionParams,
   submitMarksBody,
 } from '../marks/marks.validation.js';
-import {
-  getExamBookletScanHistory,
-  postExamBookletAllocations,
-  postExamBookletManualLookup,
-  postInvigilatorExamBookletPreview,
-  postInvigilatorExamBookletScan,
-  postLecturerExamBookletReplacement,
-} from '../exam-booklet/exam-booklet.controller.js';
-import { examBookletScanRateLimit } from '../exam-booklet/exam-booklet.rate-limit.js';
-import {
-  invigilatorBookletPreviewBody,
-  invigilatorBookletScanBody,
-  manualBookletLookupBody,
-  replaceBookletBody,
-  validateExamBookletHistoryQuery,
-  validateExamBookletParams,
-  validateExamBookletSessionParams,
-} from '../exam-booklet/exam-booklet.validation.js';
 
 const router = express.Router();
 

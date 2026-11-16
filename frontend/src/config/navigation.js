@@ -52,6 +52,8 @@ export const navigation = {
     { label: 'Roster import', to: '/admin/roster-import', icon: FileSpreadsheet },
     { label: 'Lecturers', to: '/admin/lecturers', icon: GraduationCap },
     { label: 'Academic setup', to: '/admin/academic', icon: ClipboardList },
+    { label: 'Report summaries', to: '/admin/reports', icon: FileText },
+    { label: 'Audit logs', to: '/admin/audit-logs', icon: ClipboardList },
     { label: 'System settings', to: '/admin/settings', icon: Settings },
     { label: 'Account settings', to: '/admin/account-settings', icon: UserRound },
   ],
