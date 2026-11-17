@@ -24,7 +24,7 @@ export async function enqueueNotification(db, event) {
 			reportId: event.reportId,
 			title: event.title,
 			message: event.message,
-			availableAt: event.availableAt,
+			availableAt: event.availableAt ?? new Date(),
 		},
 	});
 }

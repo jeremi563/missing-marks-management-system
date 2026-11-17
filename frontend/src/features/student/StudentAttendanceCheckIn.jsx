@@ -4,6 +4,44 @@ import { CheckCircle, MapPin, QrCode } from 'lucide-react'
 import { checkInStudentAttendance } from '../../api/student'
 import '../../styles/StudentAttendanceCheckIn.css'
 
+const LOCATION_SAMPLE_WINDOW_MS = 6000
+const TARGET_LOCATION_ACCURACY_METERS = 20
+
+function getBestLocation(geolocation) {
+  return new Promise((resolve, reject) => {
+    let bestPosition
+    let watchId
+    let settled = false
+    const finish = (error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      if (watchId !== undefined) geolocation.clearWatch(watchId)
+      if (bestPosition) resolve(bestPosition)
+      else reject(error)
+    }
+    const timer = setTimeout(() => finish({ code: 2 }), LOCATION_SAMPLE_WINDOW_MS)
+
+    try {
+      watchId = geolocation.watchPosition(
+        (position) => {
+          if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
+            bestPosition = position
+          }
+          if (bestPosition.coords.accuracy <= TARGET_LOCATION_ACCURACY_METERS) finish()
+        },
+        (error) => {
+          if (bestPosition || error.code === 1) finish(error)
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      )
+      if (settled) geolocation.clearWatch(watchId)
+    } catch (error) {
+      finish(error)
+    }
+  })
+}
+
 export default function StudentAttendanceCheckIn() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -25,8 +63,8 @@ export default function StudentAttendanceCheckIn() {
     }
 
     setCheckingIn(true)
-    navigator.geolocation.getCurrentPosition(
-      async ({ coords }) => {
+    getBestLocation(navigator.geolocation)
+      .then(async ({ coords }) => {
         try {
           const response = await checkInStudentAttendance({
             token,
@@ -38,21 +76,19 @@ export default function StudentAttendanceCheckIn() {
           navigate('/student/attendance/check-in', { replace: true })
         } catch (requestError) {
           setError(requestError.userMessage || requestError.response?.data?.message || 'Unable to verify your location and record attendance.')
-        } finally {
-          setCheckingIn(false)
         }
-      },
-      (locationError) => {
+      })
+      .catch((locationError) => {
         const messages = {
           1: 'Location permission was denied. Allow location access in your browser settings and try again.',
           2: 'Your location could not be determined. Move near a window or enable device location and retry.',
           3: 'Location lookup timed out. Please try again.',
         }
-        setError(messages[locationError.code] || 'Unable to access your device location.')
+        setError(messages[locationError?.code] || 'Unable to access your device location.')
+      })
+      .finally(() => {
         setCheckingIn(false)
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-    )
+      })
   }
 
   return (
@@ -87,7 +123,7 @@ export default function StudentAttendanceCheckIn() {
 
       {!result && (
         <div className="student-attendance-checkin-actions">
-          <p><MapPin size={16} /> Your coordinates are checked by the server and are not saved as part of your attendance record.</p>
+          <p><MapPin size={16} /> We collect a few fresh GPS readings and use the most precise one. Stay still in an open area; your coordinates are checked by the server and are not saved as part of your attendance record.</p>
           <button className="button button-primary" type="button" onClick={submitCheckIn} disabled={checkingIn || !token}>
             <MapPin size={16} />{checkingIn ? 'Checking your location…' : 'Verify location and check in'}
           </button>

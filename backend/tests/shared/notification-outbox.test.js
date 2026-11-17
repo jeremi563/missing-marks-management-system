@@ -1,6 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { processOutboxBatch } from "../../src/shared/services/notification-outbox.service.js";
+import { enqueueNotification, processOutboxBatch } from "../../src/shared/services/notification-outbox.service.js";
+
+test("notification outbox events default to immediate availability and preserve scheduled times", async () => {
+	const inserted = [];
+	const db = { notificationOutbox: { create: async ({ data }) => { inserted.push(data); return data; } } };
+	const scheduledAt = new Date("2026-11-05T10:00:00.000Z");
+	const event = { dedupeKey: "event-1", eventType: "CAT_SUBMISSION_CREATED", recipientUserId: "user-1", title: "Review CAT", message: "Review required" };
+
+	const immediate = await enqueueNotification(db, event);
+	const scheduled = await enqueueNotification(db, { ...event, dedupeKey: "event-2", availableAt: scheduledAt });
+
+	assert.ok(immediate.availableAt instanceof Date);
+	assert.equal(scheduled.availableAt, scheduledAt);
+	assert.equal(inserted.length, 2);
+});
 
 function makeOutboxDb({ resolved = false, resolveOnClaim = false, designatedCodOnClaim = null, notificationFailure = null, deadlineAt = null, databaseNow = null, eventType = "COD_APPEAL_OVERDUE" } = {}) {
 	const now = new Date("2026-11-05T10:00:00.000Z");

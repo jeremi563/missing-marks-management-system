@@ -22,6 +22,8 @@ const {
   createAttendanceSessionController,
   getAttendanceSessionsController,
   getAttendanceSessionByIdController,
+  getCatSubmissionController,
+  getLecturerExamAttendanceRecordController,
 } = await import('../../src/modules/lecturer/lecturer.controller.js');
 const { academicYearForDate } = await import('../../src/shared/utils/academic-year.js');
 
@@ -58,8 +60,76 @@ test('returns only active classrooms with lecturer-safe selection fields', async
     orderBy: { name: 'asc' },
     select: { id: true, name: true, boundaryMeters: true },
   });
+
   assert.equal(res.statusCode, 200);
   assert.deepEqual(res.body.data, [{ id: 'classroom-1', name: 'Block A, Room 12', boundaryMeters: 80 }]);
+});
+
+test('retrieves a CAT submission using the validated route parameter', async () => {
+  const submissionId = 'c65db53f-a0c9-4c50-a75a-cd2e7415d521';
+  const submission = {
+    id: submissionId,
+    status: 'PENDING_REVIEW',
+    assessment: { type: 'CAT', courseUnitId: 'unit-1' },
+    attendanceRecord: {
+      session: {
+        sessionType: 'CAT',
+        courseUnitId: 'unit-1',
+        startsAt: new Date('2026-01-15T10:00:00Z'),
+      },
+    },
+  };
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-1' }) },
+    catSubmission: {
+      findFirst: async ({ where }) => {
+        assert.equal(where.id, submissionId);
+        return submission;
+      },
+    },
+  };
+  const res = createResponse();
+
+  await getCatSubmissionController({
+    user: { id: 'lecturer-user-1' },
+    app: { locals: { prisma } },
+    params: { submissionId },
+  }, res, (error) => { throw error; });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.data.id, submissionId);
+});
+
+test('retrieves an exam attendance record using the validated route parameter', async () => {
+  const recordId = 'd90c1a8b-8bf6-46ef-a3a6-d1875283be5b';
+  const record = {
+    id: recordId,
+    session: {
+      sessionType: 'EXAM',
+      courseUnitId: 'unit-1',
+      startsAt: new Date('2026-01-15T10:00:00Z'),
+      assessment: { type: 'EXAM', courseUnitId: 'unit-1' },
+    },
+  };
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-1' }) },
+    attendanceRecord: {
+      findFirst: async ({ where }) => {
+        assert.equal(where.id, recordId);
+        return record;
+      },
+    },
+  };
+  const res = createResponse();
+
+  await getLecturerExamAttendanceRecordController({
+    user: { id: 'lecturer-user-1' },
+    app: { locals: { prisma } },
+    params: { recordId },
+  }, res, (error) => { throw error; });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.data.id, recordId);
 });
 
 test('returns 401 when assigned course units authentication is missing', async () => {
@@ -117,7 +187,7 @@ test('returns assessments only for the selected assigned course unit and session
     },
     assessment: {
       findMany: async ({ where }) => {
-        assert.deepEqual(where, { courseUnitId: 'unit-1', type: 'CAT' });
+        assert.deepEqual(where, { courseUnitId: 'unit-1', type: { equals: 'CAT', mode: 'insensitive' } });
         return assessments;
       },
     },

@@ -719,6 +719,20 @@ function distanceBetweenMeters(latitudeA, longitudeA, latitudeB, longitudeB) {
 	return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
 }
 
+function getLocationBoundaryFailure(distanceMeters, accuracyMeters, boundaryMeters) {
+	if (distanceMeters + accuracyMeters <= boundaryMeters) return null;
+	if (distanceMeters - accuracyMeters > boundaryMeters) {
+		return {
+			failureReason: "OUTSIDE_CLASSROOM",
+			message: "Your device location is outside the configured classroom boundary",
+		};
+	}
+	return {
+		failureReason: "LOCATION_ACCURACY_INSUFFICIENT",
+		message: "GPS accuracy overlaps the classroom boundary, so attendance cannot be verified yet. Move to a clearer area or ask an administrator to check the classroom location and boundary.",
+	};
+}
+
 export async function submitStudentAttendanceCheckIn(prisma, userId, input, now = new Date()) {
 	const student = await prisma.studentProfile.findUnique({
 		where: { userId },
@@ -775,7 +789,6 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 
 	if (
 		session.status !== "active"
-		|| new Date(session.startsAt) > now
 		|| (session.endsAt && new Date(session.endsAt) <= now)
 		|| !session.classroom.isActive
 	) {
@@ -802,20 +815,21 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 		Number(session.classroom.longitude),
 	);
 
-	if (distanceMeters + input.accuracyMeters > session.classroom.boundaryMeters) {
+	const locationFailure = getLocationBoundaryFailure(
+		distanceMeters,
+		input.accuracyMeters,
+		session.classroom.boundaryMeters,
+	);
+	if (locationFailure) {
 		await prisma.attendanceAttempt.create({
 			data: {
 				sessionId: session.id,
 				studentProfileId: student.id,
 				outcome: "REJECTED",
-				failureReason: distanceMeters > session.classroom.boundaryMeters
-					? "OUTSIDE_CLASSROOM"
-					: "LOCATION_ACCURACY_INSUFFICIENT",
+				failureReason: locationFailure.failureReason,
 			},
 		});
-		throw new AppError(403, distanceMeters > session.classroom.boundaryMeters
-			? "Your device location is outside the configured classroom boundary"
-			: "Your location is too close to the boundary to verify attendance. Move closer to the classroom and try again");
+		throw new AppError(403, locationFailure.message);
 	}
 
 	const existingRecord = await prisma.attendanceRecord.findUnique({
@@ -867,7 +881,6 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 			if (
 				!currentSession
 				|| currentSession.status !== "active"
-				|| new Date(currentSession.startsAt) > now
 				|| (currentSession.endsAt && new Date(currentSession.endsAt) <= now)
 				|| !currentSession.courseUnit
 				|| !currentSession.classroom?.isActive
@@ -887,7 +900,7 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 					where: {
 						id: currentSession.assessmentId,
 						courseUnitId: currentSession.courseUnitId,
-						type: currentSession.sessionType,
+						type: { equals: currentSession.sessionType, mode: "insensitive" },
 					},
 					select: { id: true },
 				});
@@ -900,10 +913,13 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 				Number(currentSession.classroom.latitude),
 				Number(currentSession.classroom.longitude),
 			);
-			if (currentDistance + input.accuracyMeters > currentSession.classroom.boundaryMeters) {
-				throw new AppError(403, currentDistance > currentSession.classroom.boundaryMeters
-					? "Your device location is outside the configured classroom boundary"
-					: "Your location is too close to the boundary to verify attendance. Move closer to the classroom and try again");
+			const currentLocationFailure = getLocationBoundaryFailure(
+				currentDistance,
+				input.accuracyMeters,
+				currentSession.classroom.boundaryMeters,
+			);
+			if (currentLocationFailure) {
+				throw new AppError(403, currentLocationFailure.message);
 			}
 
 			const currentEnrollments = await transaction.unitEnrollment.findMany({

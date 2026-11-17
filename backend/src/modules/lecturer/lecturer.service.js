@@ -807,7 +807,7 @@ export const createAttendanceSession = async (
       where: {
         id: sessionData.assessmentId,
         courseUnitId: sessionData.courseUnitId,
-        type: sessionData.sessionType,
+        type: { equals: sessionData.sessionType, mode: 'insensitive' },
       },
       select: {
         id: true,
@@ -1734,7 +1734,7 @@ const examAttendanceRecordSelect = {
 
 function isValidExamAttendanceRecord(item) {
 	return item?.session?.sessionType === "EXAM"
-		&& item.session.assessment?.type === "EXAM"
+		&& item.session.assessment?.type?.toUpperCase() === "EXAM"
 		&& item.session.assessment.courseUnitId === item.session.courseUnitId;
 }
 

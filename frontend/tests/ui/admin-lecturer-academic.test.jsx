@@ -16,6 +16,7 @@ vi.mock('../../src/api/admin', () => ({
   getAdminUsers: vi.fn(),
   setDepartmentCod: vi.fn(),
   updateAdminAcademicPeriod: vi.fn(),
+  updateAdminClassroom: vi.fn(),
   updateAdminCourseUnit: vi.fn(),
   updateAdminUser: vi.fn(),
 }))
@@ -39,6 +40,7 @@ import {
   getAdminDepartments,
   getAdminEnrollments,
   getAdminUsers,
+  updateAdminClassroom,
 } from '../../src/api/admin'
 
 afterEach(() => {
@@ -187,5 +189,42 @@ describe('administrator lecturer and academic-period views', () => {
     expect(screen.getByRole('cell', { name: '-1.2864' })).toBeTruthy()
     expect(screen.getByRole('cell', { name: '36.8172' })).toBeTruthy()
     expect(screen.getByRole('cell', { name: '80 m' })).toBeTruthy()
+  })
+
+  it('lets administrators update classroom name, coordinates, and GPS boundary', async () => {
+    getAdminClassrooms.mockResolvedValue({
+      success: true,
+      data: {
+        items: [{
+          id: 'classroom-1',
+          name: 'Block A, Room 12',
+          latitude: -1.2864,
+          longitude: 36.8172,
+          boundaryMeters: 80,
+          isActive: true,
+        }],
+      },
+    })
+    updateAdminClassroom.mockResolvedValue({ success: true })
+
+    render(<AdminAcademic />)
+    fireEvent.click(screen.getByRole('tab', { name: 'Classrooms' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit classroom' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Edit classroom' })
+    expect(dialog.open).toBe(true)
+    fireEvent.change(screen.getByLabelText('Classroom name'), { target: { value: 'North Wing Lab' } })
+    fireEvent.change(screen.getByLabelText('Latitude'), { target: { value: '-1.287' } })
+    fireEvent.change(screen.getByLabelText('Longitude'), { target: { value: '36.818' } })
+    fireEvent.change(screen.getByLabelText('GPS boundary (metres)'), { target: { value: '120' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save classroom' }))
+
+    expect(await screen.findByText('Classroom name and GPS settings updated.')).toBeTruthy()
+    expect(updateAdminClassroom).toHaveBeenCalledWith('classroom-1', {
+      name: 'North Wing Lab',
+      latitude: -1.287,
+      longitude: 36.818,
+      boundaryMeters: 120,
+    })
   })
 })

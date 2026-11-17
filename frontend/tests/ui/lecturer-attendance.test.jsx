@@ -109,6 +109,46 @@ describe('LecturerAttendance', () => {
     expect(createLecturerAttendanceSession).not.toHaveBeenCalled()
   })
 
+  it('lets the lecturer select the intended exam assessment when a course unit has several', async () => {
+    getLecturerAttendanceSessions.mockResolvedValue({ success: true, data: { sessions: [] } })
+    getLecturerCourseUnits.mockResolvedValue({
+      success: true,
+      data: [{ courseUnit: { id: 'course-1', code: 'IN101', name: 'Computing' } }],
+    })
+    getLecturerCourseUnitAssessments.mockResolvedValue({
+      success: true,
+      data: [
+        { id: 'exam-1', code: 'EXAM1', name: 'Main exam' },
+        { id: 'exam-2', code: null, name: 'Supplementary exam' },
+      ],
+    })
+    getLecturerClassrooms.mockResolvedValue({
+      success: true,
+      data: [{ id: 'classroom-1', name: 'Block A, Room 12', boundaryMeters: 80 }],
+    })
+    createLecturerAttendanceSession.mockResolvedValue({ success: true })
+
+    render(<LecturerAttendance />)
+    fireEvent.click(await screen.findByRole('tab', { name: /Exam/ }))
+    fireEvent.change(screen.getByLabelText('Course unit'), { target: { value: 'course-1' } })
+    const examAssessment = await screen.findByLabelText('Exam assessment')
+    expect(examAssessment.options).toHaveLength(3)
+    fireEvent.change(examAssessment, { target: { value: 'exam-2' } })
+    fireEvent.change(screen.getByLabelText('Classroom'), { target: { value: 'classroom-1' } })
+    fireEvent.change(screen.getByLabelText('Session date'), { target: { value: '2026-11-13' } })
+    fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('End time'), { target: { value: '10:00' } })
+    fireEvent.submit(screen.getByRole('button', { name: 'Create exam session' }).closest('form'))
+
+    await waitFor(() => {
+      expect(createLecturerAttendanceSession).toHaveBeenCalledWith(expect.objectContaining({
+        sessionType: 'EXAM',
+        courseUnitId: 'course-1',
+        assessmentId: 'exam-2',
+      }))
+    })
+  })
+
   it('starts an attendance session and displays a QR code with a shareable student link', async () => {
     const scheduledSession = {
       id: 'session-1',

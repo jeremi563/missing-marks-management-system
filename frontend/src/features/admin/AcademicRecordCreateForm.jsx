@@ -88,12 +88,14 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
           isActive: form.isActive,
         })
       } else if (resourceKey === 'assessments') {
-        const isCat = form.type.trim().toUpperCase() === 'CAT'
+        const enteredType = form.type.trim()
+        const normalizedType = enteredType.toUpperCase()
+        const isCat = normalizedType === 'CAT'
         const { courseUnitId, assessmentDate, maximumMarks, requiredForEligibility, attendanceRequired, submissionRequired } = form
         await createAdminAssessment({
           courseUnitId,
           name: isCat ? `CAT ${form.catNumber}` : form.name.trim(),
-          type: isCat ? 'CAT' : form.type.trim(),
+          type: ['CAT', 'EXAM'].includes(normalizedType) ? normalizedType : enteredType,
           ...(isCat ? { code: `CAT${form.catNumber}` } : form.code.trim() ? { code: form.code.trim() } : {}),
           ...(assessmentDate ? { assessmentDate: new Date(`${assessmentDate}T00:00:00.000Z`).toISOString() } : {}),
           ...(maximumMarks !== '' ? { maximumMarks: Number(maximumMarks) } : {}),

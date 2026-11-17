@@ -31,9 +31,6 @@
 .lecturer-attendance-field-hint { color: #71878a; }
 .lecturer-attendance-field-error { color: #a53d3d; }
 .lecturer-attendance-form .form-field input[readonly] { color: #41666b; background: #eaf3f1; cursor: default; }
-.lecturer-attendance-field-label { color: #48666a; font-size: 11px; font-weight: 650; }
-.lecturer-attendance-assessment-status { display: grid; align-content: start; gap: 7px; padding: 12px; border-radius: 10px; }
-.lecturer-attendance-assessment-status strong { color: #23474d; font-size: 13px; }
 .lecturer-attendance-schedule { grid-column: 1 / -1; padding: 16px; border-radius: 12px; }
 .lecturer-attendance-schedule-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; color: var(--primary); }
 .lecturer-attendance-schedule-heading > div { display: grid; gap: 3px; }

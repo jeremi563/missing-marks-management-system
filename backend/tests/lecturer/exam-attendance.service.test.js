@@ -97,6 +97,13 @@ test("only EXAM attendance with a matching EXAM assessment is exposed", async ()
 	await assert.rejects(getLecturerExamAttendanceRecord(db, "lecturer-user-1", "record-1"), { statusCode: 404 });
 });
 
+test("exam assessment matching accepts legacy capitalization", async () => {
+	const { db, state } = fixture();
+	state.item.session.assessment.type = "Exam";
+	const result = await listLecturerExamAttendance(db, "lecturer-user-1", {});
+	assert.equal(result.items.length, 1);
+});
+
 test("lecturer verification records reviewer, timestamp, audit and student notification", async () => {
 	const { db, state } = fixture();
 	const result = await decideLecturerExamAttendance(db, "lecturer-user-1", "record-1", {

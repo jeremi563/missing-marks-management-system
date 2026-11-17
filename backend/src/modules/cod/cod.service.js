@@ -156,6 +156,7 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
           departmentId,
           academicYear,
         },
+        select: { courseUnit: { select: { code: true } } },
       });
       return mapping;
     });

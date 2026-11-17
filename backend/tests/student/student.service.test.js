@@ -461,6 +461,21 @@ test("records a student attendance check-in only after active-session, enrollmen
 	assert.equal(state.catSubmissions.length, 0);
 });
 
+test("an active session accepts location check-ins before its scheduled start time", async () => {
+	const { prisma, state } = createCheckInPrisma({
+		session: { startsAt: new Date("2026-11-13T08:00:00.000Z") },
+	});
+	const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z"));
+
+	assert.equal(result.record.status, "PRESENT");
+	assert.equal(state.records.length, 1);
+});
+
 test("CAT check-in atomically creates a pending submission and notifies its session lecturer", async () => {
 	const { prisma, state } = createCheckInPrisma({
 		session: { sessionType: "CAT", assessmentId: "assessment-1" },
@@ -690,7 +705,23 @@ test("validates coarse GPS readings through the location check instead of reques
 		accuracyMeters: 6000,
 	}, new Date("2026-11-13T07:00:00.000Z")), {
 		statusCode: 403,
-		message: "Your location is too close to the boundary to verify attendance. Move closer to the classroom and try again",
+		message: "GPS accuracy overlaps the classroom boundary, so attendance cannot be verified yet. Move to a clearer area or ask an administrator to check the classroom location and boundary.",
+	});
+
+	assert.equal(state.attempts[0].failureReason, "LOCATION_ACCURACY_INSUFFICIENT");
+	assert.equal(state.records.length, 0);
+});
+
+test("classifies an estimated point just outside the boundary as uncertain when GPS accuracy overlaps it", async () => {
+	const { prisma, state } = createCheckInPrisma();
+	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817973,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T07:00:00.000Z")), {
+		statusCode: 403,
+		message: "GPS accuracy overlaps the classroom boundary, so attendance cannot be verified yet. Move to a clearer area or ask an administrator to check the classroom location and boundary.",
 	});
 
 	assert.equal(state.attempts[0].failureReason, "LOCATION_ACCURACY_INSUFFICIENT");

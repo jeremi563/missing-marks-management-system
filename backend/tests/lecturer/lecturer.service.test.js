@@ -972,9 +972,10 @@ test('creates a CAT attendance session using a registered CAT assessment', async
   );
   assert.equal(result.session.id, 'session-1');
   assert.equal(
-    calls.assessmentArgs.where.type,
+    calls.assessmentArgs.where.type.equals,
     'CAT'
   );
+  assert.equal(calls.assessmentArgs.where.type.mode, 'insensitive');
   assert.equal(
     calls.sessionCreateArgs.data.assessmentId,
     'assessment-1'
@@ -999,9 +1000,10 @@ test('creates an EXAM attendance session using a registered EXAM assessment', as
 
   assert.equal(result.session.id, 'session-1');
   assert.equal(
-    calls.assessmentArgs.where.type,
+    calls.assessmentArgs.where.type.equals,
     'EXAM'
   );
+  assert.equal(calls.assessmentArgs.where.type.mode, 'insensitive');
   assert.equal(
     calls.sessionCreateArgs.data.assessmentId,
     'assessment-1'
