@@ -77,8 +77,10 @@ export default function AdminAcademic() {
   const [notice, setNotice] = useState('')
   const courseUnitDialogRef = useRef(null)
   const academicPeriodDialogRef = useRef(null)
+  const classroomDialogRef = useRef(null)
   const isEditingCourseUnit = Boolean(editingCourseUnit)
   const isEditingAcademicPeriod = Boolean(editingAcademicPeriod)
+  const isEditingClassroom = Boolean(editingClassroom)
   const resource = resources[resourceKey]
   const fetchRecords = useCallback((params) => resource.load({
     ...params,
@@ -133,6 +135,20 @@ export default function AdminAcademic() {
       else dialog.removeAttribute('open')
     }
   }, [isEditingAcademicPeriod])
+
+  useEffect(() => {
+    const dialog = classroomDialogRef.current
+    if (!isEditingClassroom || !dialog) return undefined
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal()
+      else dialog.setAttribute('open', '')
+    }
+    return () => {
+      if (!dialog.open) return
+      if (typeof dialog.close === 'function') dialog.close()
+      else dialog.removeAttribute('open')
+    }
+  }, [isEditingClassroom])
 
   const startCourseUnitEdit = (courseUnit) => {
     setEditingCourseUnit({
