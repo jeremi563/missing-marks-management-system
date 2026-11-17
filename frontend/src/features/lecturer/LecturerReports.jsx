@@ -6,10 +6,14 @@ import ReportReviewPanel from './ReportReviewPanel'
 export default function LecturerReports() {
   const [selectedId, setSelectedId] = useState('')
   const [error, setError] = useState('')
+  const [startedReportIds, setStartedReportIds] = useState(() => new Set())
   const openReport = async (report) => {
     setError('')
     try {
-      await startLecturerReport(report.id)
+      if (!report.assignments?.[0]?.workStartedAt && !startedReportIds.has(report.id)) {
+        await startLecturerReport(report.id)
+        setStartedReportIds((started) => new Set(started).add(report.id))
+      }
       setSelectedId(report.id)
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to start report review.')

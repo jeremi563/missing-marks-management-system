@@ -72,4 +72,38 @@ describe('AcademicRecordCreateForm', () => {
       })
     })
   })
+
+  it('creates an exam with normalized type and all configured assessment inputs', async () => {
+      getAdminCourseUnits.mockResolvedValue({
+        success: true,
+        data: { items: [{ id: 'course-1', code: 'IN101', name: 'Computing' }] },
+      })
+      createAdminAssessment.mockResolvedValue({ success: true })
+
+      render(<AcademicRecordCreateForm resourceKey="assessments" onCreated={vi.fn()} />)
+      fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
+      fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'Exam' } })
+      fireEvent.change(screen.getByLabelText('Assessment name'), { target: { value: 'Main exam' } })
+      fireEvent.change(screen.getByLabelText('Assessment code (optional)'), { target: { value: 'EXAM1' } })
+      fireEvent.change(screen.getByLabelText('Date (optional)'), { target: { value: '2026-11-16' } })
+      fireEvent.change(screen.getByLabelText('Maximum marks (optional)'), { target: { value: '70' } })
+      fireEvent.click(screen.getByLabelText('Required for eligibility'))
+      fireEvent.click(screen.getByLabelText('Attendance required'))
+      fireEvent.click(screen.getByLabelText('Submission required'))
+      fireEvent.submit(screen.getByRole('button', { name: 'Create assessment' }).closest('form'))
+
+      await waitFor(() => {
+        expect(createAdminAssessment).toHaveBeenCalledWith({
+          courseUnitId: 'course-1',
+          name: 'Main exam',
+          type: 'EXAM',
+          code: 'EXAM1',
+          assessmentDate: new Date('2026-11-16T00:00:00.000Z').toISOString(),
+          maximumMarks: 70,
+          requiredForEligibility: true,
+          attendanceRequired: true,
+          submissionRequired: true,
+      })
+    })
+  })
 })

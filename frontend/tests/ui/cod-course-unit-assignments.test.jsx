@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodCourseUnitAssignments from '../../src/features/cod/CodCourseUnitAssignments'
 import { academicYearForDate } from '../../src/shared/academic-year'
@@ -96,5 +96,41 @@ describe('CodCourseUnitAssignments', () => {
     expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy()
     expect(screen.getByRole('option', { name: /Replacement Lecturer/ })).toBeTruthy()
     expect(assignCodLecturerToCourseUnit).not.toHaveBeenCalled()
+  })
+
+  it('does not offer a lecturer already assigned to another unit in the same course', async () => {
+    const course = { id: 'course-in16', code: '16', name: 'Computing' }
+    getCodDepartments.mockResolvedValue({
+      success: true,
+      data: [{ id: 'department-in', name: 'Information Technology', code: 'IN' }],
+    })
+    getCodDepartmentCourseUnits.mockResolvedValue({
+      success: true,
+      data: { items: [
+        {
+          id: 'unit-in101',
+          code: 'IN101',
+          course,
+          lecturerMappings: [{
+            id: 'mapping-1',
+            lecturer: { id: 'lecturer-profile-1', user: { displayName: 'Assigned Lecturer' } },
+          }],
+        },
+        { id: 'unit-in102', code: 'IN102', course, lecturerMappings: [] },
+      ] },
+    })
+    getCodDepartmentLecturers.mockResolvedValue({
+      success: true,
+      data: { items: [
+        { displayName: 'Assigned Lecturer', lecturerProfile: { id: 'lecturer-profile-1' } },
+        { displayName: 'Available Lecturer', lecturerProfile: { id: 'lecturer-profile-2' } },
+      ] },
+    })
+
+    render(<CodCourseUnitAssignments />)
+
+    const unitSelect = await screen.findByRole('combobox', { name: 'Lecturer for IN102' })
+    expect(within(unitSelect).queryByRole('option', { name: /Assigned Lecturer/ })).toBeNull()
+    expect(within(unitSelect).getByRole('option', { name: /Available Lecturer/ })).toBeTruthy()
   })
 })

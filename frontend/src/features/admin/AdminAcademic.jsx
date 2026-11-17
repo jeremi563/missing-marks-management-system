@@ -11,6 +11,7 @@ import {
   getAdminEnrollments,
   getAdminAssessments,
   updateAdminAcademicPeriod,
+  updateAdminClassroom,
   updateAdminCourseUnit,
 } from '../../api/admin'
 import DepartmentManagement from './DepartmentManagement'
@@ -68,14 +69,18 @@ export default function AdminAcademic() {
   const [departmentId, setDepartmentId] = useState('')
   const [editingCourseUnit, setEditingCourseUnit] = useState(null)
   const [editingAcademicPeriod, setEditingAcademicPeriod] = useState(null)
+  const [editingClassroom, setEditingClassroom] = useState(null)
   const [editError, setEditError] = useState('')
   const [savingCourseUnit, setSavingCourseUnit] = useState(false)
   const [savingAcademicPeriod, setSavingAcademicPeriod] = useState(false)
+  const [savingClassroom, setSavingClassroom] = useState(false)
   const [notice, setNotice] = useState('')
   const courseUnitDialogRef = useRef(null)
   const academicPeriodDialogRef = useRef(null)
+  const classroomDialogRef = useRef(null)
   const isEditingCourseUnit = Boolean(editingCourseUnit)
   const isEditingAcademicPeriod = Boolean(editingAcademicPeriod)
+  const isEditingClassroom = Boolean(editingClassroom)
   const resource = resources[resourceKey]
   const fetchRecords = useCallback((params) => resource.load({
     ...params,
@@ -130,6 +135,20 @@ export default function AdminAcademic() {
       else dialog.removeAttribute('open')
     }
   }, [isEditingAcademicPeriod])
+
+  useEffect(() => {
+    const dialog = classroomDialogRef.current
+    if (!isEditingClassroom || !dialog) return undefined
+    if (!dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal()
+      else dialog.setAttribute('open', '')
+    }
+    return () => {
+      if (!dialog.open) return
+      if (typeof dialog.close === 'function') dialog.close()
+      else dialog.removeAttribute('open')
+    }
+  }, [isEditingClassroom])
 
   const startCourseUnitEdit = (courseUnit) => {
     setEditingCourseUnit({
@@ -196,6 +215,39 @@ export default function AdminAcademic() {
       setEditError(requestError.userMessage || 'Unable to update this academic period.')
     } finally {
       setSavingAcademicPeriod(false)
+    }
+  }
+
+  const startClassroomEdit = (classroom) => {
+    setEditingClassroom({
+      id: classroom.id,
+      name: classroom.name,
+      latitude: String(classroom.latitude),
+      longitude: String(classroom.longitude),
+      boundaryMeters: String(classroom.boundaryMeters),
+    })
+    setEditError('')
+  }
+
+  const saveClassroom = async (event) => {
+    event.preventDefault()
+    setSavingClassroom(true)
+    setEditError('')
+    setNotice('')
+    try {
+      await updateAdminClassroom(editingClassroom.id, {
+        name: editingClassroom.name.trim(),
+        latitude: Number(editingClassroom.latitude),
+        longitude: Number(editingClassroom.longitude),
+        boundaryMeters: Number(editingClassroom.boundaryMeters),
+      })
+      setEditingClassroom(null)
+      setNotice('Classroom name and GPS settings updated.')
+      setRefresh((value) => value + 1)
+    } catch (requestError) {
+      setEditError(requestError.userMessage || 'Unable to update this classroom.')
+    } finally {
+      setSavingClassroom(false)
     }
   }
 
@@ -285,6 +337,12 @@ export default function AdminAcademic() {
                     ? (period) => (
                       <button className="button button-secondary" type="button" onClick={() => startAcademicPeriodEdit(period)}>
                         <Pencil size={15} /> Edit window
+                      </button>
+                    )
+                  : resourceKey === 'classrooms'
+                    ? (classroom) => (
+                      <button className="button button-secondary" type="button" onClick={() => startClassroomEdit(classroom)}>
+                        <Pencil size={15} /> Edit classroom
                       </button>
                     )
                   : undefined}
@@ -402,6 +460,87 @@ export default function AdminAcademic() {
             <div className="record-actions">
               <button className="button button-secondary" type="button" onClick={() => setEditingAcademicPeriod(null)} disabled={savingAcademicPeriod}>Cancel</button>
               <button className="button button-primary" type="submit" disabled={savingAcademicPeriod}>{savingAcademicPeriod ? 'Saving…' : 'Save window'}</button>
+            </div>
+          </form>
+        </dialog>
+      )}
+      {isEditingClassroom && (
+        <dialog
+          ref={classroomDialogRef}
+          className="panel admin-edit-dialog"
+          aria-labelledby="edit-classroom-title"
+          aria-modal="true"
+          onCancel={(event) => {
+            event.preventDefault()
+            if (!savingClassroom) setEditingClassroom(null)
+          }}
+        >
+          <header className="page-heading">
+            <div>
+              <p className="eyebrow">CLASSROOM LOCATION</p>
+              <h2 id="edit-classroom-title">Edit classroom</h2>
+              <p>Update the displayed room name, map coordinates, or GPS verification boundary.</p>
+            </div>
+          </header>
+          {editError && <div className="form-alert" role="alert">{editError}</div>}
+          <form className="form-stack" onSubmit={saveClassroom}>
+            <div className="form-field">
+              <label htmlFor="edit-classroom-name">Classroom name</label>
+              <input
+                id="edit-classroom-name"
+                autoFocus
+                value={editingClassroom.name}
+                onChange={(event) => setEditingClassroom((current) => ({ ...current, name: event.target.value }))}
+                maxLength={200}
+                required
+              />
+            </div>
+            <div className="form-grid">
+              <div className="form-field">
+                <label htmlFor="edit-classroom-latitude">Latitude</label>
+                <input
+                  id="edit-classroom-latitude"
+                  type="number"
+                  value={editingClassroom.latitude}
+                  onChange={(event) => setEditingClassroom((current) => ({ ...current, latitude: event.target.value }))}
+                  min="-90"
+                  max="90"
+                  step="any"
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="edit-classroom-longitude">Longitude</label>
+                <input
+                  id="edit-classroom-longitude"
+                  type="number"
+                  value={editingClassroom.longitude}
+                  onChange={(event) => setEditingClassroom((current) => ({ ...current, longitude: event.target.value }))}
+                  min="-180"
+                  max="180"
+                  step="any"
+                  required
+                />
+              </div>
+              <div className="form-field">
+                <label htmlFor="edit-classroom-boundary">GPS boundary (metres)</label>
+                <input
+                  id="edit-classroom-boundary"
+                  type="number"
+                  value={editingClassroom.boundaryMeters}
+                  onChange={(event) => setEditingClassroom((current) => ({ ...current, boundaryMeters: event.target.value }))}
+                  min="1"
+                  max="10000"
+                  step="1"
+                  required
+                />
+              </div>
+            </div>
+            <div className="record-actions">
+              <button className="button button-secondary" type="button" onClick={() => setEditingClassroom(null)} disabled={savingClassroom}>Cancel</button>
+              <button className="button button-primary" type="submit" disabled={savingClassroom}>
+                {savingClassroom ? 'Saving…' : 'Save classroom'}
+              </button>
             </div>
           </form>
         </dialog>

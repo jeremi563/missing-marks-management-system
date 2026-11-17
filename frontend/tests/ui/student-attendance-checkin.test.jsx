@@ -9,6 +9,20 @@ vi.mock('../../src/api/student', () => ({
 
 import { checkInStudentAttendance } from '../../src/api/student'
 
+function position(latitude, longitude, accuracy) {
+  return { coords: { latitude, longitude, accuracy } }
+}
+
+function createGeolocation(...positions) {
+  return {
+    watchPosition: vi.fn((onSuccess) => {
+      queueMicrotask(() => positions.forEach(onSuccess))
+      return 42
+    }),
+    clearWatch: vi.fn(),
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -16,10 +30,8 @@ afterEach(() => {
 
 describe('StudentAttendanceCheckIn', () => {
   it('submits the QR token with the device location and shows the recorded session', async () => {
-    const getCurrentPosition = vi.fn((success) => success({
-      coords: { latitude: -1.286389, longitude: 36.817223, accuracy: 10 },
-    }))
-    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: { getCurrentPosition } })
+    const geolocation = createGeolocation(position(-1.286389, 36.817223, 10))
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: geolocation })
     checkInStudentAttendance.mockResolvedValue({
       success: true,
       data: {
@@ -47,21 +59,44 @@ describe('StudentAttendanceCheckIn', () => {
     })
     expect(await screen.findByText('Attendance recorded')).not.toBeNull()
     expect(screen.getByText('IN101 — Computing')).not.toBeNull()
-    expect(getCurrentPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), {
+    expect(geolocation.watchPosition).toHaveBeenCalledWith(expect.any(Function), expect.any(Function), {
       enableHighAccuracy: true,
       timeout: 15000,
       maximumAge: 0,
     })
+    expect(geolocation.clearWatch).toHaveBeenCalledWith(42)
+  })
+
+  it('uses the most precise reading collected during the GPS sample window', async () => {
+    const geolocation = createGeolocation(
+      position(-1.2865, 36.8171, 45),
+      position(-1.286389, 36.817223, 8),
+    )
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: geolocation })
+    checkInStudentAttendance.mockResolvedValue({ success: true, data: {} })
+
+    render(
+      <MemoryRouter initialEntries={['/student/attendance/check-in?token=' + 'a'.repeat(64)]}>
+        <StudentAttendanceCheckIn />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Verify location and check in/ }))
+
+    await waitFor(() => {
+      expect(checkInStudentAttendance).toHaveBeenCalledWith({
+        token: 'a'.repeat(64),
+        latitude: -1.286389,
+        longitude: 36.817223,
+        accuracyMeters: 8,
+      })
+    })
   })
 
   it('tells the student when a CAT check-in created a submission pending verification', async () => {
+    const geolocation = createGeolocation(position(-1.286389, 36.817223, 10))
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
-      value: {
-        getCurrentPosition: vi.fn((success) => success({
-          coords: { latitude: -1.286389, longitude: 36.817223, accuracy: 10 },
-        })),
-      },
+      value: geolocation,
     })
     checkInStudentAttendance.mockResolvedValue({
       success: true,
@@ -83,13 +118,10 @@ describe('StudentAttendanceCheckIn', () => {
   })
 
   it('tells the student when an examination check-in is pending lecturer verification', async () => {
+    const geolocation = createGeolocation(position(-1.286389, 36.817223, 10))
     Object.defineProperty(navigator, 'geolocation', {
       configurable: true,
-      value: {
-        getCurrentPosition: vi.fn((success) => success({
-          coords: { latitude: -1.286389, longitude: 36.817223, accuracy: 10 },
-        })),
-      },
+      value: geolocation,
     })
     checkInStudentAttendance.mockResolvedValue({
       success: true,

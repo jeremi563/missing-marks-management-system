@@ -201,8 +201,8 @@ export default function LecturerAttendance() {
       setError('End time must be after the start time.')
       return
     }
-    if (activeType === 'EXAM' && assessments.length !== 1) {
-      setError('An exam session requires exactly one exam assessment for the selected course unit.')
+    if (activeType === 'EXAM' && !form.assessmentId) {
+      setError('Select the exam assessment before creating the session.')
       return
     }
     if (activeType === 'CAT' && !form.assessmentId) {
@@ -216,8 +216,7 @@ export default function LecturerAttendance() {
       classroomId: form.classroomId.trim(),
       startsAt: new Date(`${form.sessionDate}T${form.startsAt}`).toISOString(),
       endsAt: new Date(`${form.sessionDate}T${form.endsAt}`).toISOString(),
-      ...(activeType === 'CAT' ? { assessmentId: form.assessmentId } : {}),
-      ...(activeType === 'EXAM' ? { assessmentId: assessments[0].id } : {}),
+      ...(['CAT', 'EXAM'].includes(activeType) ? { assessmentId: form.assessmentId } : {}),
     }
     try {
       const response = await createLecturerAttendanceSession(payload)
@@ -455,15 +454,28 @@ export default function LecturerAttendance() {
                 </div>
               )}
               {activeType === 'EXAM' && (
-                <div className="form-field lecturer-attendance-assessment-status" role="status">
-                  <span className="lecturer-attendance-field-label">Exam assessment</span>
-                  <strong>{assessmentsLoading ? 'Finding exam…' : assessments.length === 1 ? `${selectedCourseUnit?.code} — ${assessments[0].name}` : 'Exam assessment unavailable'}</strong>
+                <div className="form-field">
+                  <label htmlFor="session-exam-assessment">Exam assessment</label>
+                  <select
+                    id="session-exam-assessment"
+                    value={form.assessmentId}
+                    onChange={(event) => setForm((current) => ({ ...current, assessmentId: event.target.value }))}
+                    required
+                    disabled={!form.courseUnitId || assessmentsLoading || assessments.length === 0}
+                  >
+                    <option value="">
+                      {!form.courseUnitId ? 'Select a course unit first' : assessmentsLoading ? 'Loading exam assessments…' : assessments.length === 0 ? 'No exam assessments configured' : 'Select an exam assessment'}
+                    </option>
+                    {assessments.map((assessment) => (
+                      <option key={assessment.id} value={assessment.id}>
+                        {assessment.code ? `${assessment.code} — ` : ''}{assessment.name}
+                      </option>
+                    ))}
+                  </select>
                   <small className="lecturer-attendance-field-hint">
-                    {assessmentsError || (assessments.length > 1
-                      ? 'More than one exam assessment is configured; ask your administrator to review the course unit.'
-                      : !assessmentsLoading && form.courseUnitId && assessments.length === 0
-                        ? 'No exam assessment is configured for this course unit.'
-                        : 'The course unit’s exam assessment is selected automatically.')}
+                    {assessmentsError || (!assessmentsLoading && form.courseUnitId && assessments.length === 0
+                      ? 'Ask an administrator to create an exam assessment for this course unit.'
+                      : 'Choose the configured assessment for this exam session.')}
                   </small>
                 </div>
               )}
@@ -488,7 +500,7 @@ export default function LecturerAttendance() {
                 </div>
               </div>
             </div>
-            <button className="button button-primary" disabled={saving || courseUnitsLoading || !courseUnits.length || classroomsLoading || !classrooms.length || (activeType === 'CAT' && (assessmentsLoading || !catAssessments.some(({ assessment }) => assessment))) || (activeType === 'EXAM' && (assessmentsLoading || assessments.length !== 1))}>
+            <button className="button button-primary" disabled={saving || courseUnitsLoading || !courseUnits.length || classroomsLoading || !classrooms.length || (activeType === 'CAT' && (assessmentsLoading || !catAssessments.some(({ assessment }) => assessment))) || (activeType === 'EXAM' && (assessmentsLoading || !form.assessmentId))}>
               <CalendarClock size={16} />{saving ? 'Creating…' : `Create ${activeSession?.label.toLowerCase()} session`}
             </button>
           </form>

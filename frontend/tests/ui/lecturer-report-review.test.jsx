@@ -19,7 +19,6 @@ import {
   getLecturerAssessmentTypes,
   getLecturerReport,
   getLecturerReportComments,
-  getLecturerReportCorrections,
 } from '../../src/api/lecturer'
 
 afterEach(() => {
@@ -106,6 +105,30 @@ describe('ReportReviewPanel', () => {
         reason: 'Reviewed the submitted details.',
         assessmentTypeId: 'other-type-id',
         assessmentTypeOtherDescription: 'Practical test',
+      })
+    })
+  })
+
+  it('submits a rejection with the lecturer reason and selected assessment type', async () => {
+    getLecturerReport.mockResolvedValue({ success: true, data: { status: 'PENDING' } })
+    getLecturerReportComments.mockResolvedValue({ success: true, data: [] })
+    getLecturerAssessmentTypes.mockResolvedValue({
+      success: true,
+      data: [{ id: 'cat-type-id', code: 'CAT', name: 'CAT' }],
+    })
+    decideLecturerReport.mockResolvedValue({ success: true })
+
+    render(<ReportReviewPanel reportId="report-1" onClose={vi.fn()} />)
+
+    fireEvent.change(await screen.findByLabelText('Reason'), { target: { value: 'Insufficient supporting evidence.' } })
+    fireEvent.change(await screen.findByLabelText('What assessment was missed?'), { target: { value: 'cat-type-id' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
+
+    await waitFor(() => {
+      expect(decideLecturerReport).toHaveBeenCalledWith('report-1', {
+        decision: 'REJECT',
+        reason: 'Insufficient supporting evidence.',
+        assessmentTypeId: 'cat-type-id',
       })
     })
   })
