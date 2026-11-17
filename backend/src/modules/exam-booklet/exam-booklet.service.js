@@ -19,7 +19,7 @@ function assertExamSession(session) {
 	if (!session) throw new AppError(404, "Examination session not found");
 	if (
 		session.sessionType !== "EXAM"
-		|| session.assessment?.type !== "EXAM"
+		|| session.assessment?.type?.toUpperCase() !== "EXAM"
 		|| session.assessment.courseUnitId !== session.courseUnitId
 	) {
 		throw new AppError(409, "This is not a valid examination session");

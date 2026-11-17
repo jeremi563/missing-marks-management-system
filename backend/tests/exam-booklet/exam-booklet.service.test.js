@@ -344,6 +344,22 @@ test("booklet allocation returns a one-time random token while the stored value 
 	assert.equal(allocation.student.studentNumber, "IN16/01234/26");
 });
 
+test("booklet allocation accepts legacy exam assessment capitalization", async () => {
+	const { db } = fixture({
+		session: {
+			assessment: {
+				id: "assessment-1",
+				code: "EXAM",
+				name: "Final examination",
+				type: "Exam",
+				courseUnitId: "unit-1",
+			},
+		},
+	});
+	const result = await allocateExamBooklets(db, "lecturer-user-1", "session-1");
+	assert.equal(result.newlyAllocatedCount, 1);
+});
+
 test("students can retrieve only their own booklet allocations", async () => {
 	const { db } = fixture();
 	db.examBooklet.findMany = async () => [{ id: "booklet-1", studentProfileId: "student-1" }];

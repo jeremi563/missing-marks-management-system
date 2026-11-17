@@ -125,11 +125,33 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
       });
       if (!lecturer) throw new AppError(422, "Select an active, approved lecturer from this department");
 
+      await tx.$queryRaw`
+        SELECT id FROM lecturer_profiles
+        WHERE id = ${lecturer.id}::uuid
+        FOR UPDATE
+      `;
+
       const existingAssignment = await tx.courseUnitLecturer.findFirst({
         where: { courseUnitId, academicYear, isActive: true },
         select: assignmentSelect,
       });
       if (existingAssignment?.lecturerProfileId === lecturerProfileId) return existingAssignment;
+
+      const otherCourseAssignment = await tx.courseUnitLecturer.findFirst({
+        where: {
+          lecturerProfileId,
+          academicYear,
+          isActive: true,
+          courseUnit: { is: { courseId: courseUnit.course.id, id: { not: courseUnitId } } },
+        },
+        select: { courseUnit: { select: { code: true } } },
+      });
+      if (otherCourseAssignment) {
+        throw new AppError(
+          409,
+          `This lecturer is already assigned to ${otherCourseAssignment.courseUnit.code} for ${academicYear}. A lecturer can only be delegated one unit per course in an academic year`,
+        );
+      }
 
       if (existingAssignment) {
         const deactivated = await tx.courseUnitLecturer.updateMany({

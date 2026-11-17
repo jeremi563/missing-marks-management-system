@@ -165,6 +165,7 @@ test("COD can assign an active department lecturer to a department course unit a
 	let createdMapping;
 	let auditEvent;
 	db.$transaction = async (operation) => operation({
+		$queryRaw: async () => [],
 		courseUnit: {
 			findFirst: async ({ where }) => {
 				assert.deepEqual(where, { id: "unit-1", departmentId: "department-1" });
@@ -181,7 +182,16 @@ test("COD can assign an active department lecturer to a department course unit a
 		},
 		courseUnitLecturer: {
 			findFirst: async ({ where }) => {
-				assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2026/27", isActive: true });
+				if (where.courseUnitId) {
+					assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2026/27", isActive: true });
+					return null;
+				}
+				assert.deepEqual(where, {
+					lecturerProfileId: "lecturer-profile-1",
+					academicYear: "2026/27",
+					isActive: true,
+					courseUnit: { is: { courseId: "course-1", id: { not: "unit-1" } } },
+				});
 				return null;
 			},
 			create: async ({ data }) => {
@@ -220,6 +230,7 @@ test("COD assignment retries return the existing assignment instead of reporting
 		lecturer: { staffNumber: "AB/1234/lecturer", user: { displayName: "Lecturer", email: "lecturer@example.test" } },
 	};
 	db.$transaction = async (operation) => operation({
+		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
 		courseUnitLecturer: {
@@ -249,6 +260,7 @@ test("COD assignment resolves concurrent duplicate requests as success for the w
 	};
 	const uniqueConflict = Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
 	db.$transaction = async (operation) => operation({
+		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
 		courseUnitLecturer: {
@@ -308,10 +320,13 @@ test("COD replaces the active lecturer and preserves the previous assignment", a
 	let createdMapping;
 	let auditEvent;
 	db.$transaction = async (operation) => operation({
+		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2" }) },
 		courseUnitLecturer: {
-			findFirst: async () => ({ id: "existing-assignment", lecturerProfileId: "lecturer-profile-1" }),
+			findFirst: async ({ where }) => where.courseUnitId
+				? ({ id: "existing-assignment", lecturerProfileId: "lecturer-profile-1" })
+				: null,
 			updateMany: async (args) => { deactivation = args; return { count: 1 }; },
 			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data }; },
 		},
@@ -336,15 +351,56 @@ test("COD replaces the active lecturer and preserves the previous assignment", a
 	assert.equal(auditEvent.metadata.previousLecturerProfileId, "lecturer-profile-1");
 });
 
+test("COD cannot assign a lecturer to a second unit in the same course and academic year", async () => {
+	const db = authorizedDb();
+	let created = false;
+	db.$transaction = async (operation) => operation({
+		$queryRaw: async () => [],
+		courseUnit: { findFirst: async () => ({ id: "unit-2", course: { id: "course-1" } }) },
+		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
+		courseUnitLecturer: {
+			findFirst: async ({ where }) => {
+				if (where.courseUnitId) return null;
+				assert.deepEqual(where, {
+					lecturerProfileId: "lecturer-profile-1",
+					academicYear: "2026/27",
+					isActive: true,
+					courseUnit: { is: { courseId: "course-1", id: { not: "unit-2" } } },
+				});
+				return { courseUnit: { code: "COMP101" } };
+			},
+			create: async () => { created = true; },
+		},
+	});
+
+	await assert.rejects(assignCodCourseUnitLecturer({
+		userId: "cod-1",
+		courseUnitId: "unit-2",
+		departmentId: "department-1",
+		lecturerProfileId: "lecturer-profile-1",
+		now: new Date("2026-11-12T12:00:00.000Z"),
+		db,
+	}), {
+		statusCode: 409,
+		message: "This lecturer is already assigned to COMP101 for 2026/27. A lecturer can only be delegated one unit per course in an academic year",
+	});
+	assert.equal(created, false);
+});
+
 test("COD can assign a course unit again in a later academic year", async () => {
 	const db = authorizedDb();
 	let createdMapping;
 	db.$transaction = async (operation) => operation({
+		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2" }) },
 		courseUnitLecturer: {
 			findFirst: async ({ where }) => {
-				assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2027/28", isActive: true });
+				if (where.courseUnitId) {
+					assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2027/28", isActive: true });
+					return null;
+				}
+				assert.equal(where.academicYear, "2027/28");
 				return null;
 			},
 			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data }; },

@@ -146,7 +146,7 @@ export const getAssignedCourseUnitAssessments = async (req, res, next) => {
     }
 
     const assessments = await prisma.assessment.findMany({
-      where: { courseUnitId: courseUnit.id, type: req.query.type },
+      where: { courseUnitId: courseUnit.id, type: { equals: req.query.type, mode: 'insensitive' } },
       orderBy: [{ assessmentDate: 'asc' }, { name: 'asc' }],
       select: { id: true, code: true, name: true, type: true, assessmentDate: true },
     });
@@ -809,7 +809,7 @@ export const getAttendanceSessionRecordsController = async (
 
 export async function getCatSubmissionsController(req, res, next) {
   try {
-    const result = await listLecturerCatSubmissions(req.app.locals.prisma, req.user.id, req.validatedQuery);
+    const result = await listLecturerCatSubmissions(req.app.locals.prisma, req.user.id, req.query);
     return res.status(200).json({
       success: true,
       message: 'CAT submissions retrieved successfully.',
@@ -824,7 +824,7 @@ export async function getCatSubmissionsController(req, res, next) {
 
 export async function getCatSubmissionController(req, res, next) {
   try {
-    const submission = await getLecturerCatSubmission(req.app.locals.prisma, req.user.id, req.validatedParams.submissionId);
+    const submission = await getLecturerCatSubmission(req.app.locals.prisma, req.user.id, req.params.submissionId);
     return res.status(200).json({ success: true, message: 'CAT submission retrieved successfully.', data: submission });
   } catch (error) {
     return next(error);
@@ -836,8 +836,8 @@ export async function postCatSubmissionDecisionController(req, res, next) {
     const submission = await decideLecturerCatSubmission(
       req.app.locals.prisma,
       req.user.id,
-      req.validatedParams.submissionId,
-      req.validatedBody,
+      req.params.submissionId,
+      req.body,
     );
     return res.status(200).json({ success: true, message: 'CAT submission decision recorded successfully.', data: submission });
   } catch (error) {
@@ -847,7 +847,7 @@ export async function postCatSubmissionDecisionController(req, res, next) {
 
 export async function getLecturerExamAttendanceController(req, res, next) {
   try {
-    const result = await listLecturerExamAttendance(req.app.locals.prisma, req.user.id, req.validatedQuery);
+    const result = await listLecturerExamAttendance(req.app.locals.prisma, req.user.id, req.query);
     return res.status(200).json({
       success: true,
       message: 'Examination attendance records retrieved successfully.',
@@ -862,7 +862,7 @@ export async function getLecturerExamAttendanceController(req, res, next) {
 
 export async function getLecturerExamAttendanceRecordController(req, res, next) {
   try {
-    const record = await getLecturerExamAttendanceRecord(req.app.locals.prisma, req.user.id, req.validatedParams.recordId);
+    const record = await getLecturerExamAttendanceRecord(req.app.locals.prisma, req.user.id, req.params.recordId);
     return res.status(200).json({ success: true, message: 'Examination attendance record retrieved successfully.', data: record });
   } catch (error) {
     return next(error);
@@ -874,8 +874,8 @@ export async function postLecturerExamAttendanceDecisionController(req, res, nex
     const record = await decideLecturerExamAttendance(
       req.app.locals.prisma,
       req.user.id,
-      req.validatedParams.recordId,
-      req.validatedBody,
+      req.params.recordId,
+      req.body,
     );
     return res.status(200).json({ success: true, message: 'Examination attendance decision recorded successfully.', data: record });
   } catch (error) {
