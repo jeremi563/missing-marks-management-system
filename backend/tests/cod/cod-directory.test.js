@@ -230,7 +230,6 @@ test("COD assignment retries return the existing assignment instead of reporting
 		lecturer: { staffNumber: "AB/1234/lecturer", user: { displayName: "Lecturer", email: "lecturer@example.test" } },
 	};
 	db.$transaction = async (operation) => operation({
-		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
 		courseUnitLecturer: {
@@ -260,7 +259,6 @@ test("COD assignment resolves concurrent duplicate requests as success for the w
 	};
 	const uniqueConflict = Object.assign(new Error("Unique constraint failed"), { code: "P2002" });
 	db.$transaction = async (operation) => operation({
-		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
 		courseUnitLecturer: {

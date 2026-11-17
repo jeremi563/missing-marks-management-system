@@ -140,7 +140,7 @@ export default function CodCourseUnitAssignments() {
         <div>
           <p className="cod-unit-delegation__eyebrow">COD WORKSPACE / TEACHING COVERAGE</p>
           <h2>Unit delegation</h2>
-          <p>Assign eligible lecturers to course units. Each lecturer may cover only one unit per course in an academic year.</p>
+          <p>Match each course unit with an eligible lecturer and keep your department’s teaching coverage current.</p>
         </div>
         <div className="cod-unit-delegation__hero-actions">
           <span className="cod-unit-delegation__year">Academic year <strong>{currentAcademicYear}</strong></span>
@@ -251,12 +251,8 @@ export default function CodCourseUnitAssignments() {
                             {groupedUnits.map((courseUnit) => {
                               const mappings = courseUnit.lecturerMappings || []
                               const assignedLecturerIds = new Set(mappings.map(({ lecturer }) => lecturer?.id).filter(Boolean))
-                              const assignedCourseLecturerIds = new Set(courseUnits
-                                .filter((unit) => unit.id !== courseUnit.id && unit.course?.id === courseUnit.course?.id)
-                                .flatMap((unit) => (unit.lecturerMappings || []).map(({ lecturer }) => lecturer?.id).filter(Boolean)))
-                              const unavailableLecturerIds = new Set([...assignedLecturerIds, ...assignedCourseLecturerIds])
                               const availableLecturers = lecturers.filter(
-                                ({ lecturerProfile }) => !unavailableLecturerIds.has(lecturerProfile.id)
+                                ({ lecturerProfile }) => !assignedLecturerIds.has(lecturerProfile.id)
                               )
                               const currentLecturers = mappings.map(({ lecturer }) => lecturerName(lecturer)).join(', ')
                               const hasAssignment = mappings.length > 0
