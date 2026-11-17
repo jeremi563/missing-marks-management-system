@@ -129,8 +129,28 @@ export const getStudentSpecialCases = async (params = {}) => {
   return response.data
 }
 
+export const getStudentSpecialCaseOptions = async () => {
+  const response = await apiClient.get('/student/special-case-options')
+  return response.data
+}
+
+export const submitStandaloneStudentSpecialCase = async (caseData, files = []) => {
+  const payload = withEvidenceFiles(caseData, files)
+  const response = await apiClient.post(
+    '/student/special-cases',
+    payload,
+    payload instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined
+  )
+  return response.data
+}
+
 export const getStudentSpecialCase = async (caseId) => {
   const response = await apiClient.get(`/student/special-cases/${caseId}`)
+  return response.data
+}
+
+export const acknowledgeStudentSpecialCaseSchedule = async (caseId) => {
+  const response = await apiClient.post(`/student/special-cases/${caseId}/acknowledge-schedule`)
   return response.data
 }
 

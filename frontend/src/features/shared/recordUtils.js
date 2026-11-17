@@ -10,6 +10,17 @@ export function extractRecords(response, collectionKeys = []) {
   return []
 }
 
+export async function fetchAllRecordPages(fetchPage, firstResponse, collectionKeys = []) {
+  const first = firstResponse?.data ?? firstResponse
+  const payload = first?.data ?? first
+  const totalPages = Math.max(1, Number(payload?.pagination?.totalPages) || 1)
+  const records = extractRecords(firstResponse, collectionKeys)
+  for (let page = 2; page <= totalPages; page += 1) {
+    records.push(...extractRecords(await fetchPage(page), collectionKeys))
+  }
+  return records
+}
+
 export function groupCourseUnitsByCourse(courseUnits) {
   const groups = new Map()
   for (const courseUnit of courseUnits) {

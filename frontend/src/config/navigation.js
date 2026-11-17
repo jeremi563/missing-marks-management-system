@@ -9,6 +9,7 @@ export const navigation = {
     { label: 'My marks', to: '/student/marks', icon: FileSpreadsheet },
     { label: 'Course enrollment', to: '/student/enrollments', icon: BookOpenCheck },
     { label: 'Appeals', to: '/student/appeals', icon: ClipboardList },
+    { label: 'Special cases', to: '/student/special-cases', icon: FileText },
     { label: 'Attendance', to: '/student/attendance', icon: ClipboardList },
     { label: 'Exam booklet verification', to: '/student/exam-booklets', icon: ClipboardList },
     { label: 'Notifications', to: '/student/notifications', icon: Bell },

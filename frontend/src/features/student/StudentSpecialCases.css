@@ -1,0 +1,163 @@
+.student-special-cases {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.student-special-cases .special-case-form,
+.student-special-cases .special-case-details {
+  display: grid;
+  gap: 1rem;
+}
+
+.special-case-form > p,
+.special-case-card p,
+.special-case-history-item p,
+.special-case-details p {
+  margin: 0;
+}
+
+.special-case-form-grid,
+.special-case-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.special-case-form label,
+.special-case-details label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.special-case-form input,
+.special-case-form select,
+.special-case-form textarea,
+.special-case-details textarea {
+  width: 100%;
+}
+
+.special-case-form small {
+  color: var(--text-muted, #64748b);
+}
+
+.special-case-note {
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--surface-muted, #f1f5f9);
+}
+
+.required-label {
+  color: var(--danger, #b42318);
+}
+
+.special-case-selected-files {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.special-case-selected-files li,
+.special-case-card-heading,
+.special-case-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.special-case-applications {
+  display: grid;
+  gap: 1rem;
+}
+
+.special-case-card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: 1rem;
+}
+
+.special-case-card,
+.special-case-empty,
+.special-case-history-item {
+  padding: 1rem;
+  border: 1px solid var(--border-color, #d9e0e8);
+  border-radius: 0.75rem;
+  background: var(--surface, #fff);
+}
+
+.special-case-card {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+}
+
+.special-case-card h4,
+.special-case-card p,
+.special-case-card small {
+  margin: 0;
+}
+
+.special-case-card-heading {
+  align-items: flex-start;
+}
+
+.special-case-card-heading h4 {
+  overflow-wrap: anywhere;
+}
+
+.special-case-card > p svg {
+  vertical-align: text-bottom;
+}
+
+.special-case-empty {
+  display: grid;
+  justify-items: center;
+  color: var(--text-muted, #64748b);
+}
+
+.special-case-detail-grid {
+  margin: 0;
+}
+
+.special-case-detail-grid > div {
+  min-width: 0;
+}
+
+.special-case-detail-grid dt {
+  color: var(--text-muted, #64748b);
+  font-size: 0.875rem;
+}
+
+.special-case-detail-grid dd {
+  margin: 0.25rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.special-case-details .details-card {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.special-case-details .details-card h4 {
+  margin: 0;
+}
+
+.special-case-history-item {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+@media (max-width: 640px) {
+  .special-case-form-grid,
+  .special-case-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .special-case-selected-files li,
+  .special-case-card-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

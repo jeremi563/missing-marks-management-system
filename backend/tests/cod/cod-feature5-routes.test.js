@@ -16,7 +16,8 @@ test("Feature 5 COD paths are composed once under the authenticated COD router",
 	assert.deepEqual(registered, [
 		"GET /appeals/overdue", "GET /special-cases/overdue", "GET /appeals",
 		"GET /appeals/:appealId", "POST /appeals/:appealId/decision", "GET /special-cases",
-		"GET /special-cases/:caseId", "POST /special-cases/:caseId/decision", "GET /special-case-categories",
+		"GET /special-cases/:caseId", "POST /special-cases/:caseId/decision", "GET /special-case-scheduling-config",
+		"PUT /special-case-scheduling-config/:departmentId", "GET /special-case-categories",
 		"POST /special-case-categories", "PATCH /special-case-categories/:id",
 	]);
 });

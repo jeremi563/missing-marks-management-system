@@ -4,6 +4,7 @@ import { prisma } from "../../config/database.js";
 import { createNotification } from "./notification.service.js";
 import { getSystemSettingValue } from "./system-settings.service.js";
 import { isActiveCodDepartmentMember } from "./designated-cod-authorization.service.js";
+import { academicYearForPeriod } from "../utils/academic-year.js";
 
 const workerId = `${hostname()}:${process.pid}:${randomUUID()}`;
 const CLAIM_LIMIT = 20;
@@ -66,6 +67,42 @@ async function claimBatch(db = prisma) {
 
 async function eventStillOverdue(tx, event, now) {
 	if (event.eventType === "COD_REPORT_OVERDUE") return { eligible: false };
+	if (["SPECIAL_CASE_SCHEDULING_REMINDER", "SPECIAL_CASE_SCHEDULING_OVERDUE", "SPECIAL_CASE_COD_SCHEDULING_OVERDUE"].includes(event.eventType)) {
+		const item = await tx.specialCase.findUnique({
+			where: { id: event.entityId },
+			select: {
+				status: true,
+				schedulingDeadlineAt: true,
+				administrativeResolutionRequired: true,
+				courseUnitId: true,
+				academicPeriod: { select: { startsAt: true } },
+				courseUnit: { select: { department: { select: { id: true, designatedCodUserId: true } } } },
+			},
+		});
+		if (!item || item.status !== "PENDING_SCHEDULING" || !item.schedulingDeadlineAt || item.administrativeResolutionRequired) return { eligible: false };
+		const isCodEvent = event.eventType === "SPECIAL_CASE_COD_SCHEDULING_OVERDUE";
+		if (isCodEvent) {
+			const department = item.courseUnit?.department;
+			if (!department || department.designatedCodUserId !== event.recipientUserId
+				|| !await isActiveCodDepartmentMember(tx, event.recipientUserId, department.id)) return { eligible: false };
+		} else {
+			const academicYear = academicYearForPeriod(item.academicPeriod);
+			const assignment = academicYear && await tx.courseUnitLecturer.findFirst({
+				where: {
+					courseUnitId: item.courseUnitId,
+					academicYear,
+					isActive: true,
+					lecturer: { user: { id: event.recipientUserId, isActive: true, approvalStatus: "APPROVED" } },
+				},
+				select: { id: true },
+			});
+			if (!assignment) return { eligible: false };
+		}
+		if (event.eventType === "SPECIAL_CASE_SCHEDULING_REMINDER") {
+			return item.schedulingDeadlineAt > now ? { eligible: true } : { eligible: false };
+		}
+		return item.schedulingDeadlineAt < now ? { eligible: true } : { eligible: false, deadlineAt: item.schedulingDeadlineAt };
+	}
 	if (event.eventType === "LECTURER_REPORT_OVERDUE") {
 		const report = await tx.missingMarkReport.findUnique({
 			where: { id: event.entityId },
@@ -107,7 +144,7 @@ export async function processOutboxBatch({ db = prisma } = {}) {
 					FOR UPDATE
 				`;
 				if (!ownership.length) return false;
-				if (event.eventType.endsWith("_OVERDUE")) {
+				if (event.eventType.endsWith("_OVERDUE") || event.eventType === "SPECIAL_CASE_SCHEDULING_REMINDER") {
 					const [{ now: databaseNow }] = await tx.$queryRaw`SELECT clock_timestamp() AS now`;
 					const eligibility = await eventStillOverdue(tx, event, databaseNow);
 					if (!eligibility.eligible && eligibility.deadlineAt) {

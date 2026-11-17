@@ -38,6 +38,8 @@ export const decideCodSpecialCase = (caseId, data) => request('post', `/cod/spec
 export const getCodSpecialCaseCategories = () => request('get', '/cod/special-case-categories')
 export const createCodSpecialCaseCategory = (data) => request('post', '/cod/special-case-categories', data)
 export const updateCodSpecialCaseCategory = (id, data) => request('patch', `/cod/special-case-categories/${id}`, data)
+export const getCodSpecialCaseSchedulingConfigs = () => request('get', '/cod/special-case-scheduling-config')
+export const saveCodSpecialCaseSchedulingConfig = (departmentId, schedulingDays) => request('put', `/cod/special-case-scheduling-config/${departmentId}`, { schedulingDays })
 export const getCodOverdueAppeals = (params = {}) => request('get', '/cod/appeals/overdue', undefined, { params })
 export const getCodOverdueCases = (params = {}) => request('get', '/cod/special-cases/overdue', undefined, { params })
 
