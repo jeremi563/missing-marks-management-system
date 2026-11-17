@@ -4,7 +4,10 @@ import {
 	getLecturerSpecialCase, getStudentAppeal, getStudentSpecialCase, listActiveSpecialCaseCategories,
 	listCodAppeals, listCodSpecialCases, listOverdue, listPublicHolidays, listSpecialCaseCategories,
 	listStudentAppeals, listStudentSpecialCases, listLecturerSpecialCases, savePublicHoliday, saveSpecialCaseCategory,
-	startAssignedReportWork, listActiveAssessmentTypes, designateDepartmentCod,
+	startAssignedReportWork, listActiveAssessmentTypes, designateDepartmentCod, listStudentSpecialCaseOptions,
+	createStandaloneStudentSpecialCase, recommendStandaloneSpecialCase,
+	listCodSpecialCaseSchedulingConfigs, saveCodSpecialCaseSchedulingConfig, scheduleSpecialCase,
+	rescheduleSpecialCase, recordSpecialCaseAttendance, acknowledgeSpecialCaseSchedule, cancelSpecialCase,
 } from "../../shared/services/feature5.service.js";
 
 const handle = (fn, message, status = 200) => async (req, res, next) => {
@@ -18,11 +21,19 @@ export const getStudentAppeals = handle((req) => listStudentAppeals({ userId: re
 export const getStudentAppealById = handle((req) => getStudentAppeal({ userId: req.user.id, appealId: req.params.appealId }), "Appeal retrieved successfully");
 export const getStudentCases = handle((req) => listStudentSpecialCases({ userId: req.user.id, ...req.query }), "Student special cases retrieved successfully");
 export const getStudentCaseById = handle((req) => getStudentSpecialCase({ userId: req.user.id, caseId: req.params.caseId }), "Special case retrieved successfully");
+export const getStudentSpecialCaseOptions = handle((req) => listStudentSpecialCaseOptions({ userId: req.user.id }), "Special-case options retrieved successfully");
+export const submitStandaloneStudentSpecialCase = handle((req) => createStandaloneStudentSpecialCase({ userId: req.user.id, ...req.body, files: req.evidenceFiles ?? [] }), "Special case submitted successfully", 201);
+export const acknowledgeStudentSpecialCaseSchedule = handle((req) => acknowledgeSpecialCaseSchedule({ userId: req.user.id, caseId: req.params.caseId }), "Assessment schedule acknowledged successfully");
 export const createStudentCase = handle((req) => createSpecialCase({ userId: req.user.id, role: "student", reportId: req.params.reportId, ...req.body, files: req.evidenceFiles ?? [] }), "Special case submitted successfully", 201);
 export const createLecturerCase = handle((req) => createSpecialCase({ userId: req.user.id, role: "lecturer", reportId: req.params.reportId, ...req.body, files: req.evidenceFiles ?? [] }), "Special case submitted successfully", 201);
 export const startReportWork = handle((req) => startAssignedReportWork({ userId: req.user.id, reportId: req.params.reportId }), "Report work started successfully");
 export const getLecturerCaseById = handle((req) => getLecturerSpecialCase({ userId: req.user.id, caseId: req.params.caseId }), "Special case retrieved successfully");
 export const getLecturerCases = handle((req) => listLecturerSpecialCases({ userId: req.user.id, ...req.query }), "Lecturer special cases retrieved successfully");
+export const recommendLecturerSpecialCase = handle((req) => recommendStandaloneSpecialCase({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Lecturer recommendation recorded successfully");
+export const scheduleLecturerSpecialCase = handle((req) => scheduleSpecialCase({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Special assessment scheduled successfully");
+export const rescheduleLecturerSpecialCase = handle((req) => rescheduleSpecialCase({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Special assessment rescheduled successfully");
+export const recordLecturerSpecialCaseAttendance = handle((req) => recordSpecialCaseAttendance({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Special assessment attendance recorded successfully");
+export const cancelLecturerSpecialCase = handle((req) => cancelSpecialCase({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Special case cancelled successfully");
 export const getActiveCategories = handle(() => listActiveSpecialCaseCategories(), "Special-case categories retrieved successfully");
 export const getAssessmentTypes = handle(() => listActiveAssessmentTypes(), "Assessment types retrieved successfully");
 export const setDepartmentCod = handle((req) => designateDepartmentCod({ actorUserId: req.user.id, departmentId: req.params.departmentId, codUserId: req.body.codUserId }), "Department COD designation updated successfully");
@@ -35,6 +46,8 @@ export const decideCodAppeal = handle((req) => decideAppeal({ userId: req.user.i
 export const getCodCases = handle((req) => listCodSpecialCases({ userId: req.user.id, ...req.query }), "Departmental special cases retrieved successfully");
 export const getCodCaseById = handle((req) => getCodSpecialCase({ userId: req.user.id, caseId: req.params.caseId }), "Special case retrieved successfully");
 export const decideCodCase = handle((req) => decideSpecialCase({ userId: req.user.id, caseId: req.params.caseId, ...req.body }), "Special-case decision recorded successfully");
+export const getCodSpecialCaseSchedulingConfigs = handle((req) => listCodSpecialCaseSchedulingConfigs({ userId: req.user.id }), "Department scheduling configurations retrieved successfully");
+export const saveCodSpecialCaseSchedulingConfigController = handle((req) => saveCodSpecialCaseSchedulingConfig({ userId: req.user.id, departmentId: req.params.departmentId, ...req.body }), "Department scheduling configuration saved successfully");
 export const getOverdueAppeals = handle((req) => listOverdue({ userId: req.user.id, kind: "appeals", ...req.query }), "Overdue appeals retrieved successfully");
 export const getOverdueCases = handle((req) => listOverdue({ userId: req.user.id, kind: "special-cases", ...req.query }), "Overdue special cases retrieved successfully");
 export const getHolidayCalendar = handle((req) => listPublicHolidays(req.query), "Public holiday calendar retrieved successfully");

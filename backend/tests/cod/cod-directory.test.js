@@ -177,7 +177,7 @@ test("COD can assign an active department lecturer to a department course unit a
 				assert.equal(where.id, "lecturer-profile-1");
 				assert.equal(where.user.departmentMemberships.some.departmentId, "department-1");
 				assert.equal(where.user.approvalStatus, "APPROVED");
-				return { id: "lecturer-profile-1" };
+				return { id: "lecturer-profile-1", user: { id: "lecturer-user-1" } };
 			},
 		},
 		courseUnitLecturer: {
@@ -196,9 +196,10 @@ test("COD can assign an active department lecturer to a department course unit a
 			},
 			create: async ({ data }) => {
 				createdMapping = data;
-				return { id: "mapping-1", ...data };
+				return { id: "mapping-1", ...data, lecturer: { user: { id: "lecturer-user-1" } } };
 			},
 		},
+		specialCase: { findMany: async () => [] },
 		auditLog: {
 			create: async ({ data }) => {
 				auditEvent = data;
@@ -233,7 +234,7 @@ test("COD assignment retries return the existing assignment instead of reporting
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
 		courseUnitLecturer: {
-			findFirst: async () => existingAssignment,
+			findFirst: async ({ where }) => where.courseUnitId ? existingAssignment : null,
 			create: async () => assert.fail("An existing assignment must not be created again"),
 		},
 	});
@@ -262,7 +263,10 @@ test("COD assignment resolves concurrent duplicate requests as success for the w
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-1" }) },
 		courseUnitLecturer: {
-			findFirst: async () => null,
+			findFirst: async ({ where }) => {
+				if (where.courseUnitId) return null;
+				return null;
+			},
 			create: async () => { throw uniqueConflict; },
 		},
 	});
@@ -320,14 +324,16 @@ test("COD replaces the active lecturer and preserves the previous assignment", a
 	db.$transaction = async (operation) => operation({
 		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
-		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2" }) },
+		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2", user: { id: "lecturer-user-2" } }) },
 		courseUnitLecturer: {
-			findFirst: async ({ where }) => where.courseUnitId
-				? ({ id: "existing-assignment", lecturerProfileId: "lecturer-profile-1" })
-				: null,
+			findFirst: async ({ where }) => {
+				if (where.courseUnitId) return { id: "existing-assignment", lecturerProfileId: "lecturer-profile-1" };
+				return null;
+			},
 			updateMany: async (args) => { deactivation = args; return { count: 1 }; },
-			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data }; },
+			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data, lecturer: { user: { id: "lecturer-user-2" } } }; },
 		},
+		specialCase: { findMany: async () => [] },
 		auditLog: { create: async ({ data }) => { auditEvent = data; } },
 	});
 
@@ -391,7 +397,7 @@ test("COD can assign a course unit again in a later academic year", async () => 
 	db.$transaction = async (operation) => operation({
 		$queryRaw: async () => [],
 		courseUnit: { findFirst: async () => ({ id: "unit-1", course: { id: "course-1" } }) },
-		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2" }) },
+		lecturerProfile: { findFirst: async () => ({ id: "lecturer-profile-2", user: { id: "lecturer-user-2" } }) },
 		courseUnitLecturer: {
 			findFirst: async ({ where }) => {
 				if (where.courseUnitId) {
@@ -401,8 +407,9 @@ test("COD can assign a course unit again in a later academic year", async () => 
 				assert.equal(where.academicYear, "2027/28");
 				return null;
 			},
-			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data }; },
+			create: async ({ data }) => { createdMapping = data; return { id: "new-assignment", ...data, lecturer: { user: { id: "lecturer-user-2" } } }; },
 		},
+		specialCase: { findMany: async () => [] },
 		auditLog: { create: async () => {} },
 	});
 

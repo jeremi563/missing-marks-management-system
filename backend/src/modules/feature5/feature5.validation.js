@@ -7,6 +7,35 @@ export const specialCaseIdParams = z.object({ caseId: z.string().uuid() });
 export const pageQuery = z.object({ page: z.coerce.number().int().min(1).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) }).strict();
 export const statusPageQuery = pageQuery.extend({ status: z.string().trim().min(1).max(40).optional() }).strict();
 export const createSpecialCaseBody = z.object({ categoryId: z.string().uuid(), description: z.string().trim().min(1).max(5000) }).strict();
+export const createStandaloneSpecialCaseBody = z.object({
+	courseUnitId: z.string().uuid(),
+	academicPeriodId: z.string().uuid(),
+	assessmentId: z.string().uuid(),
+	categoryId: z.string().uuid(),
+	description: z.string().trim().min(1).max(5000),
+}).strict();
+export const lecturerSpecialCaseRecommendationBody = z.object({
+	recommendation: z.enum(["RECOMMEND_APPROVAL", "RECOMMEND_REJECTION"]),
+	reason: z.string().trim().min(1).max(2000),
+}).strict();
+export const specialCaseScheduleBody = z.object({
+	startsAt: z.iso.datetime({ offset: true }),
+	endsAt: z.iso.datetime({ offset: true }),
+	venue: z.string().trim().min(1).max(300),
+}).strict();
+export const specialCaseRescheduleBody = specialCaseScheduleBody.extend({
+	reason: z.string().trim().min(1).max(2000),
+}).strict();
+export const specialCaseAttendanceBody = z.object({
+	outcome: z.enum(["ATTENDED", "DID_NOT_ATTEND"]),
+	remarks: z.string().trim().max(2000).optional(),
+}).strict();
+export const specialCaseCancellationBody = z.object({
+	reason: z.string().trim().min(1).max(2000),
+}).strict();
+export const specialCaseSchedulingConfigBody = z.object({
+	schedulingDays: z.number().int().min(1).max(90),
+}).strict();
 export const decisionBody = z.object({ decision: z.enum(["APPROVE", "REJECT"]), reason: z.string().trim().min(1).max(2000) }).strict();
 export const categoryCreateBody = z.object({ code: z.string().trim().regex(/^[A-Z0-9_]{2,60}$/), name: z.string().trim().min(1).max(120), description: z.string().trim().max(1000).optional() }).strict();
 export const categoryUpdateBody = categoryCreateBody.extend({ isActive: z.boolean().optional() }).strict();

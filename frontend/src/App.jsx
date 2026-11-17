@@ -24,6 +24,7 @@ import StudentDashboard from './features/student/StudentDashboard'
 import StudentReports from './features/student/StudentReports'
 import StudentReportDetails from './features/student/StudentReportDetails'
 import StudentAppeals from './features/student/StudentAppeals'
+import StudentSpecialCases from './features/student/StudentSpecialCases'
 import StudentAttendance from './features/student/StudentAttendance'
 import StudentAttendanceCheckIn from './features/student/StudentAttendanceCheckIn'
 import StudentExamBookletVerification from './features/student/StudentExamBookletVerification'
@@ -102,6 +103,7 @@ function App() {
                 element={<StudentReportDetails />}
               />
               <Route path="appeals" element={<StudentAppeals />} />
+              <Route path="special-cases" element={<StudentSpecialCases />} />
               <Route path="attendance" element={<StudentAttendance />} />
               <Route path="exam-booklets" element={<StudentExamBookletVerification />} />
               <Route path="attendance/check-in" element={<StudentAttendanceCheckIn />} />

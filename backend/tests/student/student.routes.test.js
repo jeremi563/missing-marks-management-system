@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
 import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery, validateStudentExamAttendanceQuery } from "../../src/modules/student/student.validation.js";
+import { createStandaloneSpecialCaseBody } from "../../src/modules/feature5/feature5.validation.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
@@ -25,6 +26,31 @@ test("registers GET /report-options with authentication and student-role checks"
 	assert.ok(optionsRoute);
 	assert.equal(optionsRoute.route.methods.get, true);
 	assert.equal(optionsRoute.route.stack.length, 3);
+});
+
+test("registers standalone special-case options and submission behind student authentication", () => {
+	const optionsRoute = router.stack.find((layer) => layer.route?.path === "/special-case-options");
+	const submitRoute = router.stack.find((layer) => layer.route?.path === "/special-cases" && layer.route.methods.post);
+	assert.ok(optionsRoute);
+	assert.equal(optionsRoute.route.stack.length, 3);
+	assert.ok(submitRoute);
+	assert.equal(submitRoute.route.stack.length, 5);
+
+	const valid = createStandaloneSpecialCaseBody.safeParse({
+		courseUnitId: "550e8400-e29b-41d4-a716-446655440000",
+		academicPeriodId: "550e8400-e29b-41d4-a716-446655440001",
+		assessmentId: "550e8400-e29b-41d4-a716-446655440002",
+		categoryId: "550e8400-e29b-41d4-a716-446655440003",
+		description: "An assessment was missed because of exceptional circumstances.",
+	});
+
+	test("registers student-owned schedule acknowledgement with case-id validation", () => {
+		const route = router.stack.find((layer) => layer.route?.path === "/special-cases/:caseId/acknowledge-schedule" && layer.route.methods.post);
+		assert.ok(route);
+		assert.equal(route.route.stack.length, 4);
+	});
+	assert.equal(valid.success, true);
+	assert.equal(createStandaloneSpecialCaseBody.safeParse({ ...valid.data, unknownField: true }).success, false);
 });
 
 test("registers GET /reports with auth, student-role, and query validation", () => {

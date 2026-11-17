@@ -1,8 +1,9 @@
 import { prisma } from "../../config/database.js";
 import { AppError } from "../../shared/utils/app-error.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
+import { enqueueNotificationOnce } from "../../shared/services/notification-outbox.service.js";
 import { getDesignatedCodDepartmentIds } from "../../shared/services/designated-cod-authorization.service.js";
-import { academicYearForDate } from "../../shared/utils/academic-year.js";
+import { academicYearBounds, academicYearForDate } from "../../shared/utils/academic-year.js";
 import { reassignReport } from "../admin/maintenance.service.js";
 
 export async function getAuthorizedDepartmentIds(db, userId) {
@@ -98,7 +99,7 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
     lecturer: {
       select: {
         staffNumber: true,
-        user: { select: { displayName: true, email: true } },
+        user: { select: { id: true, displayName: true, email: true } },
       },
     },
   };
@@ -124,6 +125,22 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
         select: { id: true },
       });
       if (!lecturer) throw new AppError(422, "Select an active, approved lecturer from this department");
+
+      const conflictingAssignment = await tx.courseUnitLecturer.findFirst({
+        where: {
+          lecturerProfileId,
+          academicYear,
+          isActive: true,
+          courseUnit: { is: { courseId: courseUnit.course.id, id: { not: courseUnitId } } },
+        },
+        select: { courseUnit: { select: { code: true } } },
+      });
+      if (conflictingAssignment) {
+        throw new AppError(
+          409,
+          `This lecturer is already assigned to ${conflictingAssignment.courseUnit.code} for ${academicYear}. A lecturer can only be delegated one unit per course in an academic year`,
+        );
+      }
 
       const existingAssignment = await tx.courseUnitLecturer.findFirst({
         where: { courseUnitId, academicYear, isActive: true },
@@ -158,6 +175,30 @@ export async function assignCodCourseUnitLecturer({ userId, courseUnitId, depart
         },
         select: { courseUnit: { select: { code: true } } },
       });
+      const bounds = academicYearBounds(academicYear);
+      if (bounds) {
+        const casesAwaitingAssignment = await tx.specialCase.findMany({
+          where: {
+            reportId: null,
+            courseUnitId,
+            status: "PENDING_LECTURER_REVIEW",
+            administrativeResolutionRequired: true,
+            academicPeriod: { startsAt: { gte: bounds.startsAt, lt: bounds.endsAt } },
+          },
+          select: { id: true },
+        });
+        for (const specialCase of casesAwaitingAssignment) {
+          await enqueueNotificationOnce(tx, {
+            dedupeKey: `SPECIAL_CASE_REVIEW_REQUIRED:${specialCase.id}:${mapping.lecturer.user.id}`,
+            eventType: "SPECIAL_CASE_REVIEW_REQUIRED",
+            entityType: "SpecialCase",
+            entityId: specialCase.id,
+            recipientUserId: mapping.lecturer.user.id,
+            title: "Special case awaiting review",
+            message: `Special case ${specialCase.id} requires your review.`,
+          });
+        }
+      }
       return mapping;
     });
   } catch (error) {

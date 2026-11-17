@@ -3,8 +3,9 @@ import { validate } from "../../middleware/validate.js";
 import {
 	createCodCategory, decideCodAppeal, decideCodCase, getCodAppealById, getCodAppeals, getCodCategories,
 	getCodCaseById, getCodCases, getOverdueAppeals, getOverdueCases, updateCodCategory,
+	getCodSpecialCaseSchedulingConfigs, saveCodSpecialCaseSchedulingConfigController,
 } from "./feature5.controller.js";
-import { appealIdParams, categoryCreateBody, categoryUpdateBody, decisionBody, itemIdParams, pageQuery, specialCaseIdParams, statusPageQuery } from "./feature5.validation.js";
+import { appealIdParams, categoryCreateBody, categoryUpdateBody, decisionBody, itemIdParams, pageQuery, specialCaseIdParams, statusPageQuery, departmentIdParams, specialCaseSchedulingConfigBody } from "./feature5.validation.js";
 
 export const feature5CodRoutes = Router();
 
@@ -16,6 +17,8 @@ feature5CodRoutes.post("/appeals/:appealId/decision", validate(appealIdParams, "
 feature5CodRoutes.get("/special-cases", validate(statusPageQuery, "query"), getCodCases);
 feature5CodRoutes.get("/special-cases/:caseId", validate(specialCaseIdParams, "params"), getCodCaseById);
 feature5CodRoutes.post("/special-cases/:caseId/decision", validate(specialCaseIdParams, "params"), validate(decisionBody), decideCodCase);
+feature5CodRoutes.get("/special-case-scheduling-config", getCodSpecialCaseSchedulingConfigs);
+feature5CodRoutes.put("/special-case-scheduling-config/:departmentId", validate(departmentIdParams, "params"), validate(specialCaseSchedulingConfigBody), saveCodSpecialCaseSchedulingConfigController);
 feature5CodRoutes.get("/special-case-categories", getCodCategories);
 feature5CodRoutes.post("/special-case-categories", validate(categoryCreateBody), createCodCategory);
 feature5CodRoutes.patch("/special-case-categories/:id", validate(itemIdParams, "params"), validate(categoryUpdateBody), updateCodCategory);

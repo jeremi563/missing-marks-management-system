@@ -45,6 +45,11 @@ export const createLecturerSpecialCase = (reportId, data, files = []) => {
 }
 export const getLecturerSpecialCases = (params = {}) => request('get', '/lecturer/special-cases', undefined, { params })
 export const getLecturerSpecialCase = (caseId) => request('get', `/lecturer/special-cases/${caseId}`)
+export const recommendLecturerSpecialCase = (caseId, data) => request('post', `/lecturer/special-cases/${caseId}/recommendation`, data)
+export const scheduleLecturerSpecialCase = (caseId, data) => request('post', `/lecturer/special-cases/${caseId}/schedule`, data)
+export const rescheduleLecturerSpecialCase = (caseId, data) => request('post', `/lecturer/special-cases/${caseId}/reschedule`, data)
+export const recordLecturerSpecialCaseAttendance = (caseId, data) => request('post', `/lecturer/special-cases/${caseId}/attendance`, data)
+export const cancelLecturerSpecialCase = (caseId, reason) => request('post', `/lecturer/special-cases/${caseId}/cancel`, { reason })
 export const getLecturerAssessmentTypes = () => request('get', '/lecturer/assessment-types')
 
 export const getLecturerAttendanceSessions = (params = {}) => request('get', '/lecturer/attendance/sessions', undefined, { params })

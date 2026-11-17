@@ -74,6 +74,11 @@ model User {
   designatedDepartments         Department[]                  @relation("DepartmentDesignatedCOD")
   appealDecisions                Appeal[]                      @relation("AppealDecisionActor")
   specialCaseSubmissions         SpecialCase[]                 @relation("SpecialCaseSubmitter")
+  reviewedSpecialCases           SpecialCaseReview[]
+  scheduledSpecialCases          SpecialCaseSchedule[]          @relation("SpecialCaseScheduler")
+  acknowledgedSpecialCaseSchedules SpecialCaseSchedule[]        @relation("SpecialCaseScheduleAcknowledger")
+  recordedSpecialCaseAttendances SpecialCaseAttendance[]
+  updatedSpecialCaseConfigs      SpecialCaseDepartmentConfig[]
   departmentMembershipRequests  DepartmentMembershipRequest[] @relation("DepartmentMembershipRequestLecturer")
   reviewedDepartmentMembershipRequests DepartmentMembershipRequest[] @relation("DepartmentMembershipRequestReviewer")
   specialCaseDecisions            SpecialCase[]                 @relation("SpecialCaseDecisionActor")
@@ -176,6 +181,7 @@ model StudentProfile {
   assessmentAttendances   AssessmentAttendance[]
   catSubmissions          CatSubmission[]
   attendanceDiscrepancies AttendanceDiscrepancy[]
+  specialCases            SpecialCase[]
   excuseRequests          AttendanceExcuseRequest[]
   examBooklets            ExamBooklet[]
   examBookletScans        ExamBookletScan[]
@@ -222,6 +228,7 @@ model Department {
   membershipRequests DepartmentMembershipRequest[]
   designatedCodUserId String? @map("designated_cod_user_id") @db.Uuid
   designatedCod User? @relation("DepartmentDesignatedCOD", fields: [designatedCodUserId], references: [id], onDelete: SetNull)
+  specialCaseConfig SpecialCaseDepartmentConfig?
 
   @@map("departments")
   @@index([designatedCodUserId])
@@ -272,6 +279,7 @@ model CourseUnit {
   enrollmentRequests StudentEnrollmentRequest[]
   lecturerMappings   CourseUnitLecturer[]
   reports            MissingMarkReport[]
+  specialCases       SpecialCase[]
   attendanceSessions AttendanceSession[]
   assessments        Assessment[]
 
@@ -293,6 +301,7 @@ model AcademicPeriod {
 
   enrollments UnitEnrollment[]
   reports     MissingMarkReport[]
+  specialCases SpecialCase[]
   enrollmentRequests StudentEnrollmentRequest[]
 
   @@index([name])
@@ -581,6 +590,7 @@ model Assessment {
   courseUnit        CourseUnit             @relation(fields: [courseUnitId], references: [id], onDelete: Restrict)
   createdBy         User?                  @relation("AssessmentCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   reports           MissingMarkReport[]
+  specialCases      SpecialCase[]
   sessions          AttendanceSession[]
   examBooklets      ExamBooklet[]
   examBookletScans  ExamBookletScan[]
@@ -785,31 +795,130 @@ model ExamBookletScan {
 }
 
 model SpecialCase {
-  id          String   @id @default(uuid()) @db.Uuid
-  reportId    String   @map("report_id") @db.Uuid
-  submittedByUserId String? @map("submitted_by_user_id") @db.Uuid
-  categoryId  String?  @map("category_id") @db.Uuid
-  category    String
-  description String
-  status      String   @default("Submitted")
-  decisionByUserId String? @map("decision_by_user_id") @db.Uuid
-  decisionAt DateTime? @map("decision_at")
-  decisionReason String? @map("decision_reason")
-  reviewDeadlineAt DateTime? @map("review_deadline_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                    String    @id @default(uuid()) @db.Uuid
+  reportId              String?   @map("report_id") @db.Uuid
+  studentProfileId      String?   @map("student_profile_id") @db.Uuid
+  courseUnitId          String?   @map("course_unit_id") @db.Uuid
+  academicPeriodId      String?   @map("academic_period_id") @db.Uuid
+  assessmentId          String?   @map("assessment_id") @db.Uuid
+  submittedByUserId     String?   @map("submitted_by_user_id") @db.Uuid
+  categoryId            String?   @map("category_id") @db.Uuid
+  category              String
+  description           String
+  status                String    @default("PENDING_LECTURER_REVIEW")
+  decisionByUserId      String?   @map("decision_by_user_id") @db.Uuid
+  decisionAt            DateTime? @map("decision_at")
+  decisionReason        String?   @map("decision_reason")
+  reviewDeadlineAt      DateTime? @map("review_deadline_at")
+  submittedAt           DateTime? @map("submitted_at")
+  schedulingDeadlineAt  DateTime? @map("scheduling_deadline_at")
+  authorizedReschedules Int       @default(0) @map("authorized_reschedules")
+  administrativeResolutionRequired Boolean @default(false) @map("administrative_resolution_required")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  report   MissingMarkReport     @relation(fields: [reportId], references: [id], onDelete: Restrict)
-  submittedBy User? @relation("SpecialCaseSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
-  categoryRecord SpecialCaseCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  decisionBy User? @relation("SpecialCaseDecisionActor", fields: [decisionByUserId], references: [id], onDelete: SetNull)
-  evidence SpecialCaseEvidence[]
+  report         MissingMarkReport?      @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  student        StudentProfile?         @relation(fields: [studentProfileId], references: [id], onDelete: Restrict)
+  courseUnit     CourseUnit?             @relation(fields: [courseUnitId], references: [id], onDelete: Restrict)
+  academicPeriod AcademicPeriod?         @relation(fields: [academicPeriodId], references: [id], onDelete: Restrict)
+  assessment     Assessment?             @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  submittedBy    User?                   @relation("SpecialCaseSubmitter", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  categoryRecord SpecialCaseCategory?    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  decisionBy     User?                   @relation("SpecialCaseDecisionActor", fields: [decisionByUserId], references: [id], onDelete: SetNull)
+  evidence       SpecialCaseEvidence[]
+  reviews        SpecialCaseReview[]
+  schedules      SpecialCaseSchedule[]
+  attendances    SpecialCaseAttendance[]
 
+  @@unique([studentProfileId, assessmentId])
   @@index([reportId, createdAt])
   @@index([submittedByUserId, createdAt])
+  @@index([studentProfileId, createdAt])
+  @@index([courseUnitId, academicPeriodId, status])
+  @@index([administrativeResolutionRequired, status])
   @@index([categoryId])
   @@index([status, reviewDeadlineAt])
+  @@index([status, schedulingDeadlineAt])
   @@map("special_cases")
+}
+
+model SpecialCaseReview {
+  id             String   @id @default(uuid()) @db.Uuid
+  specialCaseId  String   @map("special_case_id") @db.Uuid
+  reviewerUserId String   @map("reviewer_user_id") @db.Uuid
+  reviewerRole   String   @map("reviewer_role")
+  action         String
+  decision       String?
+  comments       String?
+  previousStatus String?  @map("previous_status")
+  newStatus      String?  @map("new_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  specialCase SpecialCase @relation(fields: [specialCaseId], references: [id], onDelete: Restrict)
+  reviewer    User        @relation(fields: [reviewerUserId], references: [id], onDelete: Restrict)
+
+  @@index([specialCaseId, createdAt])
+  @@index([reviewerUserId, createdAt])
+  @@map("special_case_reviews")
+}
+
+model SpecialCaseSchedule {
+  id                   String    @id @default(uuid()) @db.Uuid
+  specialCaseId        String    @map("special_case_id") @db.Uuid
+  version              Int
+  startsAt             DateTime  @map("starts_at")
+  endsAt               DateTime  @map("ends_at")
+  venue                String
+  status               String    @default("SCHEDULED")
+  scheduledByUserId    String    @map("scheduled_by_user_id") @db.Uuid
+  acknowledgedAt       DateTime? @map("acknowledged_at")
+  acknowledgedByUserId String?   @map("acknowledged_by_user_id") @db.Uuid
+  supersedesScheduleId String?   @map("supersedes_schedule_id") @db.Uuid
+  changeReason         String?   @map("change_reason")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  specialCase    SpecialCase            @relation(fields: [specialCaseId], references: [id], onDelete: Restrict)
+  scheduledBy    User                   @relation("SpecialCaseScheduler", fields: [scheduledByUserId], references: [id], onDelete: Restrict)
+  acknowledgedBy User?                  @relation("SpecialCaseScheduleAcknowledger", fields: [acknowledgedByUserId], references: [id], onDelete: Restrict)
+  supersedes     SpecialCaseSchedule?   @relation("SpecialCaseScheduleVersions", fields: [supersedesScheduleId], references: [id], onDelete: Restrict)
+  replacements   SpecialCaseSchedule[]  @relation("SpecialCaseScheduleVersions")
+  attendance     SpecialCaseAttendance?
+
+  @@unique([specialCaseId, version])
+  @@index([specialCaseId, status, version])
+  @@index([startsAt, status])
+  @@map("special_case_schedules")
+}
+
+model SpecialCaseAttendance {
+  id               String   @id @default(uuid()) @db.Uuid
+  specialCaseId    String   @map("special_case_id") @db.Uuid
+  scheduleId       String   @unique @map("schedule_id") @db.Uuid
+  outcome          String
+  recordedByUserId String   @map("recorded_by_user_id") @db.Uuid
+  recordedAt       DateTime @default(now()) @map("recorded_at")
+  remarks          String?
+
+  specialCase SpecialCase         @relation(fields: [specialCaseId], references: [id], onDelete: Restrict)
+  schedule    SpecialCaseSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  recordedBy  User                @relation(fields: [recordedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([specialCaseId, recordedAt])
+  @@map("special_case_attendances")
+}
+
+model SpecialCaseDepartmentConfig {
+  id              String   @id @default(uuid()) @db.Uuid
+  departmentId    String   @unique @map("department_id") @db.Uuid
+  schedulingDays  Int      @map("scheduling_days")
+  updatedByUserId String   @map("updated_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  updatedBy  User       @relation(fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@map("special_case_department_configs")
 }
 
 model SpecialCaseCategory {
@@ -830,7 +939,7 @@ model SpecialCaseCategory {
 
 model SpecialCaseEvidence {
   id               String   @id @default(uuid()) @db.Uuid
-  reportId         String   @map("report_id") @db.Uuid
+  reportId         String?  @map("report_id") @db.Uuid
   appealId         String?  @map("appeal_id") @db.Uuid
   specialCaseId    String?  @map("special_case_id") @db.Uuid
   uploadedByUserId String   @map("uploaded_by_user_id") @db.Uuid
@@ -840,7 +949,7 @@ model SpecialCaseEvidence {
   sizeBytes        Int      @map("size_bytes")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  report      MissingMarkReport @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  report      MissingMarkReport? @relation(fields: [reportId], references: [id], onDelete: Restrict)
   appeal      Appeal?           @relation(fields: [appealId], references: [id], onDelete: Restrict)
   specialCase SpecialCase?      @relation(fields: [specialCaseId], references: [id], onDelete: Restrict)
   uploadedBy  User              @relation("EvidenceUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)

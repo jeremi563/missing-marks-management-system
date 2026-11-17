@@ -7,6 +7,7 @@ process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
 
 const { default: router } = await import('../../src/modules/lecturer/lecturer.routes.js');
 const { lecturerStudentsQuerySchema } = await import('../../src/modules/lecturer/lecturer.validation.js');
+const { lecturerSpecialCaseRecommendationBody } = await import('../../src/modules/feature5/feature5.validation.js');
 
 test('registers GET /reports', () => {
   const reportsRoute = router.stack.find(
@@ -16,6 +17,39 @@ test('registers GET /reports', () => {
   assert.ok(reportsRoute, 'GET /reports route should exist');
   assert.equal(reportsRoute.route.methods.get, true);
 });
+
+test('registers the authenticated lecturer special-case recommendation endpoint', () => {
+  const route = router.stack.find(
+    (layer) => layer.route?.path === '/special-cases/:caseId/recommendation' && layer.route.methods.post
+  );
+  assert.ok(route);
+  assert.equal(route.route.stack.length, 5);
+  assert.equal(lecturerSpecialCaseRecommendationBody.safeParse({
+    recommendation: 'RECOMMEND_APPROVAL',
+    reason: 'The application is supported.',
+  }).success, true);
+  assert.equal(lecturerSpecialCaseRecommendationBody.safeParse({
+    recommendation: 'APPROVE',
+    reason: 'Invalid final decision from a lecturer.',
+  }).success, false);
+  assert.equal(lecturerSpecialCaseRecommendationBody.safeParse({
+    recommendation: 'RECOMMEND_REJECTION',
+    reason: '  ',
+  }).success, false);
+});
+
+test('registers validated lecturer scheduling, rescheduling, attendance and cancellation endpoints', () => {
+  for (const [path, method] of [
+    ['/special-cases/:caseId/schedule', 'post'],
+    ['/special-cases/:caseId/reschedule', 'post'],
+    ['/special-cases/:caseId/attendance', 'post'],
+    ['/special-cases/:caseId/cancel', 'post'],
+  ]) {
+    const route = router.stack.find((layer) => layer.route?.path === path && layer.route.methods[method])
+    assert.ok(route, `${method.toUpperCase()} ${path} should be registered`)
+    assert.equal(route.route.stack.length, 5)
+  }
+})
 
 test('registers lecturer notification inbox and read actions behind lecturer authorization', () => {
   const inbox = router.stack.find((layer) => layer.route?.path === '/notifications' && layer.route.methods.get);

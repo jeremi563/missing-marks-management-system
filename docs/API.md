@@ -450,6 +450,8 @@ The notification routes below are restricted to the authenticated COD and only a
 | GET | `/api/v1/cod/special-cases/:caseId` | Retrieve a scoped special case. |
 | POST | `/api/v1/cod/special-cases/:caseId/decision` | Decide a scoped special case. |
 | GET | `/api/v1/cod/special-cases/overdue` | List overdue special cases. |
+| GET | `/api/v1/cod/special-case-scheduling-config` | List scheduling periods for departments designated to the caller. |
+| PUT | `/api/v1/cod/special-case-scheduling-config/:departmentId` | Create or update that department's lecturer scheduling period. |
 | GET | `/api/v1/cod/special-case-categories` | List categories available to a designated COD. |
 | POST | `/api/v1/cod/special-case-categories` | Create a category for an authorised department. |
 | PATCH | `/api/v1/cod/special-case-categories/:id` | Update a category for an authorised department. |
@@ -698,17 +700,27 @@ All paths below use `/api/v1`; protected paths require the listed role and authe
 |---|---|---|
 | `GET /student/appeals`, `GET /student/appeals/:appealId` | Student | List/view only the authenticated student's appeals and final reasons. |
 | `POST /student/reports/:reportId/appeals` | Student | Submit one appeal for an owned `REJECTED` report within the configured appeal window. JSON body: `{reason, comments?}`; multipart requests may include up to three `evidence` files. |
+| `GET /student/special-case-options` | Student | List eligible registered course-unit periods, past assessments, and active categories; previously submitted assessments are omitted. |
+| `POST /student/special-cases` | Student | Submit a standalone case without a missing-mark report. Multipart body includes `academicPeriodId`, `courseUnitId`, `assessmentId`, `categoryId`, `description`, and at least one `evidence` file. |
 | `POST /student/reports/:reportId/special-cases` | Student | Submit a case for an owned report in `PENDING`, `ESCALATED`, or `REJECTED`. JSON body: `{categoryId, description}`; multipart requests may include up to three `evidence` files. |
 | `GET /student/special-cases`, `GET /student/special-cases/:caseId` | Student | List and view cases submitted by the authenticated student, including decisions and safe evidence metadata. |
+| `POST /student/special-cases/:caseId/acknowledge-schedule` | Student | Acknowledge the current scheduled assessment; acknowledgement is recorded separately from attendance. |
 | `GET /lecturer/assessment-types` | Lecturer | List active decision assessment types. |
 | `POST /lecturer/reports/:reportId/start` | Lecturer | Start work on the currently assigned pending report once. |
 | `POST /lecturer/reports/:reportId/decision` | Lecturer | Final decision requires `decision`, `reason`, and active `assessmentTypeId`; `assessmentTypeOtherDescription` is required only for `OTHER`. |
 | `POST /lecturer/reports/:reportId/special-cases` | Lecturer | Submit a case for a currently assigned eligible report. JSON body: `{categoryId, description}`; multipart requests may include up to three `evidence` files. |
 | `GET /lecturer/special-cases`, `GET /lecturer/special-cases/:caseId` | Lecturer | List submitted cases and view own/currently assigned report cases. Safe evidence metadata is visible to the submitter or current assignee. |
+| `POST /lecturer/special-cases/:caseId/recommendation` | Lecturer | Submit `RECOMMEND_APPROVAL` or `RECOMMEND_REJECTION` with a required reason for an assigned standalone case. This is not a final decision. |
+| `POST /lecturer/special-cases/:caseId/schedule` | Lecturer | Schedule a COD-approved standalone case before its configured departmental deadline. Body: `startsAt`, `endsAt`, and physical `venue`. |
+| `POST /lecturer/special-cases/:caseId/reschedule` | Lecturer | Preserve the prior schedule and create a revised schedule with a required reason; the revised schedule requires fresh student acknowledgement. |
+| `POST /lecturer/special-cases/:caseId/attendance` | Lecturer | Explicitly record `ATTENDED` or `DID_NOT_ATTEND` after the scheduled end time; attendance does not change marks. |
+| `POST /lecturer/special-cases/:caseId/cancel` | Lecturer | Cancel an approved standalone case with a required reason. |
 | `GET /cod/appeals`, `GET /cod/appeals/:appealId` | COD | List and view appeals for departments where the caller is the designated COD. Optional list query: `page`, `limit`, `status`. |
 | `POST /cod/appeals/:appealId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. Approval returns the report to `PENDING`. |
 | `GET /cod/special-cases`, `GET /cod/special-cases/:caseId` | COD | List and view cases only for designated departments. Optional list query: `page`, `limit`, `status`. |
-| `POST /cod/special-cases/:caseId/decision` | COD | Decide once. Body: `{decision: "APPROVE"|"REJECT", reason}`. This does not change report status. |
+| `POST /cod/special-cases/:caseId/decision` | COD | Make a final decision with `{decision: "APPROVE"|"REJECT", reason}`. Standalone approval requires a scheduling configuration and does not change a missing-mark report. |
+| `GET /cod/special-case-scheduling-config` | COD | List department-scoped scheduling periods for departments where the caller is designated COD. |
+| `PUT /cod/special-case-scheduling-config/:departmentId` | COD | Set `schedulingDays` (integer, 1-90) for an authorized department; each change is audited. |
 | `GET /cod/special-case-categories` | COD | List categories for category management. Caller must be designated COD. |
 | `POST /cod/special-case-categories`, `PATCH /cod/special-case-categories/:id` | COD | Create/update categories using `code`, `name`, optional `description`, and update-only `isActive`. |
 | `GET /cod/appeals/overdue`, `GET /cod/special-cases/overdue` | COD | Paginated unresolved overdue appeal and special-case work for the caller's designated departments. |
@@ -717,5 +729,7 @@ All paths below use `/api/v1`; protected paths require the listed role and authe
 | `PATCH /admin/departments/:departmentId/designated-cod` | Administrator | Assign a department's COD. Body: `{codUserId}`; target must be active, have the COD role, and be a member of that department. |
 
 Evidence uploads use multipart/form-data with a repeated `evidence` field. Each submission may include at most three files, each no larger than 5 MiB, with PDF, JPG/JPEG, PNG, or DOCX content. The server checks extension, declared MIME type, and file signature/content; it stores bytes under random names in the private `backend/uploads/evidence/` directory, outside static serving. The directory is created on demand and ignored by Git.
+
+Standalone special cases have no application submission deadline and use the status sequence `PENDING_LECTURER_REVIEW` → `PENDING_COD_REVIEW` → `PENDING_SCHEDULING` → `SCHEDULED` → `COMPLETED` or `DID_NOT_ATTEND`, with rejection and cancellation terminal outcomes. A lecturer recommendation is required before a designated COD may decide. Approval requires a configured department scheduling period; the deadline is calculated from the COD decision timestamp. Rescheduling retains the prior schedule and resets acknowledgement on the new schedule. Non-attendance is recorded explicitly and routed for departmental follow-up. No special-case operation creates or updates marks.
 
 `GET /api/v1/evidence/:evidenceId` returns a `private, no-store` attachment after checking the parent record. Students may access their own report/appeal or submitted special-case evidence; lecturers may access assigned report evidence and their own/currently assigned special-case evidence, but not appeal evidence; CODs may access evidence only for their designated departments. Administrator role alone does not grant evidence access, consistent with the existing admin API, which provides summaries rather than report-detail access. The endpoint does not expose a path or storage key. Successful upload and download actions create `EVIDENCE_UPLOADED` and `EVIDENCE_DOWNLOADED` audit events.

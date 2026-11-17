@@ -1,0 +1,82 @@
+.lecturer-special-cases {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.special-case-inbox,
+.lecturer-special-case-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.special-case-inbox-heading,
+.special-case-inbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.special-case-inbox-heading label,
+.special-case-action-form label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.special-case-inbox-list {
+  display: grid;
+}
+
+.special-case-inbox-item {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-color, #d9e0e8);
+}
+
+.special-case-inbox-item h4,
+.special-case-inbox-item p {
+  margin: 0 0 0.3rem;
+}
+
+.special-case-inbox-item p,
+.special-case-inbox-item small {
+  color: var(--text-muted, #64748b);
+}
+
+.lecturer-special-case-detail {
+  align-content: start;
+}
+
+.lecturer-special-case-detail .details-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.lecturer-special-case-detail .details-card h4,
+.lecturer-special-case-detail .details-card p {
+  margin: 0;
+}
+
+.special-case-action-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.special-case-action-form input,
+.special-case-action-form select,
+.special-case-action-form textarea,
+.special-case-inbox-heading select {
+  width: 100%;
+}
+
+.special-case-action-form > p svg {
+  vertical-align: text-bottom;
+}
+
+@media (max-width: 640px) {
+  .special-case-inbox-heading,
+  .special-case-inbox-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

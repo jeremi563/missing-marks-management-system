@@ -130,8 +130,13 @@ function replacementCaseDb() {
 			: null,
 	};
 	const matchesCaseWhere = (item, where) => {
-		const allowedDepartments = where.report?.courseUnit?.departmentId;
-		const inDepartment = !allowedDepartments || (Array.isArray(allowedDepartments.in) ? allowedDepartments.in.includes(item.report.courseUnit.departmentId) : allowedDepartments === item.report.courseUnit.departmentId);
+		const departmentScopes = where.OR?.map((scope) => (
+			scope.report?.courseUnit?.departmentId?.in ?? scope.courseUnit?.departmentId?.in
+		)).filter(Boolean);
+		const allowedDepartments = departmentScopes
+			? [...new Set(departmentScopes.flat())]
+			: where.report?.courseUnit?.departmentId?.in ?? null;
+		const inDepartment = !allowedDepartments || allowedDepartments.includes(item.report.courseUnit.departmentId);
 		return inDepartment && (!where.status || item.status === where.status);
 	};
 	const specialCase = {

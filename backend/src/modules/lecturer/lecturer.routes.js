@@ -31,8 +31,8 @@ import {
   getLecturerExamAttendanceRecordController,
   postLecturerExamAttendanceDecisionController,
 } from './lecturer.controller.js';
-import { getAssessmentTypes, getLecturerCaseById, getLecturerCases, createLecturerCase, startReportWork } from '../feature5/feature5.controller.js';
-import { createSpecialCaseBody, pageQuery, specialCaseIdParams } from '../feature5/feature5.validation.js';
+import { getAssessmentTypes, getLecturerCaseById, getLecturerCases, createLecturerCase, startReportWork, recommendLecturerSpecialCase, scheduleLecturerSpecialCase, rescheduleLecturerSpecialCase, recordLecturerSpecialCaseAttendance, cancelLecturerSpecialCase } from '../feature5/feature5.controller.js';
+import { createSpecialCaseBody, lecturerSpecialCaseRecommendationBody, pageQuery, specialCaseIdParams, specialCaseScheduleBody, specialCaseRescheduleBody, specialCaseAttendanceBody, specialCaseCancellationBody } from '../feature5/feature5.validation.js';
 
 import {
   reportIdSchema,
@@ -178,6 +178,11 @@ router.post('/reports/:reportId/start', authenticate, authorize('lecturer'), val
 router.post('/reports/:reportId/special-cases', authenticate, authorize('lecturer'), validate(reportIdSchema, 'params'), uploadEvidence, validate(createSpecialCaseBody), createLecturerCase);
 router.get('/special-cases/:caseId', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), getLecturerCaseById);
 router.get('/special-cases', authenticate, authorize('lecturer'), validate(pageQuery, 'query'), getLecturerCases);
+router.post('/special-cases/:caseId/recommendation', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), validate(lecturerSpecialCaseRecommendationBody), recommendLecturerSpecialCase);
+router.post('/special-cases/:caseId/schedule', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), validate(specialCaseScheduleBody), scheduleLecturerSpecialCase);
+router.post('/special-cases/:caseId/reschedule', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), validate(specialCaseRescheduleBody), rescheduleLecturerSpecialCase);
+router.post('/special-cases/:caseId/attendance', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), validate(specialCaseAttendanceBody), recordLecturerSpecialCaseAttendance);
+router.post('/special-cases/:caseId/cancel', authenticate, authorize('lecturer'), validate(specialCaseIdParams, 'params'), validate(specialCaseCancellationBody), cancelLecturerSpecialCase);
 
 // POST /api/v1/lecturer/reports/:reportId/escalate
 router.post(
