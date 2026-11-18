@@ -32,6 +32,16 @@ import {
   scanLecturerExamBooklet,
 } from '../../src/api/lecturer'
 
+function activeExamWindow() {
+  const now = Date.now()
+  return {
+    status: 'active',
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 60 * 60_000).toISOString(),
+    lateGraceMinutes: 10,
+  }
+}
+
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -44,7 +54,7 @@ it('refreshes the student booklet and exam attendance status after a successful 
       bookletIdentifier: 'booklet-ref',
       status: 'ALLOCATED',
       assessment: { code: 'EXAM', name: 'Final Exam' },
-      session: { id: 'session-1', courseUnit: { code: 'IN101', name: 'Computing' } },
+      session: { id: 'session-1', ...activeExamWindow(), courseUnit: { code: 'IN101', name: 'Computing' } },
     }],
   })
   getStudentExamAttendance
@@ -64,7 +74,7 @@ it('refreshes the student booklet and exam attendance status after a successful 
 
 it('requires physical identity confirmation after an invigilator previews a scanned allocation', async () => {
   getLecturerAttendanceSessions.mockResolvedValue({
-    data: [{ id: 'session-1', sessionType: 'EXAM', startsAt: '2026-11-15T11:00:00Z', courseUnit: { code: 'IN101' }, assessment: { name: 'Final Exam' } }],
+    data: [{ id: 'session-1', ...activeExamWindow(), sessionType: 'EXAM', courseUnit: { code: 'IN101' }, assessment: { name: 'Final Exam' } }],
   })
   getLecturerExamBookletScans.mockResolvedValue({ data: { items: [] } })
   previewLecturerExamBooklet.mockResolvedValue({
@@ -88,4 +98,54 @@ it('requires physical identity confirmation after an invigilator previews a scan
     identityConfirmed: true,
   }))
   expect(await screen.findByText('Booklet verified and examination attendance updated.')).not.toBeNull()
+})
+
+it('disables student booklet scanning after the session grace cutoff', async () => {
+  const now = Date.now()
+  getStudentExamBooklets.mockResolvedValue({
+    data: [{
+      id: 'booklet-1',
+      bookletIdentifier: 'booklet-ref',
+      status: 'ALLOCATED',
+      assessment: { code: 'EXAM', name: 'Final Exam' },
+      session: {
+        id: 'session-1',
+        status: 'active',
+        startsAt: new Date(now - 60 * 60_000).toISOString(),
+        endsAt: new Date(now - 11 * 60_000).toISOString(),
+        lateGraceMinutes: 10,
+        courseUnit: { code: 'IN101', name: 'Computing' },
+      },
+    }],
+  })
+  getStudentExamAttendance.mockResolvedValue({ data: [] })
+
+  render(<StudentExamBookletVerification />)
+
+  expect(await screen.findByText('Booklet verification is closed for this examination session.')).not.toBeNull()
+  expect(screen.queryByRole('button', { name: 'Fake camera scan' })).toBeNull()
+})
+
+it('disables invigilator QR and manual verification after the session grace cutoff', async () => {
+  const now = Date.now()
+  getLecturerAttendanceSessions.mockResolvedValue({
+    data: [{
+      id: 'session-1',
+      sessionType: 'EXAM',
+      status: 'active',
+      startsAt: new Date(now - 60 * 60_000).toISOString(),
+      endsAt: new Date(now - 11 * 60_000).toISOString(),
+      lateGraceMinutes: 10,
+      courseUnit: { code: 'IN101' },
+      assessment: { name: 'Final Exam' },
+    }],
+  })
+  getLecturerExamBookletScans.mockResolvedValue({ data: { items: [] } })
+
+  render(<LecturerExamBooklets />)
+
+  expect(await screen.findByText('Booklet verification is closed for this examination session.')).not.toBeNull()
+  expect(screen.queryByRole('button', { name: 'Fake camera scan' })).toBeNull()
+  expect(screen.getByLabelText('Student registration number').disabled).toBe(true)
+  expect(screen.getByRole('button', { name: 'Find and verify allocation' }).disabled).toBe(true)
 })

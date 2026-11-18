@@ -10,6 +10,7 @@ import { loadAttendanceDiscrepancySource } from "../../shared/services/attendanc
 import { academicYearForDate, academicYearForPeriod } from "../../shared/utils/academic-year.js";
 import { parseStudentRegistrationNumber } from "../../shared/utils/registration-number.js";
 import { evidenceStorage, saveEvidenceFiles, withEvidenceFileCleanup } from "../../shared/services/evidence-storage.service.js";
+import { getReportAttendanceRequirements, getReportAttendanceReview } from "../../shared/services/report-attendance-eligibility.service.js";
 
 const FIRST_REPORT_ACADEMIC_YEAR = 2026;
 
@@ -37,7 +38,18 @@ export async function getStudentProfile(prisma, userId) {
 		throw error;
 	}
 
-	return profile;
+	const registration = parseStudentRegistrationNumber(profile.studentNumber);
+	const course = registration
+		? await prisma.course.findFirst({
+			where: {
+				code: registration.courseCode,
+				department: { initials: registration.departmentInitials },
+			},
+			select: { code: true, name: true },
+		})
+		: null;
+
+	return { ...profile, course };
 }
 
 export function buildAcademicYearOptions(enrolledPeriods, now = new Date()) {
@@ -83,7 +95,7 @@ async function loadStudentReportOptions(prisma, student, now) {
 					name: true,
 				},
 			},
-			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true } },
+			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, academicYear: true } },
 		},
 	});
 
@@ -207,7 +219,7 @@ export async function getStudentReportById(prisma, userId, reportId) {
 				orderBy: { createdAt: "asc" },
 			},
 			courseUnit: { select: { id: true, code: true, name: true } },
-			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true, academicYear: true } },
 			assessment: { select: { id: true, code: true, name: true, type: true } },
 			evidence: {
 				orderBy: { createdAt: "asc" },
@@ -614,6 +626,20 @@ export async function submitMissingMarkReport(prisma, userId, input, files = [],
 
 	const submittedAt = new Date();
 	return withEvidenceFileCleanup((storageKeys) => prisma.$transaction(async (transaction) => {
+		const attendanceReview = await getReportAttendanceReview(transaction, {
+			courseUnitId: input.courseUnitId,
+			studentProfileId: student.id,
+			academicPeriod: { academicYear: input.academicYear },
+		});
+		const attendanceRequirements = getReportAttendanceRequirements(attendanceReview);
+		if (attendanceRequirements.some(({ met }) => !met)) {
+			throw new AppError(
+				422,
+				"Your report was not submitted because one or more attendance requirements were not met. Review each check below.",
+				attendanceRequirements.map(({ path, message }) => ({ path: `attendance.${path}`, message })),
+			);
+		}
+
 		const assignment = await transaction.courseUnitLecturer.findFirst({
 			where: { courseUnitId: input.courseUnitId, academicYear: input.academicYear, isActive: true },
 			select: {
@@ -719,17 +745,11 @@ function distanceBetweenMeters(latitudeA, longitudeA, latitudeB, longitudeB) {
 	return 2 * earthRadiusMeters * Math.asin(Math.sqrt(haversine));
 }
 
-function getLocationBoundaryFailure(distanceMeters, accuracyMeters, boundaryMeters) {
-	if (distanceMeters + accuracyMeters <= boundaryMeters) return null;
-	if (distanceMeters - accuracyMeters > boundaryMeters) {
-		return {
-			failureReason: "OUTSIDE_CLASSROOM",
-			message: "Your device location is outside the configured classroom boundary",
-		};
-	}
+function getLocationBoundaryFailure(distanceMeters, boundaryMeters) {
+	if (distanceMeters <= boundaryMeters) return null;
 	return {
-		failureReason: "LOCATION_ACCURACY_INSUFFICIENT",
-		message: "GPS accuracy overlaps the classroom boundary, so attendance cannot be verified yet. Move to a clearer area or ask an administrator to check the classroom location and boundary.",
+		failureReason: "OUTSIDE_CLASSROOM",
+		message: "Your device location is outside the configured classroom boundary",
 	};
 }
 
@@ -755,6 +775,7 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 			status: true,
 			startsAt: true,
 			endsAt: true,
+			lateGraceMinutes: true,
 			sessionType: true,
 			courseUnit: {
 				select: {
@@ -801,7 +822,7 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 			studentProfileId: student.id,
 			courseUnitId: session.courseUnit.id,
 		},
-		select: { academicPeriod: { select: { startsAt: true, code: true, name: true } } },
+		select: { academicPeriod: { select: { startsAt: true, code: true, name: true, academicYear: true } } },
 	});
 
 	if (!enrollments.some(({ academicPeriod }) => academicYearForPeriod(academicPeriod) === academicYear)) {
@@ -817,7 +838,6 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 
 	const locationFailure = getLocationBoundaryFailure(
 		distanceMeters,
-		input.accuracyMeters,
 		session.classroom.boundaryMeters,
 	);
 	if (locationFailure) {
@@ -857,6 +877,7 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 					status: true,
 					startsAt: true,
 					endsAt: true,
+					lateGraceMinutes: true,
 					sessionType: true,
 					courseUnit: {
 						select: {
@@ -915,7 +936,6 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 			);
 			const currentLocationFailure = getLocationBoundaryFailure(
 				currentDistance,
-				input.accuracyMeters,
 				currentSession.classroom.boundaryMeters,
 			);
 			if (currentLocationFailure) {
@@ -927,7 +947,7 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 					studentProfileId: student.id,
 					courseUnitId: currentSession.courseUnitId,
 				},
-				select: { academicPeriod: { select: { startsAt: true, code: true, name: true } } },
+				select: { academicPeriod: { select: { startsAt: true, code: true, name: true, academicYear: true } } },
 			});
 			const academicYear = academicYearForDate(currentSession.startsAt);
 			if (!currentEnrollments.some(({ academicPeriod }) => academicYearForPeriod(academicPeriod) === academicYear)) {
@@ -938,7 +958,10 @@ export async function submitStudentAttendanceCheckIn(prisma, userId, input, now 
 				data: {
 					sessionId: session.id,
 					studentProfileId: student.id,
-					status: "PRESENT",
+					status: recordedAt.valueOf() > (
+						new Date(currentSession.startsAt).valueOf()
+						+ (currentSession.lateGraceMinutes ?? 10) * 60_000
+					) ? "LATE" : "PRESENT",
 					locationVerified: true,
 					recordedAt,
 					...(currentSession.sessionType === "EXAM" ? { examVerificationStatus: "PENDING_REVIEW" } : {}),
@@ -1100,7 +1123,7 @@ export async function listStudentCatSubmissions(prisma, userId, { page = 1, limi
 		where: { studentProfileId: student.id, courseUnitId: { in: courseUnitIds } },
 		select: {
 			courseUnitId: true,
-			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true, academicYear: true } },
 		},
 	});
 	const items = submissions.map((submission) => {

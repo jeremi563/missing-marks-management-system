@@ -3,128 +3,11 @@ import { createHash, randomBytes } from 'node:crypto';
 import { recordAuditEvent } from '../../shared/services/audit.service.js';
 import { AppError } from '../../shared/utils/app-error.js';
 import { loadAttendanceDiscrepancySource } from '../../shared/services/attendance-discrepancy-source.service.js';
-import { evaluateConfiguredAttendanceEligibility } from '../../shared/services/eligibility.service.js';
 import { createNotification } from '../../shared/services/notification.service.js';
 import { enqueueNotificationOnce } from '../../shared/services/notification-outbox.service.js';
 import { isActiveCodDepartmentMember } from '../../shared/services/designated-cod-authorization.service.js';
 import { academicYearBounds, academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
-
-function isPresentStatus(status) {
-  return ['PRESENT', 'ATTENDED'].includes(String(status).toUpperCase());
-}
-
-async function getReportAttendanceReview(prisma, report) {
-  const academicYear = academicYearForPeriod(report.academicPeriod);
-  const bounds = academicYearBounds(academicYear);
-  if (!bounds) {
-    return {
-      academicYear: null,
-      assessments: {
-        CAT: { status: 'unknown', items: [] },
-        EXAM: { status: 'unknown', items: [] },
-      },
-      classAttendance: { attendedSessions: 0, applicableSessions: 0, percentage: null, minimumPercentage: null, meetsRequirement: null },
-    };
-  }
-
-  const [assessments, classSessions] = await Promise.all([
-    prisma.assessment.findMany({
-      where: {
-        courseUnitId: report.courseUnitId,
-        type: { in: ['CAT', 'EXAM'] },
-        OR: [
-          { assessmentDate: { gte: bounds.startsAt, lt: bounds.endsAt } },
-          { sessions: { some: { startsAt: { gte: bounds.startsAt, lt: bounds.endsAt } } } },
-        ],
-      },
-      select: {
-        id: true,
-        code: true,
-        name: true,
-        type: true,
-        attendanceRecords: {
-          where: { studentProfileId: report.studentProfileId },
-          select: { status: true },
-        },
-        sessions: {
-          where: {
-            sessionType: { in: ['CAT', 'EXAM'] },
-            status: 'completed',
-            startsAt: { gte: bounds.startsAt, lt: bounds.endsAt },
-          },
-          select: {
-            id: true,
-            records: {
-              where: { studentProfileId: report.studentProfileId },
-              select: { status: true },
-            },
-          },
-        },
-      },
-    }),
-    prisma.attendanceSession.findMany({
-      where: {
-        courseUnitId: report.courseUnitId,
-        sessionType: 'CLASS',
-        status: 'completed',
-        startsAt: { gte: bounds.startsAt, lt: bounds.endsAt },
-      },
-      select: {
-        id: true,
-        records: {
-          where: { studentProfileId: report.studentProfileId },
-          select: { status: true },
-        },
-      },
-    }),
-  ]);
-
-  const assessmentGroups = Object.fromEntries(['CAT', 'EXAM'].map((type) => {
-    const items = assessments.filter((assessment) => assessment.type.toUpperCase() === type).map((assessment) => {
-      const attendanceRows = assessment.attendanceRecords;
-      const hasPresentRecord = attendanceRows.some(({ status }) => isPresentStatus(status))
-        || assessment.sessions.some((session) => session.records.some(({ status }) => isPresentStatus(status)));
-      const hasExplicitAbsentRecord = attendanceRows.some(({ status }) => String(status).toUpperCase() === 'ABSENT');
-      const status = hasPresentRecord
-        ? 'present'
-        : hasExplicitAbsentRecord || assessment.sessions.length > 0
-          ? 'absent'
-          : 'unknown';
-      return {
-        assessmentId: assessment.id,
-        name: assessment.name,
-        code: assessment.code,
-        status,
-        completedSessions: assessment.sessions.length,
-      };
-    });
-    const status = items.length === 0 || items.some((item) => item.status === 'unknown')
-      ? 'unknown'
-      : items.some((item) => item.status === 'absent')
-        ? 'absent'
-        : 'present';
-    return [type, { status, items }];
-  }));
-
-  const attendedSessions = classSessions.filter((session) => session.records.some(({ status }) => isPresentStatus(status))).length;
-  const classAttendance = classSessions.length
-    ? await evaluateConfiguredAttendanceEligibility({
-      db: prisma,
-      attendedSessions,
-      applicableSessions: classSessions.length,
-    })
-    : { percentage: null, meetsRequirement: null, minimumPercentage: null };
-
-  return {
-    academicYear,
-    assessments: assessmentGroups,
-    classAttendance: {
-      attendedSessions,
-      applicableSessions: classSessions.length,
-      ...classAttendance,
-    },
-  };
-}
+import { getReportAttendanceReview, isAttendedStatus } from '../../shared/services/report-attendance-eligibility.service.js';
 
 export const getAssignedReports = async (
   prisma,
@@ -849,6 +732,7 @@ export const createAttendanceSession = async (
       endsAt: sessionData.endsAt
         ? new Date(sessionData.endsAt)
         : null,
+      lateGraceMinutes: sessionData.lateGraceMinutes ?? 10,
     },
     select: {
       id: true,
@@ -860,7 +744,9 @@ export const createAttendanceSession = async (
       status: true,
       startsAt: true,
       endsAt: true,
+      lateGraceMinutes: true,
       createdAt: true,
+      updatedAt: true,
       courseUnit: {
         select: {
           id: true,
@@ -953,7 +839,9 @@ export const getAttendanceSessions = async (
         status: true,
         startsAt: true,
         endsAt: true,
+        lateGraceMinutes: true,
         createdAt: true,
+        updatedAt: true,
 
         courseUnit: {
           select: {
@@ -1039,6 +927,7 @@ export const getAttendanceSessionById = async (
       status: true,
       startsAt: true,
       endsAt: true,
+      lateGraceMinutes: true,
       createdAt: true,
       updatedAt: true,
 
@@ -1272,18 +1161,107 @@ export const extendAttendanceSession = async (
   return prisma.attendanceSession.findUnique({ where: { id: sessionId } });
 };
 
+async function markUnrecordedStudentsAbsent(tx, sessionId, recordedAt) {
+  const session = await tx.attendanceSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      courseUnitId: true,
+      startsAt: true,
+      courseUnit: { select: { code: true, name: true } },
+    },
+  });
+  if (!session?.courseUnit) throw new AppError(500, 'Unable to load attendance session details for absence marking.');
+
+  const academicYear = academicYearForDate(session.startsAt);
+  const bounds = academicYearBounds(academicYear);
+  if (!bounds) throw new AppError(500, 'Unable to determine the academic year for this attendance session.');
+
+  const enrollments = await tx.unitEnrollment.findMany({
+    where: {
+      courseUnitId: session.courseUnitId,
+      academicPeriod: {
+        OR: [
+          { academicYear },
+          {
+            academicYear: null,
+            startsAt: { gte: bounds.startsAt, lt: bounds.endsAt },
+          },
+        ],
+      },
+    },
+    select: { studentProfileId: true },
+  });
+  const studentProfileIds = [...new Set(enrollments.map(({ studentProfileId }) => studentProfileId))];
+  if (studentProfileIds.length === 0) return 0;
+
+  const existingRecords = await tx.attendanceRecord.findMany({
+    where: { sessionId, studentProfileId: { in: studentProfileIds } },
+    select: { studentProfileId: true },
+  });
+  const recordedStudentIds = new Set(existingRecords.map(({ studentProfileId }) => studentProfileId));
+  const absentStudentIds = studentProfileIds.filter((studentProfileId) => !recordedStudentIds.has(studentProfileId));
+
+  if (absentStudentIds.length > 0) {
+    await tx.attendanceRecord.createMany({
+      data: absentStudentIds.map((studentProfileId) => ({
+        sessionId,
+        studentProfileId,
+        status: 'ABSENT',
+        locationVerified: false,
+        recordedAt,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  const absentRecords = await tx.attendanceRecord.findMany({
+    where: { sessionId, studentProfileId: { in: studentProfileIds }, status: 'ABSENT' },
+    select: { id: true, studentProfileId: true, locationVerified: true },
+  });
+  if (absentRecords.length > 0) {
+    await tx.attendanceHistory.createMany({
+      data: absentRecords.map((record) => ({
+        attendanceRecordId: record.id,
+        studentProfileId: record.studentProfileId,
+        courseUnitCode: session.courseUnit.code,
+        courseUnitName: session.courseUnit.name,
+        sessionStartedAt: session.startsAt,
+        status: 'ABSENT',
+        locationVerified: record.locationVerified,
+        signedAt: recordedAt,
+      })),
+      skipDuplicates: true,
+    });
+  }
+  return absentStudentIds.length;
+}
+
 export const completeExpiredAttendanceSessions = async (prisma, now = new Date()) => {
-  const result = await prisma.attendanceSession.updateMany({
+  const expiredSessions = await prisma.attendanceSession.findMany({
     where: {
       status: { in: ['scheduled', 'active'] },
       endsAt: { lte: now },
     },
-    data: {
-      status: 'completed',
-      accessTokenHash: null,
-    },
+    select: { id: true, status: true, endsAt: true },
   });
-  return result.count;
+
+  let completedCount = 0;
+  for (const session of expiredSessions) {
+    const completed = await prisma.$transaction(async (tx) => {
+      const result = await tx.attendanceSession.updateMany({
+        where: { id: session.id, status: session.status, endsAt: session.endsAt },
+        data: { status: 'completed', accessTokenHash: null },
+      });
+      if (result.count !== 1) return false;
+      if (session.status === 'active') {
+        await markUnrecordedStudentsAbsent(tx, session.id, now);
+      }
+      return true;
+    });
+    if (completed) completedCount += 1;
+  }
+  return completedCount;
 };
 
 // Feature 6: End an attendance session
@@ -1324,29 +1302,32 @@ lecturerUserId,
     throw error;
   }
 
-  const result = await prisma.attendanceSession.updateMany({
-  where: {
-    id: sessionId,
-    lecturerProfileId: lecturer.id,
-    status: 'active',
-  },
-  data: {
-    status: 'completed',
-    accessTokenHash: null,
-  },
-});
+  return prisma.$transaction(async (tx) => {
+    const result = await tx.attendanceSession.updateMany({
+      where: {
+        id: sessionId,
+        lecturerProfileId: lecturer.id,
+        status: 'active',
+      },
+      data: {
+        status: 'completed',
+        accessTokenHash: null,
+      },
+    });
 
-if (result.count === 0) {
-  const error = new Error(
-    'Session state changed. Only active sessions can be ended.'
-  );
-  error.statusCode = 409;
-  throw error;
-}
+    if (result.count === 0) {
+      const error = new Error(
+        'Session state changed. Only active sessions can be ended.'
+      );
+      error.statusCode = 409;
+      throw error;
+    }
 
-return prisma.attendanceSession.findUnique({
-  where: { id: sessionId },
-});
+    await markUnrecordedStudentsAbsent(tx, sessionId, new Date());
+    return tx.attendanceSession.findUnique({
+      where: { id: sessionId },
+    });
+  });
 };
 
 // Feature 6: Retrieve attendance records
@@ -1371,7 +1352,11 @@ export const getAttendanceSessionRecords = async (
       id: sessionId,
       lecturerProfileId: lecturer.id,
     },
-    select: { id: true },
+    select: {
+      id: true,
+      courseUnitId: true,
+      startsAt: true,
+    },
   });
 
   if (!session) {
@@ -1380,22 +1365,105 @@ export const getAttendanceSessionRecords = async (
     throw error;
   }
 
-  return prisma.attendanceRecord.findMany({
+  const academicYear = academicYearForDate(session.startsAt);
+  const academicYearRange = academicYearBounds(academicYear);
+  if (!academicYearRange) {
+    throw new AppError(500, 'Unable to determine the academic year for this attendance session.');
+  }
+
+  const [enrollments, records] = await Promise.all([
+    prisma.unitEnrollment.findMany({
+      where: {
+        courseUnitId: session.courseUnitId,
+        academicPeriod: {
+          OR: [
+            { academicYear },
+            {
+              academicYear: null,
+              startsAt: {
+                gte: academicYearRange.startsAt,
+                lt: academicYearRange.endsAt,
+              },
+            },
+          ],
+        },
+      },
+      select: {
+        student: {
+          select: {
+            id: true,
+            studentNumber: true,
+            user: { select: { displayName: true } },
+          },
+        },
+        academicPeriod: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            startsAt: true,
+            academicYear: true,
+            semester: true,
+          },
+        },
+      },
+    }),
+    prisma.attendanceRecord.findMany({
     where: { sessionId },
     select: {
       id: true,
+      studentProfileId: true,
       status: true,
       locationVerified: true,
       recordedAt: true,
-      student: {
-        select: {
-          id: true,
-          studentNumber: true,
-        },
-      },
     },
     orderBy: { recordedAt: 'desc' },
-  });
+    }),
+  ]);
+
+  const studentRoster = new Map();
+  for (const enrollment of enrollments) {
+    const student = enrollment.student;
+    if (!student) continue;
+
+    let rosterEntry = studentRoster.get(student.id);
+    if (!rosterEntry) {
+      rosterEntry = { student, academicPeriods: [] };
+      studentRoster.set(student.id, rosterEntry);
+    }
+
+    const period = enrollment.academicPeriod;
+    if (period && !rosterEntry.academicPeriods.some(({ id }) => id === period.id)) {
+      rosterEntry.academicPeriods.push({
+        ...period,
+        academicYear: academicYearForPeriod(period),
+      });
+    }
+  }
+
+  const recordsByStudent = new Map(
+    records.map((record) => [record.studentProfileId, record]),
+  );
+
+  return [...studentRoster.values()]
+    .map(({ student, academicPeriods }) => {
+      const record = recordsByStudent.get(student.id) ?? null;
+      return {
+        id: record?.id ?? null,
+        student,
+        academicPeriods: academicPeriods.sort((left, right) => (
+          new Date(left.startsAt).valueOf() - new Date(right.startsAt).valueOf()
+        )),
+        status: record?.status ?? 'ABSENT',
+        attended: isAttendedStatus(record?.status),
+        locationVerified: record?.locationVerified ?? null,
+        recordedAt: record?.recordedAt ?? null,
+      };
+    })
+    .sort((left, right) => (
+      left.student.studentNumber.localeCompare(right.student.studentNumber)
+      || left.student.id.localeCompare(right.student.id)
+    ));
 };
 
 async function getDiscrepancyLecturer(db, userId) {
@@ -1628,69 +1696,108 @@ export async function getLecturerCatSubmission(db, userId, submissionId) {
 	return { ...item, academicYear: academicYearForDate(item.attendanceRecord.session.startsAt) };
 }
 
-export async function decideLecturerCatSubmission(db, userId, submissionId, { decision, comments, reason }) {
+async function applyLecturerCatSubmissionDecision(tx, userId, lecturer, item, { decision, comments, reason }) {
+	const now = new Date();
+	const status = decision === "VERIFY" ? "VERIFIED" : "REJECTED";
+	const normalizedReason = decision === "REJECT" ? reason.trim() : null;
+	const updated = await tx.catSubmission.updateMany({
+		where: {
+			id: item.id,
+			status: "PENDING_REVIEW",
+			verifiedByLecturerId: null,
+			verifiedAt: null,
+		},
+		data: {
+			status,
+			verifiedByLecturerId: lecturer.id,
+			verifiedAt: now,
+			rejectionReason: normalizedReason,
+			comments: decision === "VERIFY" ? (comments?.trim() || null) : null,
+		},
+	});
+	if (updated.count !== 1) throw new AppError(409, "A CAT submission was decided concurrently; reload before reviewing");
+
+	await recordAuditEvent({
+		prismaClient: tx,
+		actorId: userId,
+		action: `CAT_SUBMISSION_${status}`,
+		entityType: "CatSubmission",
+		entityId: item.id,
+		metadata: {
+			assessmentId: item.assessment.id,
+			attendanceRecordId: item.attendanceRecord.id,
+			attendanceSessionId: item.attendanceRecord.session.id,
+			previousStatus: item.status,
+			status,
+			...(normalizedReason ? { rejectionReason: normalizedReason } : {}),
+		},
+	});
+	await enqueueNotificationOnce(tx, {
+		dedupeKey: `CAT_SUBMISSION_DECISION:${item.id}:${status}`,
+		eventType: `CAT_SUBMISSION_${status}`,
+		entityType: "CatSubmission",
+		entityId: item.id,
+		recipientUserId: item.student.user.id,
+		title: status === "VERIFIED" ? "CAT submission verified" : "CAT submission rejected",
+		message: status === "VERIFIED"
+			? `Your CAT submission for ${item.assessment.courseUnit.code} has been verified.`
+			: `Your CAT submission for ${item.assessment.courseUnit.code} was rejected. Reason: ${normalizedReason}`,
+	});
+	const result = await tx.catSubmission.findUnique({
+		where: { id: item.id },
+		select: catSubmissionSelect,
+	});
+	return { ...result, academicYear: academicYearForDate(item.attendanceRecord.session.startsAt) };
+}
+
+function catSubmissionDecisionSelect() {
+	return {
+		...catSubmissionSelect,
+		student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
+	};
+}
+
+export async function decideLecturerCatSubmission(db, userId, submissionId, input) {
 	return db.$transaction(async (tx) => {
 		const lecturer = await getDiscrepancyLecturer(tx, userId);
 		const item = await tx.catSubmission.findFirst({
 			where: { id: submissionId, ...catSubmissionScope(lecturer.id) },
-			select: {
-				...catSubmissionSelect,
-				student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
-			},
+			select: catSubmissionDecisionSelect(),
 		});
 		if (!item || !hasValidCatSubmissionSource(item)) throw new AppError(404, "CAT submission not found");
 		if (item.status !== "PENDING_REVIEW") throw new AppError(409, "This CAT submission has already been decided");
+		return applyLecturerCatSubmissionDecision(tx, userId, lecturer, item, input);
+	});
+}
 
-		const now = new Date();
-		const status = decision === "VERIFY" ? "VERIFIED" : "REJECTED";
-		const updated = await tx.catSubmission.updateMany({
+export async function decideLecturerCatSubmissions(db, userId, { submissionIds, ...input }) {
+	return db.$transaction(async (tx) => {
+		const lecturer = await getDiscrepancyLecturer(tx, userId);
+		const items = await tx.catSubmission.findMany({
 			where: {
-				id: item.id,
-				status: "PENDING_REVIEW",
-				verifiedByLecturerId: null,
-				verifiedAt: null,
+				id: { in: submissionIds },
+				...catSubmissionScope(lecturer.id),
 			},
-			data: {
-				status,
-				verifiedByLecturerId: lecturer.id,
-				verifiedAt: now,
-				rejectionReason: decision === "REJECT" ? reason.trim() : null,
-				comments: decision === "VERIFY" ? (comments?.trim() || null) : null,
-			},
+			select: catSubmissionDecisionSelect(),
 		});
-		if (updated.count !== 1) throw new AppError(409, "This CAT submission was decided concurrently; reload before reviewing");
+		if (items.length !== submissionIds.length) {
+			throw new AppError(404, "One or more CAT submissions were not found");
+		}
 
-		await recordAuditEvent({
-			prismaClient: tx,
-			actorId: userId,
-			action: `CAT_SUBMISSION_${status}`,
-			entityType: "CatSubmission",
-			entityId: item.id,
-			metadata: {
-				assessmentId: item.assessment.id,
-				attendanceRecordId: item.attendanceRecord.id,
-				attendanceSessionId: item.attendanceRecord.session.id,
-				previousStatus: item.status,
-				status,
-				...(decision === "REJECT" ? { rejectionReason: reason.trim() } : {}),
-			},
-		});
-		await enqueueNotificationOnce(tx, {
-			dedupeKey: `CAT_SUBMISSION_DECISION:${item.id}:${status}`,
-			eventType: `CAT_SUBMISSION_${status}`,
-			entityType: "CatSubmission",
-			entityId: item.id,
-			recipientUserId: item.student.user.id,
-			title: status === "VERIFIED" ? "CAT submission verified" : "CAT submission rejected",
-			message: status === "VERIFIED"
-				? `Your CAT submission for ${item.assessment.courseUnit.code} has been verified.`
-				: `Your CAT submission for ${item.assessment.courseUnit.code} was rejected. Reason: ${reason.trim()}`,
-		});
-		const result = await tx.catSubmission.findUnique({
-			where: { id: item.id },
-			select: catSubmissionSelect,
-		});
-		return { ...result, academicYear: academicYearForDate(item.attendanceRecord.session.startsAt) };
+		const itemsById = new Map(items.map((item) => [item.id, item]));
+		const orderedItems = submissionIds.map((id) => itemsById.get(id));
+		if (orderedItems.some((item) => !hasValidCatSubmissionSource(item))) {
+			throw new AppError(404, "One or more CAT submissions were not found");
+		}
+		if (orderedItems.some((item) => item.status !== "PENDING_REVIEW")) {
+			throw new AppError(409, "All selected CAT submissions must still be pending review");
+		}
+
+		const submissions = [];
+		for (const item of orderedItems) {
+			submissions.push(await applyLecturerCatSubmissionDecision(tx, userId, lecturer, item, input));
+		}
+		return { count: submissions.length, submissions };
 	});
 }
 
@@ -1784,69 +1891,107 @@ export async function getLecturerExamAttendanceRecord(db, userId, recordId) {
 	return { ...item, academicYear: academicYearForDate(item.session.startsAt) };
 }
 
-export async function decideLecturerExamAttendance(db, userId, recordId, { decision, comments, reason }) {
+function examAttendanceDecisionSelect() {
+	return {
+		...examAttendanceRecordSelect,
+		student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
+	};
+}
+
+async function applyLecturerExamAttendanceDecision(tx, userId, lecturer, item, { decision, comments, reason }) {
+	const now = new Date();
+	const status = decision === "VERIFY" ? "VERIFIED" : "REJECTED";
+	const rejectionReason = decision === "REJECT" ? reason.trim() : null;
+	const verificationComments = decision === "VERIFY" ? comments?.trim() || null : null;
+	const updated = await tx.attendanceRecord.updateMany({
+		where: {
+			id: item.id,
+			examVerificationStatus: "PENDING_REVIEW",
+			examVerifiedByLecturerId: null,
+			examVerifiedAt: null,
+		},
+		data: {
+			examVerificationStatus: status,
+			examVerifiedByLecturerId: lecturer.id,
+			examVerifiedAt: now,
+			examRejectionReason: rejectionReason,
+			examComments: verificationComments,
+		},
+	});
+	if (updated.count !== 1) throw new AppError(409, "An examination attendance record was decided concurrently; reload before reviewing");
+
+	await recordAuditEvent({
+		prismaClient: tx,
+		actorId: userId,
+		action: `EXAM_ATTENDANCE_${status}`,
+		entityType: "AttendanceRecord",
+		entityId: item.id,
+		metadata: {
+			assessmentId: item.session.assessment.id,
+			attendanceSessionId: item.session.id,
+			previousStatus: item.examVerificationStatus,
+			status,
+			...(rejectionReason ? { rejectionReason } : {}),
+		},
+	});
+	await enqueueNotificationOnce(tx, {
+		dedupeKey: `EXAM_ATTENDANCE_DECISION:${item.id}:${status}`,
+		eventType: `EXAM_ATTENDANCE_${status}`,
+		entityType: "AttendanceRecord",
+		entityId: item.id,
+		recipientUserId: item.student.user.id,
+		title: status === "VERIFIED" ? "Examination attendance verified" : "Examination attendance rejected",
+		message: status === "VERIFIED"
+			? `Your examination attendance for ${item.session.courseUnit.code} has been verified.`
+			: `Your examination attendance for ${item.session.courseUnit.code} was rejected. Reason: ${rejectionReason}`,
+	});
+	const result = await tx.attendanceRecord.findUnique({
+		where: { id: item.id },
+		select: examAttendanceRecordSelect,
+	});
+	return { ...result, academicYear: academicYearForDate(item.session.startsAt) };
+}
+
+export async function decideLecturerExamAttendance(db, userId, recordId, input) {
 	return db.$transaction(async (tx) => {
 		const lecturer = await getDiscrepancyLecturer(tx, userId);
 		const item = await tx.attendanceRecord.findFirst({
 			where: { id: recordId, ...examAttendanceScope(lecturer.id) },
-			select: {
-				...examAttendanceRecordSelect,
-				student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
-			},
+			select: examAttendanceDecisionSelect(),
 		});
 		if (!item || !isValidExamAttendanceRecord(item)) throw new AppError(404, "Examination attendance record not found");
 		if (item.examVerificationStatus !== "PENDING_REVIEW") throw new AppError(409, "This examination attendance record has already been decided");
+		return applyLecturerExamAttendanceDecision(tx, userId, lecturer, item, input);
+	});
+}
 
-		const now = new Date();
-		const status = decision === "VERIFY" ? "VERIFIED" : "REJECTED";
-		const rejectionReason = decision === "REJECT" ? reason.trim() : null;
-		const verificationComments = decision === "VERIFY" ? comments?.trim() || null : null;
-		const updated = await tx.attendanceRecord.updateMany({
+export async function decideLecturerExamAttendanceRecords(db, userId, { recordIds, ...input }) {
+	return db.$transaction(async (tx) => {
+		const lecturer = await getDiscrepancyLecturer(tx, userId);
+		const items = await tx.attendanceRecord.findMany({
 			where: {
-				id: item.id,
-				examVerificationStatus: "PENDING_REVIEW",
-				examVerifiedByLecturerId: null,
-				examVerifiedAt: null,
+				id: { in: recordIds },
+				...examAttendanceScope(lecturer.id),
 			},
-			data: {
-				examVerificationStatus: status,
-				examVerifiedByLecturerId: lecturer.id,
-				examVerifiedAt: now,
-				examRejectionReason: rejectionReason,
-				examComments: verificationComments,
-			},
+			select: examAttendanceDecisionSelect(),
 		});
-		if (updated.count !== 1) throw new AppError(409, "This examination attendance record was decided concurrently; reload before reviewing");
+		if (items.length !== recordIds.length) {
+			throw new AppError(404, "One or more examination attendance records were not found");
+		}
 
-		await recordAuditEvent({
-			prismaClient: tx,
-			actorId: userId,
-			action: `EXAM_ATTENDANCE_${status}`,
-			entityType: "AttendanceRecord",
-			entityId: item.id,
-			metadata: {
-				assessmentId: item.session.assessment.id,
-				attendanceSessionId: item.session.id,
-				previousStatus: item.examVerificationStatus,
-				status,
-				...(rejectionReason ? { rejectionReason } : {}),
-			},
-		});
-		await enqueueNotificationOnce(tx, {
-			dedupeKey: `EXAM_ATTENDANCE_DECISION:${item.id}:${status}`,
-			eventType: `EXAM_ATTENDANCE_${status}`,
-			entityType: "AttendanceRecord",
-			entityId: item.id,
-			recipientUserId: item.student.user.id,
-			title: status === "VERIFIED" ? "Examination attendance verified" : "Examination attendance rejected",
-			message: status === "VERIFIED"
-				? `Your examination attendance for ${item.session.courseUnit.code} has been verified.`
-				: `Your examination attendance for ${item.session.courseUnit.code} was rejected. Reason: ${rejectionReason}`,
-		});
-		const result = await tx.attendanceRecord.findUnique({
-			where: { id: item.id },
-			select: examAttendanceRecordSelect,
-		});
-		return { ...result, academicYear: academicYearForDate(item.session.startsAt) };
+		const itemsById = new Map(items.map((item) => [item.id, item]));
+		const orderedItems = recordIds.map((id) => itemsById.get(id));
+		if (orderedItems.some((item) => !isValidExamAttendanceRecord(item))) {
+			throw new AppError(404, "One or more examination attendance records were not found");
+		}
+		if (orderedItems.some((item) => item.examVerificationStatus !== "PENDING_REVIEW")) {
+			throw new AppError(409, "All selected examination attendance records must still be pending review");
+		}
+
+		const records = [];
+		for (const item of orderedItems) {
+			records.push(await applyLecturerExamAttendanceDecision(tx, userId, lecturer, item, input));
+		}
+		return { count: records.length, records };
 	});
 }

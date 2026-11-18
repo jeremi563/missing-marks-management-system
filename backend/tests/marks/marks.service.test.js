@@ -7,6 +7,7 @@ process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
 const {
 	decideCodMarkCorrection,
+	getAssessmentRoster,
 	getStudentMarks,
 	submitInitialMarks,
 	submitMarkCorrection,
@@ -14,14 +15,24 @@ const {
 
 const period = { id: "period-1", name: "Semester 1", code: "S1", startsAt: new Date("2026-09-01T00:00:00.000Z"), endsAt: new Date("2027-01-01T00:00:00.000Z") };
 
-function initialDb({ enrollments = [{ id: "enrollment-1", studentProfileId: "student-1" }], createError } = {}) {
-	const calls = { created: [], audits: [], assignment: null };
+function initialDb({
+	enrollments = [{ id: "enrollment-1", studentProfileId: "student-1" }],
+	attendanceRecords = [{
+		studentProfileId: "student-1",
+		status: "PRESENT",
+		examVerificationStatus: null,
+		recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+	}],
+	assessmentType = "CAT",
+	createError,
+} = {}) {
+	const calls = { created: [], audits: [], assignment: null, attendanceQuery: null };
 	const tx = {
 		lecturerProfile: {
 			findFirst: async () => ({ id: "lecturer-1" }),
 		},
 		assessment: {
-			findUnique: async () => ({ id: "assessment-1", courseUnitId: "unit-1", maximumMarks: 100 }),
+			findUnique: async () => ({ id: "assessment-1", courseUnitId: "unit-1", type: assessmentType, maximumMarks: 100 }),
 		},
 		academicPeriod: {
 			findUnique: async () => period,
@@ -31,6 +42,12 @@ function initialDb({ enrollments = [{ id: "enrollment-1", studentProfileId: "stu
 		},
 		unitEnrollment: {
 			findMany: async () => enrollments,
+		},
+		attendanceRecord: {
+			findMany: async (args) => {
+				calls.attendanceQuery = args;
+				return attendanceRecords;
+			},
 		},
 		studentMark: {
 			create: async ({ data }) => {
@@ -56,15 +73,21 @@ test("initial mark submission validates the academic-year assignment and records
 		userId: "lecturer-user",
 		assessmentId: "assessment-1",
 		academicPeriodId: period.id,
-		marks: [{ studentProfileId: "student-1", value: 87.25 }],
+		marks: [{ studentProfileId: "student-1", value: 87 }],
 	});
 
 	assert.equal(result.created.length, 1);
 	assert.equal(calls.created[0].enteredByLecturerId, "lecturer-1");
-	assert.equal(calls.created[0].value, 87.25);
+	assert.equal(calls.created[0].value, 87);
 	assert.equal(calls.assignment.academicYear, "2026/27");
 	assert.equal(calls.audits[0].action, "LECTURER_INITIAL_MARK_SUBMITTED");
-	assert.equal(calls.audits[0].metadata.finalValue, 87.25);
+	assert.equal(calls.audits[0].metadata.finalValue, 87);
+	assert.deepEqual(calls.attendanceQuery.where.session.is, {
+		assessmentId: "assessment-1",
+		courseUnitId: "unit-1",
+		sessionType: "CAT",
+		startsAt: { gte: period.startsAt, lte: period.endsAt },
+	});
 });
 
 test("initial marks reject values above the assessment maximum", async () => {
@@ -75,9 +98,124 @@ test("initial marks reject values above the assessment maximum", async () => {
 			userId: "lecturer-user",
 			assessmentId: "assessment-1",
 			academicPeriodId: period.id,
-			marks: [{ studentProfileId: "student-1", value: 100.01 }],
+			marks: [{ studentProfileId: "student-1", value: 101 }],
 		}),
 		{ statusCode: 400 },
+	);
+	assert.equal(calls.created.length, 0);
+});
+
+test("initial marks require recorded present attendance and verified exam attendance", async () => {
+	const { db: absentDb, calls: absentCalls } = initialDb({
+		attendanceRecords: [{
+			studentProfileId: "student-1",
+			status: "ABSENT",
+			examVerificationStatus: null,
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}],
+	});
+	await assert.rejects(
+		() => submitInitialMarks({
+			db: absentDb,
+			userId: "lecturer-user",
+			assessmentId: "assessment-1",
+			academicPeriodId: period.id,
+			marks: [{ studentProfileId: "student-1", value: 20 }],
+		}),
+		{ statusCode: 422 },
+	);
+	assert.equal(absentCalls.created.length, 0);
+
+	const examAttendance = {
+		studentProfileId: "student-1",
+		status: "PRESENT",
+		examVerificationStatus: "PENDING_REVIEW",
+		recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+	};
+	const { db: pendingExamDb, calls: pendingExamCalls } = initialDb({
+		assessmentType: "EXAM",
+		attendanceRecords: [examAttendance],
+	});
+	await assert.rejects(
+		() => submitInitialMarks({
+			db: pendingExamDb,
+			userId: "lecturer-user",
+			assessmentId: "assessment-1",
+			academicPeriodId: period.id,
+			marks: [{ studentProfileId: "student-1", value: 20 }],
+		}),
+		{ statusCode: 422 },
+	);
+	assert.equal(pendingExamCalls.created.length, 0);
+
+	const { db: verifiedExamDb, calls: verifiedExamCalls } = initialDb({
+		assessmentType: "EXAM",
+		attendanceRecords: [{ ...examAttendance, examVerificationStatus: "VERIFIED", locationVerified: false }],
+	});
+	const result = await submitInitialMarks({
+		db: verifiedExamDb,
+		userId: "lecturer-user",
+		assessmentId: "assessment-1",
+		academicPeriodId: period.id,
+		marks: [{ studentProfileId: "student-1", value: 20 }],
+	});
+	assert.equal(result.created.length, 1);
+	assert.equal(verifiedExamCalls.created.length, 1);
+});
+
+test("assessment rosters identify students with no eligible attendance as incomplete", async () => {
+	const { db, calls } = initialDb({
+		enrollments: [
+			{
+				id: "enrollment-1",
+				studentProfileId: "student-1",
+				student: { id: "student-1", studentNumber: "CS/00001/26", user: { displayName: "Alex" } },
+				marks: [],
+			},
+			{
+				id: "enrollment-2",
+				studentProfileId: "student-2",
+				student: { id: "student-2", studentNumber: "CS/00002/26", user: { displayName: "Sam" } },
+				marks: [],
+			},
+		],
+		attendanceRecords: [{
+			studentProfileId: "student-1",
+			status: "LATE",
+			examVerificationStatus: null,
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}, {
+			studentProfileId: "student-2",
+			status: "ABSENT",
+			examVerificationStatus: null,
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}],
+	});
+	const result = await getAssessmentRoster({
+		db,
+		userId: "lecturer-user",
+		assessmentId: "assessment-1",
+		academicPeriodId: period.id,
+	});
+
+	assert.equal(result.students[0].attendance.eligible, true);
+	assert.equal(result.students[0].attendance.status, "LATE");
+	assert.equal(result.students[1].attendance.eligible, false);
+	assert.equal(result.students[1].attendance.status, "ABSENT");
+	assert.equal(calls.attendanceQuery.where.studentProfileId.in.length, 2);
+});
+
+test("initial mark submission rejects decimal values in the service layer", async () => {
+	const { db, calls } = initialDb();
+	await assert.rejects(
+		() => submitInitialMarks({
+			db,
+			userId: "lecturer-user",
+			assessmentId: "assessment-1",
+			academicPeriodId: period.id,
+			marks: [{ studentProfileId: "student-1", value: 20.5 }],
+		}),
+		{ statusCode: 400, message: "Marks must be nonnegative whole numbers" },
 	);
 	assert.equal(calls.created.length, 0);
 });
@@ -109,7 +247,18 @@ test("initial submission rejects students without enrollment and never overwrite
 	);
 });
 
-function correctionDb({ mark = { id: "mark-1", value: 60, version: 4 }, pending = null, createError } = {}) {
+function correctionDb({
+	mark = { id: "mark-1", value: 60, version: 4 },
+	pending = null,
+	createError,
+	assessmentType = "CAT",
+	attendanceRecords = [{
+		studentProfileId: "student-1",
+		status: "PRESENT",
+		examVerificationStatus: assessmentType === "EXAM" ? "VERIFIED" : null,
+		recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+	}],
+} = {}) {
 	const calls = { create: null, audits: [], outbox: [] };
 	const report = {
 		id: "report-1",
@@ -121,13 +270,14 @@ function correctionDb({ mark = { id: "mark-1", value: 60, version: 4 }, pending 
 		assessmentId: "assessment-1",
 		academicPeriod: period,
 		courseUnit: { departmentId: "department-1", department: { designatedCodUserId: "cod-user" } },
-		assessment: { id: "assessment-1", courseUnitId: "unit-1", maximumMarks: 100 },
+		assessment: { id: "assessment-1", courseUnitId: "unit-1", type: assessmentType, maximumMarks: 100 },
 	};
 	const tx = {
 		lecturerProfile: { findFirst: async () => ({ id: "lecturer-1" }) },
 		missingMarkReport: { findFirst: async () => report },
 		courseUnitLecturer: { findFirst: async () => ({ id: "assignment-1" }) },
 		unitEnrollment: { findUnique: async () => ({ id: "enrollment-1" }) },
+		attendanceRecord: { findMany: async () => attendanceRecords },
 		markCorrection: {
 			findFirst: async () => pending,
 			create: async ({ data }) => {
@@ -201,7 +351,68 @@ test("correction proposals record a verified no-mark baseline and reject a pendi
 	);
 });
 
-const correctionForDecision = ({ markId = "mark-1", baselineVerified = true, status = "PENDING_REVIEW" } = {}) => ({
+test("correction proposals require eligible attendance and a whole-number mark", async () => {
+	const { db: decimalDb, calls: decimalCalls } = correctionDb();
+	await assert.rejects(
+		() => submitMarkCorrection({
+			db: decimalDb,
+			userId: "lecturer-user",
+			reportId: "report-1",
+			proposedValue: 75.5,
+			reason: "Fractional proposal.",
+		}),
+		{ statusCode: 400 },
+	);
+	assert.equal(decimalCalls.create, null);
+
+	const { db: absentDb, calls: absentCalls } = correctionDb({
+		attendanceRecords: [{
+			studentProfileId: "student-1",
+			status: "ABSENT",
+			examVerificationStatus: null,
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}],
+	});
+	await assert.rejects(
+		() => submitMarkCorrection({
+			db: absentDb,
+			userId: "lecturer-user",
+			reportId: "report-1",
+			proposedValue: 75,
+			reason: "No recorded attendance.",
+		}),
+		{ statusCode: 422 },
+	);
+	assert.equal(absentCalls.create, null);
+
+	const { db: pendingExamDb, calls: pendingExamCalls } = correctionDb({
+		assessmentType: "EXAM",
+		attendanceRecords: [{
+			studentProfileId: "student-1",
+			status: "PRESENT",
+			examVerificationStatus: "PENDING_REVIEW",
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}],
+	});
+	await assert.rejects(
+		() => submitMarkCorrection({
+			db: pendingExamDb,
+			userId: "lecturer-user",
+			reportId: "report-1",
+			proposedValue: 75,
+			reason: "Exam verification is pending.",
+		}),
+		{ statusCode: 422 },
+	);
+	assert.equal(pendingExamCalls.create, null);
+});
+
+const correctionForDecision = ({
+	markId = "mark-1",
+	baselineVerified = true,
+	status = "PENDING_REVIEW",
+	assessmentType = "CAT",
+} = {}) => ({
 	id: "correction-1",
 	reportId: "report-1",
 	markId,
@@ -223,12 +434,23 @@ const correctionForDecision = ({ markId = "mark-1", baselineVerified = true, sta
 		student: { user: { id: "student-user" } },
 		courseUnit: { departmentId: "department-1" },
 		academicPeriod: period,
-		assessment: { id: "assessment-1", maximumMarks: 100 },
+		assessment: { id: "assessment-1", courseUnitId: "unit-1", type: assessmentType, maximumMarks: 100 },
 	},
 	proposedBy: { user: { id: "lecturer-user" } },
 });
 
-function decisionDb({ correction = correctionForDecision(), currentMark = { id: "mark-1", value: 60, version: 4, unitEnrollmentId: "enrollment-1", assessmentId: "assessment-1" }, markUpdateCount = 1, departmentAuthorized = true } = {}) {
+function decisionDb({
+	correction = correctionForDecision(),
+	currentMark = { id: "mark-1", value: 60, version: 4, unitEnrollmentId: "enrollment-1", assessmentId: "assessment-1" },
+	markUpdateCount = 1,
+	departmentAuthorized = true,
+	attendanceRecords = [{
+		studentProfileId: "student-1",
+		status: "PRESENT",
+		examVerificationStatus: "VERIFIED",
+		recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+	}],
+} = {}) {
 	const calls = { markUpdate: null, markCreate: null, correctionUpdate: null, audits: [], outbox: [] };
 	const tx = {
 		markCorrection: {
@@ -239,6 +461,7 @@ function decisionDb({ correction = correctionForDecision(), currentMark = { id: 
 		user: { findFirst: async () => departmentAuthorized ? ({ id: "cod-user" }) : null },
 		department: { findMany: async () => departmentAuthorized ? [{ id: "department-1" }] : [] },
 		unitEnrollment: { findUnique: async () => ({ id: "enrollment-1" }) },
+		attendanceRecord: { findMany: async () => attendanceRecords },
 		studentMark: {
 			findUnique: async () => currentMark,
 			updateMany: async ({ where, data }) => { calls.markUpdate = { where, data }; return { count: markUpdateCount }; },
@@ -296,6 +519,52 @@ test("COD approval creates a missing mark but refuses stale, legacy and unauthor
 	const { db: selfReviewDb } = decisionDb({ correction: selfReviewed });
 	const selfReview = await decideCodMarkCorrection({ db: selfReviewDb, userId: "cod-user", correctionId: "correction-1", decision: "APPROVE" });
 	assert.equal(selfReview.status, "APPROVED");
+});
+
+test("COD approval requires eligible attendance and a whole-number proposal", async () => {
+	const correction = correctionForDecision();
+	const { db: absentDb, calls: absentCalls } = decisionDb({
+		correction,
+		attendanceRecords: [{
+			studentProfileId: "student-1",
+			status: "ABSENT",
+			examVerificationStatus: null,
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}],
+	});
+	await assert.rejects(
+		() => decideCodMarkCorrection({ db: absentDb, userId: "cod-user", correctionId: "correction-1", decision: "APPROVE" }),
+		{ statusCode: 422 },
+	);
+	assert.equal(absentCalls.markUpdate, null);
+	assert.equal(absentCalls.markCreate, null);
+
+	const pendingExam = correctionForDecision({ assessmentType: "EXAM" });
+	const { db: pendingExamDb, calls: pendingExamCalls } = decisionDb({
+		correction: pendingExam,
+		attendanceRecords: [{
+			studentProfileId: "student-1",
+			status: "PRESENT",
+			examVerificationStatus: "PENDING_REVIEW",
+			recordedAt: new Date("2026-10-12T10:00:00.000Z"),
+		}],
+	});
+	await assert.rejects(
+		() => decideCodMarkCorrection({ db: pendingExamDb, userId: "cod-user", correctionId: "correction-1", decision: "APPROVE" }),
+		{ statusCode: 422 },
+	);
+	assert.equal(pendingExamCalls.markUpdate, null);
+	assert.equal(pendingExamCalls.markCreate, null);
+
+	const fractional = correctionForDecision();
+	fractional.proposedValue = 75.5;
+	const { db: fractionalDb, calls: fractionalCalls } = decisionDb({ correction: fractional });
+	await assert.rejects(
+		() => decideCodMarkCorrection({ db: fractionalDb, userId: "cod-user", correctionId: "correction-1", decision: "APPROVE" }),
+		{ statusCode: 409 },
+	);
+	assert.equal(fractionalCalls.markUpdate, null);
+	assert.equal(fractionalCalls.markCreate, null);
 });
 
 test("COD rejection requires comments and leaves marks unchanged", async () => {

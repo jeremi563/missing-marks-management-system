@@ -62,6 +62,9 @@ describe('LecturerAttendance', () => {
     fireEvent.change(screen.getByLabelText('Session date'), { target: { value: '2026-11-13' } })
     fireEvent.change(screen.getByLabelText('Start time'), { target: { value: '09:00' } })
     fireEvent.change(screen.getByLabelText(/End time/), { target: { value: '10:00' } })
+    const lateGraceInput = screen.getByLabelText('Late grace (minutes)')
+    expect(lateGraceInput.value).toBe('10')
+    fireEvent.change(lateGraceInput, { target: { value: '15' } })
 
     expect(screen.queryByLabelText(/End date/)).toBeNull()
     const form = screen.getByRole('button', { name: 'Create cat session' }).closest('form')
@@ -73,6 +76,7 @@ describe('LecturerAttendance', () => {
         classroomId: 'classroom-1',
         startsAt: new Date('2026-11-13T09:00').toISOString(),
         endsAt: new Date('2026-11-13T10:00').toISOString(),
+        lateGraceMinutes: 15,
       }))
     })
   })

@@ -169,6 +169,12 @@ test("validates attendance check-in token and GPS coordinates", () => {
 	assert.equal(coarseLocationError, undefined);
 	assert.equal(coarseLocationRequest.validatedBody.accuracyMeters, 6000);
 
+	let missingAccuracyError;
+	const missingAccuracyRequest = { body: { token: req.body.token, latitude: req.body.latitude, longitude: req.body.longitude } };
+	validateStudentAttendanceCheckIn(missingAccuracyRequest, {}, (error) => { missingAccuracyError = error; });
+	assert.equal(missingAccuracyError, undefined);
+	assert.deepEqual(missingAccuracyRequest.validatedBody, missingAccuracyRequest.body);
+
 	let invalidError;
 	validateStudentAttendanceCheckIn({ body: { ...req.body, latitude: 91 } }, {}, (error) => { invalidError = error; });
 	assert.equal(invalidError.statusCode, 400);

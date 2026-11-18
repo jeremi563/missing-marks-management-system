@@ -8,7 +8,7 @@ export async function getLecturerDepartmentOptions(db, userId) {
 		select: {
 			unitAssignments: {
 				where: { isActive: true },
-				select: { courseUnit: { select: { department: { select: { id: true, name: true, code: true } } } } },
+				select: { courseUnit: { select: { department: { select: { id: true, name: true, code: true, initials: true } } } } },
 			},
 		},
 	});

@@ -9,7 +9,7 @@ import {
   getLecturerReportCorrections,
   submitLecturerCorrection,
 } from '../../api/lecturer'
-import { extractRecords } from '../shared/recordUtils'
+import { extractRecords, formatMarkValue } from '../shared/recordUtils'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import StatusChip from '../../components/ui/StatusChip'
@@ -164,7 +164,7 @@ export default function ReportReviewPanel({ reportId, onClose }) {
         <form className="details-card" onSubmit={(event) => { event.preventDefault(); act(() => submitLecturerCorrection(reportId, { proposedValue: Number(correctionValue), reason: correctionReason.trim() })).then(() => { setCorrectionValue(''); setCorrectionReason('') }) }}>
           <h3>Propose mark correction</h3>
           {hasPendingCorrection && <p role="status">A correction is pending COD review. Submit another proposal after a decision.</p>}
-          <label htmlFor="proposed-mark">Proposed mark</label><input id="proposed-mark" type="number" step="0.01" min="0" max={report.assessment?.maximumMarks ?? undefined} value={correctionValue} onChange={(event) => setCorrectionValue(event.target.value)} required />
+          <label htmlFor="proposed-mark">Proposed mark</label><input id="proposed-mark" type="number" step="1" min="0" max={report.assessment?.maximumMarks ?? undefined} value={correctionValue} onChange={(event) => setCorrectionValue(event.target.value)} required />
           <label htmlFor="correction-reason">Justification</label><textarea id="correction-reason" value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} maxLength={2000} required />
           <button className="button button-secondary" disabled={busy || hasPendingCorrection}>Submit correction</button>
         </form>
@@ -174,7 +174,7 @@ export default function ReportReviewPanel({ reportId, onClose }) {
         {corrections.length
           ? corrections.map((correction) => <article key={correction.id} style={{ borderTop: '1px solid var(--border-color, #ddd)', paddingTop: 12, marginTop: 12 }}>
             <div className="record-actions"><StatusChip status={correction.status} /><span>{new Date(correction.createdAt).toLocaleString()}</span></div>
-            <p>Original: {correction.originalValue ?? 'No official mark'} · Proposed: {correction.proposedValue}{correction.finalValue != null ? ` · Final: ${correction.finalValue}` : ''}</p>
+            <p>Original: {correction.originalValue == null ? 'No official mark' : formatMarkValue(correction.originalValue)} · Proposed: {formatMarkValue(correction.proposedValue)}{correction.finalValue != null ? ` · Final: ${formatMarkValue(correction.finalValue)}` : ''}</p>
             <p><strong>Reason:</strong> {correction.reason}</p>
             {correction.reviewComments && <p><strong>COD comments:</strong> {correction.reviewComments}</p>}
             {correction.decidedAt && <p>Decision recorded {new Date(correction.decidedAt).toLocaleString()}{correction.reviewedBy?.displayName ? ` by ${correction.reviewedBy.displayName}` : ''}</p>}

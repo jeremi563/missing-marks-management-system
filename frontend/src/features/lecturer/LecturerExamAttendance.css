@@ -1,0 +1,30 @@
+.exam-attendance-bulk-actions {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.exam-attendance-bulk-actions > label:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+}
+
+.exam-attendance-bulk-rejection {
+  display: grid;
+  gap: 12px;
+}
+
+.exam-attendance-page input[type='checkbox'] {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  accent-color: var(--primary);
+}
+
+.exam-attendance-page th:first-child,
+.exam-attendance-page td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}

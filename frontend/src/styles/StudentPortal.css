@@ -10,9 +10,9 @@
 .student-summary-card p { margin: 0; color: var(--muted); font-size: 12px; }
 .student-summary-card h3 { margin: 5px 0 0; font-size: 22px; }
 .student-stat-icon, .student-report-icon, .notification-icon { display: grid; place-items: center; width: 42px; height: 42px; flex: 0 0 auto; border-radius: 12px; color: var(--primary); background: var(--secondary-soft); }
-.student-stat-orange { color: #bd7d15; background: #fff5df; }
-.student-stat-green { color: #1d8b5a; background: #e9f8f0; }
-.student-stat-red { color: #c14949; background: #fff0ef; }
+.student-stat-orange { color: #bd7d15; background: #d8cfbd; }
+.student-stat-green { color: #1d8b5a; background: #c5d2cb; }
+.student-stat-red { color: #c14949; background: #d8cbca; }
 .student-section-heading, .student-report-main, .student-report-actions, .student-reports-toolbar, .notification-title-row, .comment-header, .appeal-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 15px; }
 .student-section-heading h3 { margin: 0; }
 .student-section-heading p { color: var(--muted); font-size: 13px; }
@@ -32,7 +32,7 @@
 .report-attendance-review-heading p,
 .report-attendance-review-note { margin: 0; color: var(--muted); font-size: 12px; }
 .report-attendance-check-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.report-attendance-check { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 12px; background: #f7faf9; border: 1px solid var(--line); border-radius: 10px; }
+.report-attendance-check { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 12px; background: #d1d4d3; border: 1px solid var(--line); border-radius: 10px; }
 .report-attendance-check > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; }
 .report-attendance-check strong { color: var(--ink); font-size: 12px; }
 .report-attendance-check span { color: #647d80; font-size: 11px; font-weight: 700; }
@@ -50,7 +50,7 @@
 .notification-card.read { opacity: .78; }
 .notification-date { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
 .notification-filters { display: flex; gap: 8px; }
-.notification-filters button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: white; }
+.notification-filters button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: #d8d8d8; }
 .notification-filters button.active { color: var(--primary); background: var(--secondary-soft); border-color: #d9cbff; }
 .notifications-toolbar { display: flex; justify-content: space-between; gap: 12px; }
 .notifications-empty { padding: 45px 20px; color: var(--muted); text-align: center; }
@@ -98,6 +98,7 @@
 
 .student-portal .dashboard-content {
   width: min(100%, 1480px);
+  min-width: 0;
   padding: clamp(22px, 3vw, 42px);
 }
 
@@ -125,7 +126,7 @@
   min-height: 206px;
   padding: 32px 36px;
   color: #173840;
-  background: linear-gradient(90deg, #90c6cf4f, #33a1b4b4 50%, #63acb9a9 100%);
+  background: linear-gradient(90deg, #7aa7b04f, #2b8898b4 50%, #54929da9 100%);
   border: 1px solid rgba(51, 161, 180, .28);
   border-radius: 17px;
   box-shadow: var(--account-card-shadow);
@@ -151,7 +152,7 @@
   margin-top: 17px;
   padding: 7px 10px;
   color: #173840;
-  background: #ffffff66;
+  background: #d8d8d866;
   border: 1px solid #17384024;
   border-radius: 7px;
   font-size: 11px;
@@ -216,23 +217,23 @@
   width: 44px;
   height: 44px;
   color: var(--primary);
-  background: #e4f4f1;
+  background: #c1cecc;
   border-radius: 12px;
 }
 
 .student-portal .student-stat-orange {
   color: #a36a12;
-  background: #fff3dc;
+  background: #d8cdba;
 }
 
 .student-portal .student-stat-green {
   color: #16704f;
-  background: #e5f5ec;
+  background: #c2cfc8;
 }
 
 .student-portal .student-stat-red {
   color: #a7423e;
-  background: #fff0ed;
+  background: #d8cbc9;
 }
 
 .student-portal .student-recent-section,
@@ -291,7 +292,7 @@
 .student-portal .attendance-table th {
   padding: 12px 14px;
   color: #627780;
-  background: #f5f8f8;
+  background: #cfd2d2;
   border-bottom: 1px solid var(--student-line);
   font-size: 10px;
   letter-spacing: .08em;
@@ -307,7 +308,7 @@
 
 .student-portal .student-reports-table tbody tr:hover,
 .student-portal .attendance-table tbody tr:hover {
-  background: #f8fbfb;
+  background: #d2d4d4;
 }
 
 .student-portal .student-view-link,
@@ -322,7 +323,7 @@
 .student-portal .appeals-empty {
   padding: 36px 20px;
   color: var(--student-muted);
-  background: #f8fbfb;
+  background: #d2d4d4;
   border: 1px dashed #cbdcde;
   border-radius: 11px;
   text-align: center;
@@ -454,7 +455,7 @@
   width: 44px;
   height: 44px;
   color: var(--student-teal);
-  background: #e5f4f2;
+  background: #c2cecc;
   border-radius: 11px;
 }
 
@@ -519,7 +520,7 @@
 
 .student-portal .button-secondary:hover {
   color: var(--student-teal-dark);
-  background: #f5fafa;
+  background: #cfd4d4;
   border-color: #abc9c9;
 }
 
@@ -548,7 +549,7 @@
 .student-portal textarea {
   min-height: 44px;
   color: var(--student-ink);
-  background: #fbfdfd;
+  background: #d4d6d6;
   border-color: #d7e3e5;
   border-radius: 8px;
   font-size: 13px;
@@ -617,7 +618,7 @@
   width: fit-content;
   padding: 7px 10px;
   color: #8b5a11;
-  background: #fff5df;
+  background: #d8cfbd;
   border: 1px solid #f2e4c4;
   border-radius: 99px;
   font-size: 11px;
@@ -641,13 +642,13 @@
 
 .student-portal .attendance-status.late {
   color: #8b5a11;
-  background: #fff5df;
+  background: #d8cfbd;
   border-color: #f2e4c4;
 }
 
 .student-portal .location-status.unverified {
   color: #687d85;
-  background: #f0f4f4;
+  background: #cbcece;
   border-color: #dfe8e8;
 }
 
@@ -678,7 +679,7 @@
 .student-portal .profile-field {
   min-width: 0;
   padding: 14px;
-  background: #f7fafa;
+  background: #d1d4d4;
   border: 1px solid #e7eeee;
   border-radius: 9px;
 }
@@ -706,7 +707,7 @@
   margin: 0;
   padding: 15px;
   color: #405b64;
-  background: #f7fafa;
+  background: #d1d4d4;
   border: 1px solid #e7eeee;
   border-radius: 9px;
   font-size: 13px;
@@ -734,7 +735,7 @@
   bottom: 0;
   left: 6px;
   width: 1px;
-  background: #d9e7e7;
+  background: #b8c3c3;
   content: "";
 }
 
@@ -743,7 +744,7 @@
   width: 13px;
   height: 13px;
   margin-top: 2px;
-  background: #73c9b6;
+  background: #61aa9a;
   border: 3px solid #e1f3ef;
   border-radius: 50%;
 }
@@ -808,7 +809,7 @@
   gap: 8px;
   padding: 9px 12px;
   color: #37606a;
-  background: #e8f3f2;
+  background: #c4cdcc;
   border: 1px solid #d5e7e5;
   border-radius: 9px;
   font-size: 11px;
@@ -831,7 +832,7 @@
   width: 42px;
   height: 42px;
   color: var(--student-teal);
-  background: #e5f4f2;
+  background: #c2cecc;
   border-radius: 10px;
 }
 
@@ -856,14 +857,14 @@
 }
 
 .student-portal .existing-appeal {
-  background: #f4f8f8;
+  background: #ced2d2;
   border-color: var(--student-line);
 }
 
 .student-portal .appeal-modal-overlay {
   z-index: 50;
   padding: 20px;
-  background: #102a35a8;
+  background: #0e232da8;
   backdrop-filter: blur(3px);
 }
 
@@ -888,7 +889,7 @@
 
 .student-portal .selected-report-info {
   padding: 12px;
-  background: #f5f9f9;
+  background: #cfd3d3;
   border: 1px solid #e4eeee;
   border-radius: 9px;
 }
@@ -913,7 +914,7 @@
 
 .student-portal .notification-filters button.active {
   color: #086c70;
-  background: #e6f4f2;
+  background: #c2cecc;
   border-color: #c5e3df;
 }
 
@@ -924,7 +925,7 @@
 }
 
 .student-portal .notification-card.unread {
-  background: #f8fcfb;
+  background: #d2d5d4;
   border-left: 3px solid #42a896;
 }
 
@@ -936,7 +937,7 @@
   width: 40px;
   height: 40px;
   color: var(--student-teal);
-  background: #e5f4f2;
+  background: #c2cecc;
   border-radius: 10px;
 }
 
@@ -959,7 +960,7 @@
 .student-portal .unread-indicator {
   padding: 4px 7px;
   color: #08766f;
-  background: #e2f5ef;
+  background: #bfcfca;
   border-radius: 99px;
   font-size: 9px;
   font-weight: 800;
@@ -971,7 +972,7 @@
   align-items: center;
   gap: 17px;
   padding: 23px;
-  background: #123b45;
+  background: #0f323a;
   border: 1px solid #1c4a53;
   border-radius: 14px;
   box-shadow: var(--account-card-shadow);
@@ -983,7 +984,7 @@
   width: 62px;
   height: 62px;
   color: #0e4b50;
-  background: #9be0ce;
+  background: #83beaf;
   border: 3px solid #c8f2e6;
   border-radius: 50%;
 }
@@ -1004,7 +1005,7 @@
   display: inline-flex;
   padding: 4px 8px;
   color: #d6f5e9;
-  background: #ffffff12;
+  background: #d8d8d812;
   border: 1px solid #ffffff20;
   border-radius: 99px;
   font-size: 10px;
@@ -1024,7 +1025,7 @@
   height: 36px;
   flex: 0 0 auto;
   color: var(--student-teal);
-  background: #e5f4f2;
+  background: #c2cecc;
   border-radius: 9px;
 }
 
@@ -1072,23 +1073,23 @@
   height: 42px;
   flex: 0 0 auto;
   color: var(--student-teal);
-  background: #e5f4f2;
+  background: #c2cecc;
   border-radius: 11px;
 }
 
 .student-portal .stat-icon.present {
   color: #16704f;
-  background: #e5f5ec;
+  background: #c2cfc8;
 }
 
 .student-portal .stat-icon.absent {
   color: #a7423e;
-  background: #fff0ed;
+  background: #d8cbc9;
 }
 
 .student-portal .stat-icon.late {
   color: #a36a12;
-  background: #fff3dc;
+  background: #d8cdba;
 }
 
 .student-portal .attendance-filters {
@@ -1103,7 +1104,7 @@
   gap: 8px;
   padding: 5px;
   overflow-x: auto;
-  background: #f0f5f5;
+  background: #cbcfcf;
   border: 1px solid var(--student-line);
   border-radius: 11px;
 }
@@ -1133,7 +1134,7 @@
   min-width: 22px;
   padding: 2px 6px;
   color: #567078;
-  background: #e8f0f0;
+  background: #c4cbcb;
   border-radius: 99px;
   font-size: 10px;
   font-weight: 750;
@@ -1142,7 +1143,7 @@
 
 .student-portal .attendance-type-tabs button.active .attendance-type-count {
   color: #086c70;
-  background: #e3f3f0;
+  background: #c0cdcb;
 }
 
 .student-portal .attendance-search {
@@ -1152,7 +1153,7 @@
   width: min(100%, 330px);
   padding-left: 11px;
   color: #71868d;
-  background: #fbfdfd;
+  background: #d4d6d6;
   border: 1px solid #d7e3e5;
   border-radius: 8px;
 }

@@ -37,6 +37,8 @@ export const attendanceDiscrepancyListQuerySchema = z.object({
 export const lecturerStudentsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
+  academicPeriodId: z.string().uuid().optional(),
+  search: z.string().trim().min(1).max(100).optional(),
   departmentIds: z.string().optional().transform((value) => value === undefined ? undefined : value ? value.split(',') : []).pipe(
     z.array(z.string().uuid()).max(50).optional(),
   ),
@@ -64,6 +66,25 @@ export const catSubmissionDecisionSchema = z.object({
     context.addIssue({ code: 'custom', path: ['comments'], message: 'Comments are only valid when verifying.' });
   }
 });
+export const catSubmissionBulkDecisionSchema = z.object({
+  submissionIds: z.array(z.string().uuid()).min(1).max(100),
+  decision: z.enum(['VERIFY', 'REJECT']),
+  comments: z.string().trim().max(2000).optional(),
+  reason: z.string().trim().min(1).max(2000).optional(),
+}).strict().superRefine((body, context) => {
+  if (new Set(body.submissionIds).size !== body.submissionIds.length) {
+    context.addIssue({ code: 'custom', path: ['submissionIds'], message: 'Submission IDs must be unique.' });
+  }
+  if (body.decision === 'REJECT' && !body.reason) {
+    context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is required.' });
+  }
+  if (body.decision === 'VERIFY' && body.reason !== undefined) {
+    context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is only valid when rejecting.' });
+  }
+  if (body.decision === 'REJECT' && body.comments !== undefined) {
+    context.addIssue({ code: 'custom', path: ['comments'], message: 'Comments are only valid when verifying.' });
+  }
+});
 export const examAttendanceQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
@@ -77,6 +98,25 @@ export const examAttendanceDecisionSchema = z.object({
   comments: z.string().trim().max(2000).optional(),
   reason: z.string().trim().min(1).max(2000).optional(),
 }).strict().superRefine((body, context) => {
+  if (body.decision === 'REJECT' && !body.reason) {
+    context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is required.' });
+  }
+  if (body.decision === 'VERIFY' && body.reason !== undefined) {
+    context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is only valid when rejecting.' });
+  }
+  if (body.decision === 'REJECT' && body.comments !== undefined) {
+    context.addIssue({ code: 'custom', path: ['comments'], message: 'Comments are only valid when verifying.' });
+  }
+});
+export const examAttendanceBulkDecisionSchema = z.object({
+  recordIds: z.array(z.string().uuid()).min(1).max(100),
+  decision: z.enum(['VERIFY', 'REJECT']),
+  comments: z.string().trim().max(2000).optional(),
+  reason: z.string().trim().min(1).max(2000).optional(),
+}).strict().superRefine((body, context) => {
+  if (new Set(body.recordIds).size !== body.recordIds.length) {
+    context.addIssue({ code: 'custom', path: ['recordIds'], message: 'Attendance record IDs must be unique.' });
+  }
   if (body.decision === 'REJECT' && !body.reason) {
     context.addIssue({ code: 'custom', path: ['reason'], message: 'A rejection reason is required.' });
   }
@@ -131,12 +171,8 @@ export const submitCorrectionSchema = z.object({
   proposedValue: z
     .number()
     .finite()
-    .nonnegative('Proposed mark cannot be negative.')
-    .refine(
-      (value) =>
-        Math.abs(value * 100 - Math.round(value * 100)) < 1e-8,
-      'Proposed mark cannot have more than two decimal places.'
-    ),
+    .int('Proposed mark must be a whole number.')
+    .nonnegative('Proposed mark cannot be negative.'),
 
   reason: z
     .string()
@@ -174,6 +210,7 @@ export const createAttendanceSessionSchema = z
         offset: true,
         message: 'A valid session end datetime is required.',
       }),
+    lateGraceMinutes: z.number().int().min(0).max(60).default(10),
   })
   .superRefine((data, context) => {
     if (data.sessionType === 'CLASS' && data.assessmentId) {

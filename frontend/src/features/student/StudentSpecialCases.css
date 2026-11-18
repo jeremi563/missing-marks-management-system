@@ -44,7 +44,7 @@
 .special-case-note {
   padding: 0.75rem;
   border-radius: 0.5rem;
-  background: var(--surface-muted, #f1f5f9);
+  background: var(--surface-muted, #cccfd3);
 }
 
 .required-label {
@@ -84,7 +84,7 @@
   padding: 1rem;
   border: 1px solid var(--border-color, #d9e0e8);
   border-radius: 0.75rem;
-  background: var(--surface, #fff);
+  background: var(--surface, #d8d8d8);
 }
 
 .special-case-card {

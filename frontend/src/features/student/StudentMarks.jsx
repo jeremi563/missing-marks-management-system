@@ -3,7 +3,7 @@ import { getStudentMarks } from '../../api/student'
 import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
-import { extractRecords } from '../shared/recordUtils'
+import { extractRecords, formatMarkValue } from '../shared/recordUtils'
 
 export default function StudentMarks() {
   const [marks, setMarks] = useState([])
@@ -56,7 +56,7 @@ export default function StudentMarks() {
                           <td>{mark.assessment.courseUnit.code} · {mark.assessment.courseUnit.name}</td>
                           <td>{mark.assessment.code ? `${mark.assessment.code} · ` : ''}{mark.assessment.name} ({mark.assessment.type})</td>
                           <td>{mark.enrollment.academicPeriod.name}</td>
-                          <td><strong>{mark.value}</strong></td>
+                          <td><strong>{formatMarkValue(mark.value)}</strong></td>
                           <td>{mark.assessment.maximumMarks ?? '—'}</td>
                         </tr>
                       ))}

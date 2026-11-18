@@ -5,6 +5,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import Pager from '../../components/ui/Pager'
+import { academicYearForPeriod } from '../../shared/academic-year'
 import { extractRecords } from '../shared/recordUtils'
 import './LecturerStudents.css'
 
@@ -22,7 +23,10 @@ export default function LecturerStudents() {
   const [students, setStudents] = useState([])
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 })
   const [assignedDepartments, setAssignedDepartments] = useState([])
+  const [academicPeriods, setAcademicPeriods] = useState([])
   const [selectedDepartmentIds, setSelectedDepartmentIds] = useState(null)
+  const [academicPeriodId, setAcademicPeriodId] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [page, setPage] = useState(1)
   const [error, setError] = useState('')
   const [departmentError, setDepartmentError] = useState('')
@@ -57,10 +61,13 @@ export default function LecturerStudents() {
       page,
       limit: PAGE_SIZE,
       ...(departmentFilter !== undefined ? { departmentIds: departmentFilter } : {}),
+      ...(academicPeriodId ? { academicPeriodId } : {}),
+      ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}),
     })
       .then((response) => {
         if (!active) return
         setStudents(extractRecords(response))
+        setAcademicPeriods(Array.isArray(response?.filters?.academicPeriods) ? response.filters.academicPeriods : [])
         setPagination(response?.pagination ?? { page, totalPages: 1, total: 0 })
         setError('')
       })
@@ -71,7 +78,7 @@ export default function LecturerStudents() {
         if (active) setLoading(false)
       })
     return () => { active = false }
-  }, [page, refresh, departmentFilter])
+  }, [academicPeriodId, page, refresh, departmentFilter, searchTerm])
 
   const groupedStudents = useMemo(() => {
     const groups = new Map()
@@ -118,6 +125,18 @@ export default function LecturerStudents() {
   const selectDepartments = (departmentIds) => {
     setLoading(true)
     setSelectedDepartmentIds(departmentIds)
+    setPage(1)
+  }
+
+  const selectAcademicPeriod = (periodId) => {
+    setLoading(true)
+    setAcademicPeriodId(periodId)
+    setPage(1)
+  }
+
+  const searchStudents = (value) => {
+    setLoading(true)
+    setSearchTerm(value)
     setPage(1)
   }
 
@@ -200,11 +219,28 @@ export default function LecturerStudents() {
               : 'in your assigned course units.'}</p>
           </div>
         </div>
+        <div className="lecturer-student-filters">
+          <label>
+            <span>Academic year and semester</span>
+            <select aria-label="Filter by academic year and semester" value={academicPeriodId} onChange={(event) => selectAcademicPeriod(event.target.value)}>
+              <option value="">All academic years and semesters</option>
+              {academicPeriods.map((period) => (
+                <option key={period.id} value={period.id}>
+                  {academicYearForPeriod(period) || 'Academic year not specified'} · {period.semester ? `Semester ${period.semester}` : 'Semester not specified'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>Search students or course units</span>
+            <input aria-label="Search students or course units" value={searchTerm} onChange={(event) => searchStudents(event.target.value)} placeholder="Name, registration number, or course unit" />
+          </label>
+        </div>
         {loading ? <LoadingState message="Loading your students…" /> :
           error ? <ErrorState title="Unable to load students" message={error} onRetry={retry} /> :
             !selectedIds.length ? <EmptyState title="Select a department" message="Choose at least one assigned department to view its course enrollments." /> :
               students.length === 0 ? (
-                <EmptyState title="No enrolled students" message="Students enrolled in your assigned course units will appear here." />
+                <EmptyState title={academicPeriodId || searchTerm ? 'No matching enrollments' : 'No enrolled students'} message={academicPeriodId || searchTerm ? 'Try another academic year, semester, student, or course unit.' : 'Students enrolled in your assigned course units will appear here.'} />
               ) : (
                 <>
                   {groupedStudents.map(({ courseUnit, enrollments }) => (
@@ -215,13 +251,15 @@ export default function LecturerStudents() {
                       </header>
                       <div className="table-wrap">
                         <table>
-                          <thead><tr><th>Student name</th><th>Registration number</th><th>Email</th><th>Academic period</th></tr></thead>
+                          <thead><tr><th>Student name</th><th>Registration number</th><th>Email</th><th>Academic year</th><th>Semester</th><th>Academic period</th></tr></thead>
                           <tbody>
                             {enrollments.map(({ id, student, academicPeriod }) => (
                               <tr key={id}>
                                 <td>{student.user?.displayName || '—'}</td>
                                 <td>{student.studentNumber}</td>
                                 <td>{student.officialEmail || student.user?.email || '—'}</td>
+                                <td>{academicYearForPeriod(academicPeriod) || 'Not specified'}</td>
+                                <td>{academicPeriod.semester ? `Semester ${academicPeriod.semester}` : 'Not specified'}</td>
                                 <td>{academicPeriod.code || academicPeriod.name}</td>
                               </tr>
                             ))}

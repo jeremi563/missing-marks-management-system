@@ -1,0 +1,1 @@
+-- The AcademicPeriod-to-Course table is created by the later schedule migration.

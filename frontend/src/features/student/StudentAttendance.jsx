@@ -389,7 +389,7 @@ function StudentAttendance() {
           <div className="attendance-table-wrapper">
             <table className="attendance-table">
               <thead>
-                <tr><th>Assessment</th><th>Course unit</th><th>Academic year</th><th>Check-in</th><th>Verification status</th><th>Decision details</th></tr>
+                <tr><th>Assessment</th><th>Course unit</th><th>Academic year</th><th>Check-in</th><th>Attendance</th><th>Verification status</th><th>Decision details</th></tr>
               </thead>
               <tbody>
                 {examAttendance.map((record) => (
@@ -398,6 +398,7 @@ function StudentAttendance() {
                     <td>{record.session?.courseUnit?.code} · {record.session?.courseUnit?.name}</td>
                     <td>{record.academicYear || 'Not available'}</td>
                     <td>{formatDate(record.recordedAt)}</td>
+                    <td><span className={`attendance-status ${(record.status || 'unknown').toLowerCase()}`}>{(record.status || 'UNKNOWN').replaceAll('_', ' ')}</span></td>
                     <td><span className={`attendance-status ${(record.examVerificationStatus || 'unknown').toLowerCase()}`}>{(record.examVerificationStatus || 'UNKNOWN').replaceAll('_', ' ')}</span></td>
                     <td>
                       {record.examRejectionReason && <span><strong>Reason:</strong> {record.examRejectionReason}</span>}

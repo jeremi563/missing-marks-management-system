@@ -3,6 +3,26 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { getStudentProfile, getStudentReportOptions, buildAcademicYearOptions, getStudentReports, getStudentReportById, submitMissingMarkReport, getStudentAttendanceHistory, submitStudentAttendanceCheckIn, listStudentCatSubmissions, listStudentExamAttendance, getStudentNotifications, updateStudentReport, withdrawStudentReport, getStudentReportComments, submitStudentAppeal } from "../../src/modules/student/student.service.js";
 
+const eligibleReportAttendance = () => ({
+	assessment: {
+		findMany: async () => [
+			{ id: "cat-1", type: "CAT", code: "CAT1", name: "CAT 1", attendanceRecords: [{ status: "PRESENT" }], sessions: [] },
+			{ id: "cat-2", type: "CAT", code: "CAT2", name: "CAT 2", attendanceRecords: [], sessions: [{ id: "cat-session-2", records: [{ status: "ABSENT" }] }] },
+			{ id: "exam-1", type: "EXAM", code: "EXAM", name: "Final Exam", attendanceRecords: [{ status: "LATE" }], sessions: [] },
+		],
+	},
+	attendanceSession: {
+		findMany: async () => [
+			{ id: "class-1", records: [{ status: "PRESENT" }] },
+			{ id: "class-2", records: [{ status: "PRESENT" }] },
+			{ id: "class-3", records: [{ status: "PRESENT" }] },
+			{ id: "class-4", records: [{ status: "PRESENT" }] },
+			{ id: "class-5", records: [{ status: "ABSENT" }] },
+		],
+	},
+	systemSetting: { findUnique: async () => ({ value: 80 }) },
+});
+
 test("loads profile by authenticated user ID and selects only permitted fields", async () => {
 	let query;
 	const expectedProfile = {
@@ -11,6 +31,7 @@ test("loads profile by authenticated user ID and selects only permitted fields",
 		officialEmail: "student@university.example.test",
 		notificationEmail: "student@example.test",
 		user: { id: "user-1", displayName: "Example Student", email: "student@example.test" },
+		course: null,
 	};
 	const prisma = {
 		studentProfile: {
@@ -26,6 +47,30 @@ test("loads profile by authenticated user ID and selects only permitted fields",
 	assert.deepEqual(query.where, { userId: "user-1" });
 	assert.deepEqual(result, expectedProfile);
 	assert.equal("passwordHash" in query.select.user.select, false);
+});
+
+test("adds the course matched by the student's registration number to the profile", async () => {
+	let courseQuery;
+	const prisma = {
+		studentProfile: {
+			findUnique: async () => ({
+				id: "profile-1",
+				studentNumber: "IN16/01234/26",
+				user: { id: "user-1", displayName: "Example Student", email: "student@example.test" },
+			}),
+		},
+		course: {
+			findFirst: async (query) => {
+				courseQuery = query;
+				return { code: "16", name: "Computer Science" };
+			},
+		},
+	};
+
+	const result = await getStudentProfile(prisma, "user-1");
+
+	assert.deepEqual(courseQuery.where, { code: "16", department: { initials: "IN" } });
+	assert.deepEqual(result.course, { code: "16", name: "Computer Science" });
 });
 
 test("returns not found when the authenticated user has no student profile", async () => {
@@ -188,6 +233,7 @@ test("submits an enrolled student's report with status history and audit atomica
 		},
 		assessment: { findFirst: async () => ({ id: "assessment-1" }) },
 		$transaction: async (callback) => callback({
+			...eligibleReportAttendance(),
 			courseUnitLecturer: { findFirst: async () => null },
 			missingMarkReport: { create: async ({ data }) => { reportData = data; return report; } },
 			reportStatusHistory: { create: async ({ data }) => { transactionCalls.push({ type: "history", data }); } },
@@ -220,6 +266,7 @@ test("submits a report without assessment metadata using the default component l
 		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
 		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
 		$transaction: async (callback) => callback({
+			...eligibleReportAttendance(),
 			courseUnitLecturer: { findFirst: async () => null },
 			missingMarkReport: { create: async ({ data }) => { reportData = data; return { id: "report-1" }; } },
 			reportStatusHistory: { create: async () => {} },
@@ -249,6 +296,7 @@ test("automatically assigns new reports to the lecturer owning the unit for that
 		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
 		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
 		$transaction: async (callback) => callback({
+			...eligibleReportAttendance(),
 			courseUnitLecturer: {
 				findFirst: async ({ where }) => {
 					assert.deepEqual(where, { courseUnitId: "unit-1", academicYear: "2026/27", isActive: true });
@@ -277,6 +325,50 @@ test("automatically assigns new reports to the lecturer owning the unit for that
 	assert.equal(notifications[0].data.userId, "lecturer-user-1");
 	assert.equal(notifications[0].data.title, "New missing-mark report");
 	assert.equal(transactionCalls.filter(({ type }) => type === "history").length, 2);
+});
+
+test("blocks report submission and returns the status of each attendance requirement", async () => {
+	let reportCreated = false;
+	const prisma = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		unitEnrollment: {
+			findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Computing" }, academicPeriod: { id: "period-1", name: "2026/27", startsAt: new Date("2026-09-01") } }],
+		},
+		$transaction: async (callback) => callback({
+			assessment: {
+				findMany: async () => [
+					{ id: "cat-1", type: "CAT", code: "CAT1", name: "CAT 1", attendanceRecords: [{ status: "ABSENT" }], sessions: [{ id: "cat-session", records: [{ status: "ABSENT" }] }] },
+				],
+			},
+			attendanceSession: {
+				findMany: async () => [
+					{ id: "class-1", records: [{ status: "PRESENT" }] },
+					{ id: "class-2", records: [{ status: "PRESENT" }] },
+					{ id: "class-3", records: [{ status: "PRESENT" }] },
+					{ id: "class-4", records: [{ status: "ABSENT" }] },
+					{ id: "class-5", records: [{ status: "ABSENT" }] },
+				],
+			},
+			systemSetting: { findUnique: async () => ({ value: 80 }) },
+			missingMarkReport: { create: async () => { reportCreated = true; } },
+		}),
+	};
+
+	await assert.rejects(submitMissingMarkReport(prisma, "user-1", {
+		courseUnitId: "unit-1",
+		academicYear: "2026/27",
+		description: "Missing mark",
+	}), (error) => {
+		assert.equal(error.statusCode, 422);
+		assert.match(error.message, /attendance requirements were not met/);
+		assert.deepEqual(error.details.map(({ path, message }) => [path, message]), [
+			["attendance.classAttendance", "Class attendance: not met; attended 3 of 5 completed sessions (60%; 80% required)."],
+			["attendance.catAttendance", "CAT attendance: not met; attendance at at least one CAT session is required."],
+			["attendance.examAttendance", "Exam attendance: not confirmed; exam attendance is required."],
+		]);
+		return true;
+	});
+	assert.equal(reportCreated, false);
 });
 
 test("rejects report submission when the student is not enrolled", async () => {
@@ -373,6 +465,7 @@ function createCheckInPrisma(overrides = {}) {
 		status: "active",
 		startsAt: new Date("2026-11-13T06:00:00.000Z"),
 		endsAt: new Date("2026-11-13T08:00:00.000Z"),
+		lateGraceMinutes: 10,
 		sessionType: "CLASS",
 		courseUnit: {
 			id: "unit-1",
@@ -388,7 +481,12 @@ function createCheckInPrisma(overrides = {}) {
 		?? (async () => [{ academicPeriod: { startsAt: new Date("2026-09-01"), code: "2026-T1", name: "2026 Term 1" } }]);
 	const tx = {
 		$queryRaw: async () => [{ id: session.id }],
-		attendanceSession: { findUnique: async () => session },
+		attendanceSession: {
+			findUnique: async ({ select }) => {
+				assert.equal(select.lateGraceMinutes, true);
+				return session;
+			},
+		},
 		assessment: { findFirst: async ({ where }) => ({ id: where.id }) },
 		unitEnrollment: { findMany: enrollmentLookup },
 		lecturerProfile: { findUnique: async () => ({ userId: "lecturer-user-1" }) },
@@ -454,11 +552,38 @@ test("records a student attendance check-in only after active-session, enrollmen
 	assert.equal(result.record.id, "record-1");
 	assert.equal(result.record.locationVerified, true);
 	assert.equal(state.records.length, 1);
-	assert.equal(state.records[0].status, "PRESENT");
+	assert.equal(state.records[0].status, "LATE");
 	assert.equal(state.histories[0].attendanceRecordId, "record-1");
 	assert.equal(state.histories[0].courseUnitCode, "IN101");
 	assert.equal(state.attempts.length, 0);
 	assert.equal(state.catSubmissions.length, 0);
+});
+
+test("keeps check-ins present through the grace cutoff and marks later check-ins late", async () => {
+	for (const [minute, expectedStatus] of [[10, "PRESENT"], [11, "LATE"]]) {
+		const { prisma, state } = createCheckInPrisma();
+		const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+			token: "a".repeat(64),
+			latitude: -1.286389,
+			longitude: 36.817223,
+			accuracyMeters: 8,
+		}, new Date(`2026-11-13T06:${String(minute).padStart(2, "0")}:00.000Z`));
+
+		assert.equal(result.record.status, expectedStatus);
+		assert.equal(state.histories[0].status, expectedStatus);
+	}
+});
+
+test("uses the grace period configured for the individual session", async () => {
+	const { prisma } = createCheckInPrisma({ session: { lateGraceMinutes: 20 } });
+	const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+		token: "a".repeat(64),
+		latitude: -1.286389,
+		longitude: 36.817223,
+		accuracyMeters: 8,
+	}, new Date("2026-11-13T06:15:00.000Z"));
+
+	assert.equal(result.record.status, "PRESENT");
 });
 
 test("an active session accepts location check-ins before its scheduled start time", async () => {
@@ -488,6 +613,7 @@ test("CAT check-in atomically creates a pending submission and notifies its sess
 	}, new Date("2026-11-13T07:00:00.000Z"));
 
 	assert.equal(state.records.length, 1);
+	assert.equal(state.records[0].status, "LATE");
 	assert.equal(state.histories.length, 1);
 	assert.equal(state.catSubmissions.length, 1);
 	assert.equal(state.catSubmissions[0].status, "PENDING_REVIEW");
@@ -512,6 +638,7 @@ test("EXAM check-in creates a pending verification state and audits it without c
 	}, new Date("2026-11-13T07:00:00.000Z"));
 
 	assert.equal(state.records.length, 1);
+	assert.equal(state.records[0].status, "LATE");
 	assert.equal(state.histories.length, 1);
 	assert.equal(state.records[0].examVerificationStatus, "PENDING_REVIEW");
 	assert.equal(result.record.examVerificationStatus, "PENDING_REVIEW");
@@ -696,23 +823,28 @@ test("rejects check-ins outside the configured boundary and records a rejected a
 	assert.equal(state.records.length, 0);
 });
 
-test("validates coarse GPS readings through the location check instead of request validation", async () => {
-	const { prisma, state } = createCheckInPrisma();
-	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
-		token: "a".repeat(64),
-		latitude: -1.286389,
-		longitude: 36.817223,
-		accuracyMeters: 6000,
-	}, new Date("2026-11-13T07:00:00.000Z")), {
-		statusCode: 403,
-		message: "GPS accuracy overlaps the classroom boundary, so attendance cannot be verified yet. Move to a clearer area or ask an administrator to check the classroom location and boundary.",
-	});
+test("accepts an in-boundary reported location for class, CAT, and exam sessions regardless of device accuracy", async () => {
+	for (const sessionType of ["CLASS", "CAT", "EXAM"]) {
+		const { prisma, state } = createCheckInPrisma({
+			session: {
+				sessionType,
+				...(sessionType !== "CLASS" ? { assessmentId: "assessment-1" } : {}),
+			},
+		});
+		const result = await submitStudentAttendanceCheckIn(prisma, "user-1", {
+			token: "a".repeat(64),
+			latitude: -1.286389,
+			longitude: 36.817223,
+			accuracyMeters: 6000,
+		}, new Date("2026-11-13T07:00:00.000Z"));
 
-	assert.equal(state.attempts[0].failureReason, "LOCATION_ACCURACY_INSUFFICIENT");
-	assert.equal(state.records.length, 0);
+		assert.equal(result.record.locationVerified, true, `${sessionType} should use the configured boundary`);
+		assert.equal(state.attempts.length, 0);
+		assert.equal(state.records.length, 1);
+	}
 });
 
-test("classifies an estimated point just outside the boundary as uncertain when GPS accuracy overlaps it", async () => {
+test("rejects a reported location outside the configured boundary even when accuracy overlaps it", async () => {
 	const { prisma, state } = createCheckInPrisma();
 	await assert.rejects(submitStudentAttendanceCheckIn(prisma, "user-1", {
 		token: "a".repeat(64),
@@ -721,10 +853,10 @@ test("classifies an estimated point just outside the boundary as uncertain when 
 		accuracyMeters: 8,
 	}, new Date("2026-11-13T07:00:00.000Z")), {
 		statusCode: 403,
-		message: "GPS accuracy overlaps the classroom boundary, so attendance cannot be verified yet. Move to a clearer area or ask an administrator to check the classroom location and boundary.",
+		message: "Your device location is outside the configured classroom boundary",
 	});
 
-	assert.equal(state.attempts[0].failureReason, "LOCATION_ACCURACY_INSUFFICIENT");
+	assert.equal(state.attempts[0].failureReason, "OUTSIDE_CLASSROOM");
 	assert.equal(state.records.length, 0);
 });
 

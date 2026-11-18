@@ -5,6 +5,7 @@ import {
 	listLecturerExamAttendance,
 	getLecturerExamAttendanceRecord,
 	decideLecturerExamAttendance,
+	decideLecturerExamAttendanceRecords,
 } from "../../src/modules/lecturer/lecturer.service.js";
 
 function fixture({ status = "PENDING_REVIEW", updateCount = 1 } = {}) {
@@ -38,11 +39,13 @@ function fixture({ status = "PENDING_REVIEW", updateCount = 1 } = {}) {
 				},
 			},
 		},
+		items: [],
 		updateCount,
 		audit: [],
 		outbox: [],
 		calls: {},
 	};
+	state.items.push(state.item);
 	const db = {
 		lecturerProfile: {
 			findUnique: async ({ where }) => {
@@ -51,18 +54,24 @@ function fixture({ status = "PENDING_REVIEW", updateCount = 1 } = {}) {
 			},
 		},
 		attendanceRecord: {
-			findMany: async (args) => { state.calls.findMany = args; return [state.item]; },
+			findMany: async (args) => {
+				state.calls.findMany = args;
+				const ids = args.where.id?.in;
+				return state.items.filter((item) => !ids || ids.includes(item.id));
+			},
 			count: async (args) => { state.calls.count = args; return 1; },
 			findFirst: async (args) => {
 				state.calls.findFirst = args;
-				return args.where.session.is.lecturerProfileId === state.item.session.lecturerProfileId ? state.item : null;
+				const item = state.items.find(({ id }) => id === args.where.id);
+				return item?.session.lecturerProfileId === args.where.session.is.lecturerProfileId ? item : null;
 			},
 			updateMany: async ({ where, data }) => {
-				state.calls.updateMany = { where, data };
-				if (state.updateCount === 1) Object.assign(state.item, data);
+				state.calls.updateMany = [...(state.calls.updateMany ?? []), { where, data }];
+				const item = state.items.find(({ id }) => id === where.id);
+				if (state.updateCount === 1 && item) Object.assign(item, data);
 				return { count: state.updateCount };
 			},
-			findUnique: async () => state.item,
+			findUnique: async ({ where }) => state.items.find(({ id }) => id === where.id) ?? null,
 		},
 		auditLog: { create: async ({ data }) => { state.audit.push(data); return data; } },
 		notificationOutbox: { create: async ({ data }) => { state.outbox.push(data); return data; } },
@@ -114,7 +123,7 @@ test("lecturer verification records reviewer, timestamp, audit and student notif
 	assert.equal(result.examVerifiedByLecturerId, "lecturer-1");
 	assert.ok(result.examVerifiedAt instanceof Date);
 	assert.equal(result.examComments, "Matched the examination register.");
-	assert.equal(state.calls.updateMany.where.examVerificationStatus, "PENDING_REVIEW");
+	assert.equal(state.calls.updateMany[0].where.examVerificationStatus, "PENDING_REVIEW");
 	assert.equal(state.audit[0].action, "EXAM_ATTENDANCE_VERIFIED");
 	assert.equal(state.outbox[0].recipientUserId, "student-user-1");
 	assert.equal(state.outbox[0].eventType, "EXAM_ATTENDANCE_VERIFIED");
@@ -146,5 +155,87 @@ test("decided records and concurrent decisions cannot be decided again", async (
 	);
 	assert.equal(concurrent.state.audit.length, 0);
 	assert.equal(concurrent.state.outbox.length, 0);
+});
+
+test("lecturer can verify selected examination attendance records as one batch", async () => {
+	const { db, state } = fixture();
+	const second = structuredClone(state.item);
+	second.id = "record-2";
+	second.session.id = "session-2";
+	second.student.id = "student-2";
+	second.student.user.id = "student-user-2";
+	state.items.push(second);
+
+	const result = await decideLecturerExamAttendanceRecords(db, "lecturer-user-1", {
+		recordIds: ["record-2", "record-1"],
+		decision: "VERIFY",
+		comments: "Matched the examination registers.",
+	});
+
+	assert.equal(result.count, 2);
+	assert.deepEqual(result.records.map(({ id }) => id), ["record-2", "record-1"]);
+	assert.equal(state.audit.length, 2);
+	assert.equal(state.outbox.length, 2);
+	assert.ok(state.items.every(({ examVerificationStatus }) => examVerificationStatus === "VERIFIED"));
+	assert.ok(state.items.every(({ examComments }) => examComments === "Matched the examination registers."));
+});
+
+test("lecturer can reject selected examination attendance records with one reason", async () => {
+	const { db, state } = fixture();
+	const second = structuredClone(state.item);
+	second.id = "record-2";
+	second.session.id = "session-2";
+	second.student.id = "student-2";
+	second.student.user.id = "student-user-2";
+	state.items.push(second);
+
+	const result = await decideLecturerExamAttendanceRecords(db, "lecturer-user-1", {
+		recordIds: ["record-1", "record-2"],
+		decision: "REJECT",
+		reason: "Not present on the examination register.",
+	});
+
+	assert.equal(result.count, 2);
+	assert.ok(state.items.every(({ examVerificationStatus, examRejectionReason }) => (
+		examVerificationStatus === "REJECTED"
+		&& examRejectionReason === "Not present on the examination register."
+	)));
+	assert.equal(state.audit.length, 2);
+	assert.equal(state.outbox.length, 2);
+});
+
+test("bulk exam decisions reject stale records before writing any decisions", async () => {
+	const { db, state } = fixture();
+	const second = structuredClone(state.item);
+	second.id = "record-2";
+	second.examVerificationStatus = "VERIFIED";
+	state.items.push(second);
+
+	await assert.rejects(
+		decideLecturerExamAttendanceRecords(db, "lecturer-user-1", {
+			recordIds: ["record-1", "record-2"],
+			decision: "VERIFY",
+		}),
+		{ statusCode: 409 },
+	);
+	assert.equal(state.calls.updateMany, undefined);
+	assert.equal(state.audit.length, 0);
+	assert.equal(state.outbox.length, 0);
+});
+
+test("bulk exam decisions do not expose records outside the lecturer's scope", async () => {
+	const { db, state } = fixture();
+	db.attendanceRecord.findMany = async (args) => { state.calls.findMany = args; return []; };
+
+	await assert.rejects(
+		decideLecturerExamAttendanceRecords(db, "lecturer-user-1", {
+			recordIds: ["record-1"],
+			decision: "VERIFY",
+		}),
+		{ statusCode: 404 },
+	);
+	assert.equal(state.calls.updateMany, undefined);
+	assert.equal(state.audit.length, 0);
+	assert.equal(state.outbox.length, 0);
 });
 

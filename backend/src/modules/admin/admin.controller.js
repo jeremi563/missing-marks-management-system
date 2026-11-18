@@ -139,6 +139,17 @@ export const updateCourseUnit = handleUpdate("updateCourseUnit", "Course unit up
 export const getAcademicPeriods = handleList("listAcademicPeriods", "Academic periods retrieved successfully");
 export const createAcademicPeriod = handleCreate("createAcademicPeriod", "Academic period created successfully");
 export const updateAcademicPeriod = handleUpdate("updateAcademicPeriod", "Academic period updated successfully");
+export async function saveAcademicYearSchedule(req, res, next) {
+	try {
+		const result = await academic.saveAcademicYearSchedule({
+			db: req.app.locals.prisma,
+			actorUserId: req.user.id,
+			academicYear: req.params.academicYear,
+			...req.body,
+		});
+		return sendSuccess(res, "Academic-year semester schedule saved successfully", result);
+	} catch (error) { return next(error); }
+}
 export const getEnrollments = handleList("listEnrollments", "Enrolments retrieved successfully");
 export const deleteEnrollment = handleDelete("deleteEnrollment", "Enrolment deleted successfully");
 export const getMappings = handleList("listMappings", "Lecturer mappings retrieved successfully");

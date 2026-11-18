@@ -13,7 +13,7 @@ async function loadReport(tx, reportId) {
 			assignedLecturerProfileId: true,
 			courseUnitId: true,
 			courseUnit: { select: { departmentId: true } },
-			academicPeriod: { select: { name: true, code: true, startsAt: true } },
+			academicPeriod: { select: { name: true, code: true, startsAt: true, academicYear: true } },
 		},
 	});
 	if (!report) throw new AppError(404, "Missing-mark report not found");

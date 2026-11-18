@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  decideLecturerExamAttendanceRecords,
   decideLecturerExamAttendance,
   getLecturerCourseUnitAssessments,
   getLecturerCourseUnits,
@@ -10,6 +11,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import { extractRecords } from '../shared/recordUtils'
+import './LecturerExamAttendance.css'
 
 function unwrap(response) {
   const first = response?.data ?? response
@@ -24,6 +26,7 @@ export default function LecturerExamAttendance() {
   const [courseUnits, setCourseUnits] = useState([])
   const [assessments, setAssessments] = useState([])
   const [records, setRecords] = useState([])
+  const [selectedIds, setSelectedIds] = useState([])
   const [pagination, setPagination] = useState({ page: 1, totalPages: 0 })
   const [selected, setSelected] = useState(null)
   const [status, setStatus] = useState('PENDING_REVIEW')
@@ -37,10 +40,17 @@ export default function LecturerExamAttendance() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [bulkComments, setBulkComments] = useState('')
+  const [bulkReason, setBulkReason] = useState('')
+  const [bulkRejecting, setBulkRejecting] = useState(false)
 
   const loadRecords = useCallback(async () => {
     setLoading(true)
     setError('')
+    setSelectedIds([])
+    setBulkComments('')
+    setBulkReason('')
+    setBulkRejecting(false)
     try {
       const response = await getLecturerExamAttendance({
         page,
@@ -125,8 +135,44 @@ export default function LecturerExamAttendance() {
     }
   }
 
+  const decideSelected = async (decision) => {
+    if (selectedIds.length === 0) return
+    if (decision === 'REJECT' && !bulkReason.trim()) {
+      setError('Enter a rejection reason before rejecting selected attendance records.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await decideLecturerExamAttendanceRecords({
+        recordIds: selectedIds,
+        decision,
+        ...(decision === 'REJECT' ? { reason: bulkReason.trim() } : {}),
+        ...(decision === 'VERIFY' && bulkComments.trim() ? { comments: bulkComments.trim() } : {}),
+      })
+      setNotice(`${selectedIds.length} examination attendance records ${decision === 'VERIFY' ? 'verified' : 'rejected'}.`)
+      setSelected(null)
+      setSelectedIds([])
+      setBulkComments('')
+      setBulkReason('')
+      setBulkRejecting(false)
+      await loadRecords()
+    } catch (requestError) {
+      setError(requestError.userMessage || 'Unable to record the selected examination attendance decisions.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pendingIds = records
+    .filter((record) => record.examVerificationStatus === 'PENDING_REVIEW')
+    .map(({ id }) => id)
+  const allPendingSelected = pendingIds.length > 0 && pendingIds.every((id) => selectedIds.includes(id))
+
   return (
-    <section>
+    <section className="exam-attendance-page">
       <header className="page-heading">
         <div>
           <p className="eyebrow">LECTURER PORTAL</p>
@@ -137,6 +183,62 @@ export default function LecturerExamAttendance() {
 
       {error && <ErrorState message={error} onRetry={loadRecords} />}
       {notice && <div className="form-success" role="status">{notice}</div>}
+
+      {pendingIds.length > 0 && (
+        <section className="panel exam-attendance-bulk-actions" aria-label="Bulk examination attendance review">
+          <label>
+            <input
+              type="checkbox"
+              aria-label="Select all pending examination attendance on this page"
+              checked={allPendingSelected}
+              disabled={busy || loading}
+              onChange={(event) => setSelectedIds(event.target.checked ? pendingIds : [])}
+            />
+            Select all pending attendance on this page
+          </label>
+          <span>{selectedIds.length} selected</span>
+          {bulkRejecting ? (
+            <div className="exam-attendance-bulk-rejection">
+              <label>Reason for rejecting selected attendance records
+                <textarea
+                  aria-label="Bulk examination attendance rejection reason"
+                  value={bulkReason}
+                  onChange={(event) => setBulkReason(event.target.value)}
+                  maxLength={2000}
+                  required
+                  disabled={busy || loading}
+                />
+              </label>
+              <div className="form-actions">
+                <button className="button button-secondary" type="button" disabled={busy || loading} onClick={() => { setBulkRejecting(false); setBulkReason('') }}>Cancel</button>
+                <button className="button button-primary" type="button" disabled={busy || loading || !selectedIds.length || !bulkReason.trim()} onClick={() => decideSelected('REJECT')}>
+                  {busy ? 'Saving…' : `Reject ${selectedIds.length} selected`}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <label>Verification comments for selected records (optional)
+                <textarea
+                  aria-label="Bulk examination attendance verification comments"
+                  value={bulkComments}
+                  onChange={(event) => setBulkComments(event.target.value)}
+                  maxLength={2000}
+                  disabled={!selectedIds.length || busy || loading}
+                />
+              </label>
+              <div className="form-actions">
+                <button className="button button-primary" type="button" disabled={busy || loading || !selectedIds.length} onClick={() => decideSelected('VERIFY')}>
+                  {busy ? 'Saving…' : `Verify ${selectedIds.length} selected`}
+                </button>
+                <button className="button button-secondary" type="button" disabled={busy || loading || !selectedIds.length} onClick={() => { setBulkRejecting(true); setBulkReason(''); setError('') }}>
+                  Reject selected
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="panel">
         <div className="form-grid">
@@ -172,14 +274,16 @@ export default function LecturerExamAttendance() {
             <section className="panel">
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Student</th><th>Assessment</th><th>Course unit</th><th>Check-in</th><th>Status</th><th>Review</th></tr></thead>
+                  <thead><tr><th>Select</th><th>Student</th><th>Assessment</th><th>Course unit</th><th>Check-in</th><th>Attendance</th><th>Verification</th><th>Review</th></tr></thead>
                   <tbody>
                     {records.map((record) => (
                       <tr key={record.id}>
+                        <td><input type="checkbox" aria-label={`Select ${record.student?.user?.displayName || record.student?.studentNumber || 'student'} examination attendance`} checked={selectedIds.includes(record.id)} disabled={record.examVerificationStatus !== 'PENDING_REVIEW' || busy || loading} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, record.id])] : current.filter((id) => id !== record.id))} /></td>
                         <td>{record.student?.user?.displayName || 'Student'}<small>{record.student?.studentNumber}</small></td>
                         <td>{record.session?.assessment?.code || record.session?.assessment?.name || 'Exam'}</td>
                         <td>{record.session?.courseUnit?.code} · {record.session?.courseUnit?.name}</td>
                         <td>{formatDate(record.recordedAt)}</td>
+                        <td>{record.status?.replaceAll('_', ' ') || 'Unknown'}</td>
                         <td>{record.examVerificationStatus?.replaceAll('_', ' ') || 'Unknown'}</td>
                         <td><button className="button button-secondary" type="button" onClick={() => openRecord(record.id)}>View</button></td>
                       </tr>
@@ -202,6 +306,7 @@ export default function LecturerExamAttendance() {
           <p><strong>Student:</strong> {selected.student?.user?.displayName || 'Student'} ({selected.student?.studentNumber})</p>
           <p><strong>Course unit:</strong> {selected.session?.courseUnit?.code} · {selected.session?.courseUnit?.name}</p>
           <p><strong>Check-in:</strong> {formatDate(selected.recordedAt)} · {selected.locationVerified ? 'Location verified' : 'Location not verified'}</p>
+          <p><strong>Attendance status:</strong> {selected.status?.replaceAll('_', ' ') || 'Unknown'}</p>
           <p><strong>Session:</strong> {formatDate(selected.session?.startsAt)} · {selected.session?.classroom?.name || 'Classroom unavailable'}</p>
           <p><strong>Academic year:</strong> {selected.academicYear || 'Not available'}</p>
           <p><strong>Verification status:</strong> {selected.examVerificationStatus?.replaceAll('_', ' ') || 'Unknown'}</p>

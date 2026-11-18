@@ -138,7 +138,7 @@ export function AuthProvider({ children }) {
       {children}
       {showSessionWarning && user && (
         <div className="session-expiry-overlay">
-          <section className="session-expiry-dialog" role="alertdialog" aria-modal="true" aria-labelledby="session-expiry-title" aria-describedby="session-expiry-description">
+          <section className="session-expiry-dialog" role="alertdialog" aria-labelledby="session-expiry-title" aria-describedby="session-expiry-description">
             <h2 id="session-expiry-title">Your session is about to expire</h2>
             <p id="session-expiry-description">Extend your session now to stay signed in.</p>
             {sessionActionError && <p className="session-expiry-error" role="alert">{sessionActionError}</p>}

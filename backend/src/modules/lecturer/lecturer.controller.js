@@ -16,9 +16,11 @@ import {
   listLecturerCatSubmissions,
   getLecturerCatSubmission,
   decideLecturerCatSubmission,
+  decideLecturerCatSubmissions,
   listLecturerExamAttendance,
   getLecturerExamAttendanceRecord,
   decideLecturerExamAttendance,
+  decideLecturerExamAttendanceRecords,
 } from './lecturer.service.js';
 import { submitMarkCorrection } from '../marks/marks.service.js';
 import { academicYearForDate, academicYearForPeriod } from '../../shared/utils/academic-year.js';
@@ -208,7 +210,7 @@ export const getAssignedStudents = async (req, res, next) => {
         where: { lecturerProfileId: lecturer.id, academicYear: { not: null }, isActive: true },
         select: { courseUnitId: true, academicYear: true },
       }),
-      prisma.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true } }),
+      prisma.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true, academicYear: true, semester: true } }),
     ]);
     const years = [...new Set(assignments.map(({ academicYear }) => academicYear))];
     const OR = years.flatMap((academicYear) => {
@@ -217,10 +219,26 @@ export const getAssignedStudents = async (req, res, next) => {
       const courseUnitIds = assignments.filter((assignment) => assignment.academicYear === academicYear).map(({ courseUnitId }) => courseUnitId);
       return [{ academicPeriodId: { in: academicPeriodIds }, courseUnitId: { in: courseUnitIds } }];
     });
-    const where = {
-      OR,
-      ...(req.query.departmentIds ? { courseUnit: { departmentId: { in: req.query.departmentIds } } } : {}),
-    };
+    const where = { OR };
+    const filters = [];
+    if (req.query.departmentIds) filters.push({ courseUnit: { departmentId: { in: req.query.departmentIds } } });
+    if (req.query.academicPeriodId) filters.push({ academicPeriodId: req.query.academicPeriodId });
+    if (req.query.search) {
+      filters.push({
+        OR: [
+          { student: { studentNumber: { contains: req.query.search, mode: 'insensitive' } } },
+          { student: { user: { displayName: { contains: req.query.search, mode: 'insensitive' } } } },
+          { student: { user: { email: { contains: req.query.search, mode: 'insensitive' } } } },
+          { courseUnit: { code: { contains: req.query.search, mode: 'insensitive' } } },
+          { courseUnit: { name: { contains: req.query.search, mode: 'insensitive' } } },
+        ],
+      });
+    }
+    if (filters.length) where.AND = filters;
+    const academicPeriods = periods
+      .filter((period) => years.includes(academicYearForPeriod(period)))
+      .map((period) => ({ ...period, academicYear: academicYearForPeriod(period) }))
+      .sort((left, right) => (right.academicYear || '').localeCompare(left.academicYear || '') || (right.semester || 0) - (left.semester || 0));
     const [total, enrollments] = await Promise.all([
       prisma.unitEnrollment.count({ where }),
       prisma.unitEnrollment.findMany({
@@ -252,7 +270,7 @@ export const getAssignedStudents = async (req, res, next) => {
               department: { select: { id: true, name: true, code: true } },
             },
           },
-          academicPeriod: { select: { id: true, code: true, name: true } },
+          academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, academicYear: true, semester: true } },
         },
       }),
     ]);
@@ -263,6 +281,7 @@ export const getAssignedStudents = async (req, res, next) => {
       count: enrollments.length,
       data: enrollments,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      filters: { academicPeriods },
     });
   } catch (error) {
     return next(error);
@@ -845,6 +864,24 @@ export async function postCatSubmissionDecisionController(req, res, next) {
   }
 }
 
+export async function postBulkCatSubmissionDecisionController(req, res, next) {
+  try {
+    const result = await decideLecturerCatSubmissions(
+      req.app.locals.prisma,
+      req.user.id,
+      req.body,
+    );
+    return res.status(200).json({
+      success: true,
+      message: 'CAT submission decisions recorded successfully.',
+      count: result.count,
+      data: result.submissions,
+    });
+  } catch (error) {
+    return next(error);
+  }
+}
+
 export async function getLecturerExamAttendanceController(req, res, next) {
   try {
     const result = await listLecturerExamAttendance(req.app.locals.prisma, req.user.id, req.query);
@@ -878,6 +915,24 @@ export async function postLecturerExamAttendanceDecisionController(req, res, nex
       req.body,
     );
     return res.status(200).json({ success: true, message: 'Examination attendance decision recorded successfully.', data: record });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+export async function postBulkLecturerExamAttendanceDecisionController(req, res, next) {
+  try {
+    const result = await decideLecturerExamAttendanceRecords(
+      req.app.locals.prisma,
+      req.user.id,
+      req.body,
+    );
+    return res.status(200).json({
+      success: true,
+      message: 'Examination attendance decisions recorded successfully.',
+      count: result.count,
+      data: result.records,
+    });
   } catch (error) {
     return next(error);
   }

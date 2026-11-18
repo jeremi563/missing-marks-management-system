@@ -16,6 +16,7 @@ import {
 } from '../../api/admin'
 import DepartmentManagement from './DepartmentManagement'
 import AcademicRecordCreateForm from './AcademicRecordCreateForm'
+import AcademicYearScheduleForm from './AcademicYearScheduleForm'
 import { academicYearForPeriod } from '../../shared/academic-year'
 
 const resources = {
@@ -42,10 +43,25 @@ const courseColumns = [
   { label: 'Course units', render: (course) => course._count?.courseUnits ?? 0 },
 ]
 
+const assessmentColumns = [
+  { label: 'Course unit', render: (assessment) => assessment.courseUnit ? `${assessment.courseUnit.code} — ${assessment.courseUnit.name}` : '—' },
+  { label: 'Assessment', render: (assessment) => assessment.name },
+  {
+    label: 'Assessment type',
+    render: (assessment) => {
+      const type = assessment.type?.trim().toUpperCase()
+      if (type === 'CAT') return 'CAT'
+      if (type === 'EXAM') return 'Exam'
+      return assessment.type || 'Not specified'
+    },
+  },
+  { label: 'Date', render: (assessment) => assessment.assessmentDate ? new Date(assessment.assessmentDate).toLocaleDateString() : 'Not configured' },
+]
+
 const periodColumns = [
-  { label: 'Academic period', render: (period) => period.name },
   { label: 'Academic year', render: (period) => academicYearForPeriod(period) || 'Not specified' },
-  { label: 'Code', render: (period) => period.code || '—' },
+  { label: 'Semester', render: (period) => period.semester ? `Semester ${period.semester}` : 'Legacy period' },
+  { label: 'Period dates', render: (period) => period.startsAt && period.endsAt ? `${new Date(period.startsAt).toLocaleDateString()} – ${new Date(period.endsAt).toLocaleDateString()}` : 'Not configured' },
   { label: 'Enrollment opens', render: (period) => period.enrollmentOpensAt ? new Date(period.enrollmentOpensAt).toLocaleString() : 'Not configured' },
   { label: 'Enrollment closes', render: (period) => period.enrollmentClosesAt ? new Date(period.enrollmentClosesAt).toLocaleString() : 'Not configured' },
 ]
@@ -58,6 +74,16 @@ const classroomColumns = [
   { label: 'Status', render: (classroom) => classroom.isActive ? 'Active' : 'Inactive' },
 ]
 
+const enrollmentColumns = [
+  { label: 'Student', render: (enrollment) => enrollment.student?.user?.displayName || '—' },
+  { label: 'Registration number', render: (enrollment) => enrollment.student?.studentNumber || '—' },
+  { label: 'Course unit', render: (enrollment) => enrollment.courseUnit ? `${enrollment.courseUnit.code} — ${enrollment.courseUnit.name}` : '—' },
+  { label: 'Academic year', render: (enrollment) => academicYearForPeriod(enrollment.academicPeriod) || 'Not specified' },
+  { label: 'Semester', render: (enrollment) => enrollment.academicPeriod?.semester ? `Semester ${enrollment.academicPeriod.semester}` : 'Not specified' },
+  { label: 'Academic period', render: (enrollment) => enrollment.academicPeriod?.name || enrollment.academicPeriod?.code || '—' },
+  { label: 'Enrolled on', render: (enrollment) => enrollment.createdAt ? new Date(enrollment.createdAt).toLocaleDateString() : '—' },
+]
+
 const dateInputValue = (value) => value ? new Date(value).toISOString().slice(0, 10) : ''
 
 export default function AdminAcademic() {
@@ -65,8 +91,11 @@ export default function AdminAcademic() {
   const [refresh, setRefresh] = useState(0)
   const [departments, setDepartments] = useState([])
   const [courses, setCourses] = useState([])
+  const [enrollmentPeriods, setEnrollmentPeriods] = useState([])
+  const [enrollmentPeriodsError, setEnrollmentPeriodsError] = useState('')
   const [departmentsError, setDepartmentsError] = useState('')
   const [departmentId, setDepartmentId] = useState('')
+  const [enrollmentPeriodId, setEnrollmentPeriodId] = useState('')
   const [editingCourseUnit, setEditingCourseUnit] = useState(null)
   const [editingAcademicPeriod, setEditingAcademicPeriod] = useState(null)
   const [editingClassroom, setEditingClassroom] = useState(null)
@@ -85,7 +114,8 @@ export default function AdminAcademic() {
   const fetchRecords = useCallback((params) => resource.load({
     ...params,
     ...((resourceKey === 'courses' || resourceKey === 'units') && departmentId ? { departmentId } : {}),
-  }), [resource, resourceKey, departmentId])
+    ...(resourceKey === 'enrolments' && enrollmentPeriodId ? { academicPeriodId: enrollmentPeriodId } : {}),
+  }), [resource, resourceKey, departmentId, enrollmentPeriodId])
 
   useEffect(() => {
     if (resourceKey !== 'courses' && resourceKey !== 'units') return undefined
@@ -104,6 +134,21 @@ export default function AdminAcademic() {
       })
       .catch((requestError) => {
         if (active) setDepartmentsError(requestError.userMessage || 'Unable to load departments for filtering course units.')
+      })
+    return () => { active = false }
+  }, [resourceKey])
+
+  useEffect(() => {
+    if (resourceKey !== 'enrolments') return undefined
+    let active = true
+    getAdminAcademicPeriods({ page: 1, limit: 100 })
+      .then((response) => {
+        if (!active) return
+        setEnrollmentPeriods(extractRecords(response, ['academicPeriods', 'periods']))
+        setEnrollmentPeriodsError('')
+      })
+      .catch((requestError) => {
+        if (active) setEnrollmentPeriodsError(requestError.userMessage || 'Unable to load academic periods for enrollment filtering.')
       })
     return () => { active = false }
   }, [resourceKey])
@@ -277,12 +322,38 @@ export default function AdminAcademic() {
             <>
               {notice && <div className="form-success" role="status">{notice}</div>}
               {resourceKey === 'enrolments' ? (
-                <p className="field-hint">Enrolments are created when lecturers approve students’ course-unit requests. Administrators can review these records here.</p>
+                <p className="field-hint">Enrolments are created when lecturers approve students’ course-unit requests. Search records by student, course unit, academic year, or semester.</p>
+              ) : resourceKey === 'periods' ? (
+                <AcademicYearScheduleForm
+                  key={`academic-schedule:${refresh}`}
+                  onSaved={() => {
+                    setNotice('Semester schedule saved.')
+                    setRefresh((value) => value + 1)
+                  }}
+                />
               ) : <AcademicRecordCreateForm
                 key={resourceKey}
                 resourceKey={resourceKey}
                 onCreated={() => setRefresh((value) => value + 1)}
               />}
+              {resourceKey === 'enrolments' && (
+                <div className="form-field academic-enrollment-period-filter">
+                  <label htmlFor="admin-enrollment-period">Filter by academic year and semester</label>
+                  <select
+                    id="admin-enrollment-period"
+                    value={enrollmentPeriodId}
+                    onChange={(event) => setEnrollmentPeriodId(event.target.value)}
+                  >
+                    <option value="">All academic years and semesters</option>
+                    {enrollmentPeriods.map((period) => (
+                      <option key={period.id} value={period.id}>
+                        {academicYearForPeriod(period) || 'Academic year not specified'} · {period.semester ? `Semester ${period.semester}` : 'Semester not specified'}{period.name ? ` · ${period.name}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {enrollmentPeriodsError && <p className="form-alert" role="alert">{enrollmentPeriodsError}</p>}
+                </div>
+              )}
               {(resourceKey === 'courses' || resourceKey === 'units') && (
                 <div className="academic-department-filter">
                   {departmentsError && <p className="form-alert" role="alert">{departmentsError}</p>}
@@ -318,15 +389,15 @@ export default function AdminAcademic() {
                 </div>
               )}
               <RecordListPage
-                key={`${resourceKey}:${departmentId}:${refresh}`}
+                key={`${resourceKey}:${departmentId}:${enrollmentPeriodId}:${refresh}`}
                 contentId={resourceKey === 'courses' ? 'course-unit-records' : undefined}
                 title={resource.label}
                 description={resourceKey === 'enrolments'
-                  ? 'Review course-unit enrolments approved by lecturers.'
+                  ? 'Review course-unit enrollments with their academic year and semester.'
                   : `Browse configured ${resource.label.toLowerCase()}.`}
                 fetchRecords={fetchRecords}
                 collectionKeys={resource.keys}
-                tableColumns={resourceKey === 'units' ? courseUnitColumns : resourceKey === 'courses' ? courseColumns : resourceKey === 'periods' ? periodColumns : resourceKey === 'classrooms' ? classroomColumns : undefined}
+                tableColumns={resourceKey === 'units' ? courseUnitColumns : resourceKey === 'courses' ? courseColumns : resourceKey === 'periods' ? periodColumns : resourceKey === 'classrooms' ? classroomColumns : resourceKey === 'assessments' ? assessmentColumns : resourceKey === 'enrolments' ? enrollmentColumns : undefined}
                 renderActions={resourceKey === 'units'
                   ? (courseUnit) => (
                     <button className="button button-secondary" type="button" onClick={() => startCourseUnitEdit(courseUnit)}>
@@ -335,9 +406,11 @@ export default function AdminAcademic() {
                   )
                   : resourceKey === 'periods'
                     ? (period) => (
-                      <button className="button button-secondary" type="button" onClick={() => startAcademicPeriodEdit(period)}>
-                        <Pencil size={15} /> Edit window
-                      </button>
+                      <div className="record-actions">
+                        <button className="button button-secondary" type="button" onClick={() => startAcademicPeriodEdit(period)}>
+                          Edit enrollment window
+                        </button>
+                      </div>
                     )
                   : resourceKey === 'classrooms'
                     ? (classroom) => (

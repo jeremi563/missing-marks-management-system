@@ -10,6 +10,12 @@ export function extractRecords(response, collectionKeys = []) {
   return []
 }
 
+export function formatMarkValue(value) {
+  if (value === null || value === undefined) return '—'
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) && Number.isInteger(numericValue) ? String(numericValue) : value
+}
+
 export async function fetchAllRecordPages(fetchPage, firstResponse, collectionKeys = []) {
   const first = firstResponse?.data ?? firstResponse
   const payload = first?.data ?? first

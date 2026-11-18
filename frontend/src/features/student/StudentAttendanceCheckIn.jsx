@@ -123,7 +123,7 @@ export default function StudentAttendanceCheckIn() {
 
       {!result && (
         <div className="student-attendance-checkin-actions">
-          <p><MapPin size={16} /> We collect a few fresh GPS readings and use the most precise one. Stay still in an open area; your coordinates are checked by the server and are not saved as part of your attendance record.</p>
+          <p><MapPin size={16} /> We collect a few fresh GPS readings and use the most precise one. The server checks the reported location against the classroom boundary set by your administrator; your coordinates are not saved as part of your attendance record.</p>
           <button className="button button-primary" type="button" onClick={submitCheckIn} disabled={checkingIn || !token}>
             <MapPin size={16} />{checkingIn ? 'Checking your location…' : 'Verify location and check in'}
           </button>

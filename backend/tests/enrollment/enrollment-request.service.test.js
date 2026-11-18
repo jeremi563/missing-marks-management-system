@@ -137,6 +137,38 @@ test("rejects enrollment requests outside the administrator-configured window", 
 	assert.equal(queriedCourses, false);
 });
 
+test("restricts semester 3 requests to administrator-selected courses", async () => {
+	const tx = {
+		studentProfile: { findUnique: async () => ({ id: "student-1", studentNumber: "IN16/01234/26" }) },
+		academicPeriod: {
+			findUnique: async () => ({
+				id: "period-3",
+				name: "Semester 3",
+				academicYear: "2026/27",
+				semester: 3,
+				enrollmentOpensAt: new Date("2027-05-01T00:00:00Z"),
+				enrollmentClosesAt: new Date("2027-08-31T23:59:59Z"),
+				eligibleCourses: [{ id: "course-eligible" }],
+			}),
+		},
+		courseUnit: {
+			findMany: async () => [{
+				id: "unit-1",
+				courseId: "course-not-eligible",
+				code: "IN101",
+				department: { id: "department-1", designatedCodUserId: null, members: [] },
+				lecturerMappings: [{ lecturer: { userId: "lecturer-1" } }],
+			}],
+		},
+	};
+	await assert.rejects(createStudentEnrollmentRequests(
+		{ $transaction: async (callback) => callback(tx) },
+		"student-1",
+		{ academicPeriodId: "period-3", courseUnitIds: ["unit-1"] },
+		new Date("2027-06-01T00:00:00Z"),
+	), { statusCode: 422 });
+});
+
 test("after enrollment windows close, keeps all department courses browseable without opening enrollment", async () => {
 	let courseQuery;
 	const prisma = {

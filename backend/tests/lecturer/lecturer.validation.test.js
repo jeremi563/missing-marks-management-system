@@ -16,9 +16,11 @@ import {
   catSubmissionsQuerySchema,
   catSubmissionParamsSchema,
   catSubmissionDecisionSchema,
+  catSubmissionBulkDecisionSchema,
   examAttendanceQuerySchema,
   examAttendanceParamsSchema,
   examAttendanceDecisionSchema,
+  examAttendanceBulkDecisionSchema,
 } from '../../src/modules/lecturer/lecturer.validation.js';
 
 test('accepts a valid report UUID', () => {
@@ -166,6 +168,41 @@ test('validates exam attendance filters, identifiers, and decision requirements'
   assert.equal(examAttendanceDecisionSchema.safeParse({ decision: 'VERIFY', reason: 'Unexpected.' }).success, false);
 });
 
+test('validates bounded, unique bulk exam attendance decisions', () => {
+  const recordId = '550e8400-e29b-41d4-a716-446655440000';
+  const secondRecordId = 'c65db53f-a0c9-4c50-a75a-cd2e7415d521';
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({
+    recordIds: [recordId, secondRecordId],
+    decision: 'VERIFY',
+    comments: 'Checked.',
+  }).success, true);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({
+    recordIds: [recordId],
+    decision: 'REJECT',
+    reason: 'Not on the register.',
+  }).success, true);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({ recordIds: [], decision: 'VERIFY' }).success, false);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({ recordIds: [recordId, recordId], decision: 'VERIFY' }).success, false);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({ recordIds: [recordId], decision: 'REJECT' }).success, false);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({
+    recordIds: [recordId],
+    decision: 'VERIFY',
+    reason: 'Only valid for rejection.',
+  }).success, false);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({
+    recordIds: [recordId],
+    decision: 'REJECT',
+    reason: 'No.',
+    comments: 'Only valid for verification.',
+  }).success, false);
+  assert.equal(examAttendanceBulkDecisionSchema.safeParse({
+    recordIds: Array.from({ length: 101 }, (_, index) => (
+      `550e8400-e29b-41d4-a716-${String(index).padStart(12, '0')}`
+    )),
+    decision: 'VERIFY',
+  }).success, false);
+});
+
 test('rejects an empty decision reason', () => {
   const result = submitDecisionSchema.safeParse({
     decision: 'REJECT',
@@ -233,7 +270,7 @@ test('rejects missing, empty, whitespace-only, and oversized escalation reasons'
 
 test('accepts a valid mark-correction proposal', () => {
   const result = submitCorrectionSchema.safeParse({
-    proposedValue: 75.50,
+    proposedValue: 75,
     reason: 'The original mark was recorded incorrectly.',
   });
 
@@ -249,27 +286,18 @@ test('accepts a whole-number proposed mark', () => {
   assert.equal(result.success, true);
 });
 
-test('accepts a proposed mark with two decimal places', () => {
+test('rejects a proposed mark with a fractional value', () => {
   const result = submitCorrectionSchema.safeParse({
     proposedValue: 75.25,
     reason: 'Verified correction.',
   });
 
-  assert.equal(result.success, true);
+  assert.equal(result.success, false);
 });
 
 test('rejects a negative proposed mark', () => {
   const result = submitCorrectionSchema.safeParse({
     proposedValue: -5,
-    reason: 'Correction required.',
-  });
-
-  assert.equal(result.success, false);
-});
-
-test('rejects a proposed mark with more than two decimal places', () => {
-  const result = submitCorrectionSchema.safeParse({
-    proposedValue: 75.255,
     reason: 'Correction required.',
   });
 
@@ -345,6 +373,24 @@ test('accepts a valid CLASS attendance session', () => {
   );
 
   assert.equal(result.success, true);
+  assert.equal(result.data.lateGraceMinutes, 10);
+});
+
+test('validates the attendance late-grace range', () => {
+  assert.equal(createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    lateGraceMinutes: 0,
+  }).success, true);
+  assert.equal(createAttendanceSessionSchema.safeParse({
+    ...validAttendanceSession,
+    lateGraceMinutes: 60,
+  }).success, true);
+  for (const lateGraceMinutes of [-1, 61, 1.5, '10']) {
+    assert.equal(createAttendanceSessionSchema.safeParse({
+      ...validAttendanceSession,
+      lateGraceMinutes,
+    }).success, false);
+  }
 });
 
 test('accepts a valid CAT attendance session', () => {
@@ -446,8 +492,10 @@ test('rejects an end time equal to the start time', () => {
     ...validAttendanceSession,
     endsAt: validAttendanceSession.startsAt,
   });
+  assert.equal(result.success, false);
+});
 
-  test('validates CAT submission review filters and decisions', () => {
+test('validates CAT submission review filters and decisions', () => {
     const id = '550e8400-e29b-41d4-a716-446655440000';
     assert.equal(catSubmissionsQuerySchema.safeParse({ status: 'PENDING_REVIEW', courseUnitId: id, assessmentId: id }).success, true);
     assert.equal(catSubmissionsQuerySchema.safeParse({ status: 'UNKNOWN' }).success, false);
@@ -462,7 +510,39 @@ test('rejects an end time equal to the start time', () => {
     assert.equal(catSubmissionDecisionSchema.safeParse({ decision: 'REJECT', reason: 'No', comments: 'Not accepted' }).success, false);
   });
 
-  assert.equal(result.success, false);
+test('validates bounded, unique bulk CAT submission decisions', () => {
+    const id = '550e8400-e29b-41d4-a716-446655440000';
+    const secondId = 'c65db53f-a0c9-4c50-a75a-cd2e7415d521';
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({
+      submissionIds: [id, secondId],
+      decision: 'VERIFY',
+      comments: 'Matched.',
+    }).success, true);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({
+      submissionIds: [id],
+      decision: 'REJECT',
+      reason: 'Not legible.',
+    }).success, true);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({ submissionIds: [], decision: 'VERIFY' }).success, false);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({ submissionIds: [id, id], decision: 'VERIFY' }).success, false);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({ submissionIds: [id], decision: 'REJECT' }).success, false);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({
+      submissionIds: [id],
+      decision: 'VERIFY',
+      reason: 'Not allowed for verification.',
+    }).success, false);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({
+      submissionIds: [id],
+      decision: 'REJECT',
+      reason: 'No.',
+      comments: 'Not allowed for rejection.',
+    }).success, false);
+    assert.equal(catSubmissionBulkDecisionSchema.safeParse({
+      submissionIds: Array(101).fill(id).map((_, index) => (
+        `550e8400-e29b-41d4-a716-${String(index).padStart(12, '0')}`
+      )),
+      decision: 'VERIFY',
+    }).success, false);
 });
 
 // Feature 6: Attendance session ID validation tests

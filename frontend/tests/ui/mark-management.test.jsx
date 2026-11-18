@@ -57,7 +57,10 @@ describe('mark management interfaces', () => {
         data: {
           assessment: { name: 'CAT 1', maximumMarks: 100 },
           academicPeriod: { name: 'Semester 1' },
-          students: [{ student: { id: 'student-1', studentNumber: 'CS/00001/26', user: { displayName: 'Alex' } }, mark: null }],
+          students: [
+            { student: { id: 'student-1', studentNumber: 'CS/00001/26', user: { displayName: 'Alex' } }, mark: null, attendance: { status: 'PRESENT', eligible: true } },
+            { student: { id: 'student-2', studentNumber: 'CS/00002/26', user: { displayName: 'Sam' } }, mark: null, attendance: { status: 'ABSENT', eligible: false } },
+          ],
         },
       })
       .mockResolvedValueOnce({
@@ -65,7 +68,10 @@ describe('mark management interfaces', () => {
         data: {
           assessment: { name: 'CAT 1', maximumMarks: 100 },
           academicPeriod: { name: 'Semester 1' },
-          students: [{ student: { id: 'student-1', studentNumber: 'CS/00001/26', user: { displayName: 'Alex' } }, mark: { value: '81.50' } }],
+          students: [
+            { student: { id: 'student-1', studentNumber: 'CS/00001/26', user: { displayName: 'Alex' } }, mark: { value: '81.00' }, attendance: { status: 'PRESENT', eligible: true } },
+            { student: { id: 'student-2', studentNumber: 'CS/00002/26', user: { displayName: 'Sam' } }, mark: null, attendance: { status: 'ABSENT', eligible: false } },
+          ],
         },
       })
     submitLecturerMarks.mockResolvedValue({ success: true })
@@ -75,14 +81,21 @@ describe('mark management interfaces', () => {
     fireEvent.change(screen.getByLabelText('Academic period'), { target: { value: 'period-1' } })
     fireEvent.change(screen.getByLabelText('Assessment'), { target: { value: 'assessment-1' } })
     const markInput = await screen.findByRole('spinbutton', { name: 'Initial mark for CS/00001/26' })
+    expect(markInput.step).toBe('1')
+    expect(screen.getByLabelText('Incomplete mark for CS/00002/26').value).toBe('**')
+    expect(screen.getByLabelText('Incomplete mark for CS/00002/26').disabled).toBe(true)
     fireEvent.change(markInput, { target: { value: '81.5' } })
+    fireEvent.submit(markInput.closest('form'))
+    expect(await screen.findByText('Marks must be whole numbers.')).toBeTruthy()
+    expect(submitLecturerMarks).not.toHaveBeenCalled()
+    fireEvent.change(markInput, { target: { value: '81' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit initial marks' }))
 
     await waitFor(() => expect(submitLecturerMarks).toHaveBeenCalledWith('assessment-1', {
       academicPeriodId: 'period-1',
-      marks: [{ studentProfileId: 'student-1', value: 81.5 }],
+      marks: [{ studentProfileId: 'student-1', value: 81 }],
     }))
-    expect(await screen.findByText('81.50')).toBeTruthy()
+    expect(await screen.findByText('81')).toBeTruthy()
   })
 
   it('lets a COD review and reject a correction with comments', async () => {
@@ -108,7 +121,7 @@ describe('mark management interfaces', () => {
 
     render(<CodMarkCorrections />)
     fireEvent.click(await screen.findByRole('button', { name: 'Review' }))
-    expect(await screen.findByText('50.00')).toBeTruthy()
+    expect(await screen.findByText('50')).toBeTruthy()
     fireEvent.change(screen.getByLabelText('Review comments'), { target: { value: 'Evidence does not support the change.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }))
     await waitFor(() => expect(decideCodMarkCorrection).toHaveBeenCalledWith('correction-1', {

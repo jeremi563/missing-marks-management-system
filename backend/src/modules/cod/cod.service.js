@@ -290,7 +290,7 @@ async function getAuthorizedReport(db, userId, reportId) {
       status: true,
       courseUnitId: true,
       courseUnit: { select: { departmentId: true } },
-      academicPeriod: { select: { name: true, code: true, startsAt: true } },
+      academicPeriod: { select: { name: true, code: true, startsAt: true, academicYear: true } },
     },
   });
   if (!report) throw new AppError(404, "Missing-mark report not found");
@@ -337,7 +337,7 @@ export async function getCodReportDetails({ userId, reportId, db = prisma }) {
           department: { select: { designatedCodUserId: true } },
         },
       },
-      academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+      academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true, academicYear: true } },
       assessment: {
         select: {
           id: true,

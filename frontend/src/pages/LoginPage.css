@@ -4,7 +4,7 @@
   min-height: 100dvh;
   place-items: center;
   padding: 32px 20px;
-  background: #98cbe456;
+  background: #81acc156;
 }
 
 .login-shell {
@@ -31,7 +31,7 @@
   overflow: hidden;
   background:
     radial-gradient(ellipse at 50% 40%, rgba(var(--primary-rgb), .44), transparent 58%),
-    linear-gradient(145deg, #52676b, #354a4e 72%, #263b3f);
+    linear-gradient(145deg, #45575b, #2d3f42 72%, #203235);
 }
 
 .login-card {
@@ -72,7 +72,7 @@
 .login-input-wrap:focus-within .login-input-icon { color: var(--primary); }
 .login-card input.login-input { min-height: 40px; padding: 0 45px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); font-size: 14px; transition: background .18s ease, border-color .18s ease, box-shadow .18s ease; }
 .login-card .login-input-wrap.has-value input.login-input { padding-left: 14px; }
-.login-card input.login-input:focus { border-color: var(--primary); outline: none; background: #fff; box-shadow: 0 0 0 4px rgba(var(--primary-rgb), .16); }
+.login-card input.login-input:focus { border-color: var(--primary); outline: none; background: #d8d8d8; box-shadow: 0 0 0 4px rgba(var(--primary-rgb), .16); }
 .login-card .auth-password-field input { padding-right: 48px; }
 .login-card .auth-password-toggle { right: 7px; color: #71888b; }
 .login-card .auth-password-toggle:hover { color: var(--primary); background: var(--secondary-soft); }

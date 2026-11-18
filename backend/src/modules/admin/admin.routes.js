@@ -11,6 +11,7 @@ import {
 	addDepartmentMember, removeDepartmentMember, getUser, getPendingStaffAccounts, decideAccountApproval, importStudentRosterRecords, applyAttendanceCorrection,
 	getCourses, createCourse,
 	deleteStudent,
+	saveAcademicYearSchedule,
 } from "./admin.controller.js";
 import { accountApprovalBody, createUserBody, rosterImportBody, updateUserBody, userIdParams, userListQuery } from "./admin.validation.js";
 import * as validation from "./academic.validation.js";
@@ -41,6 +42,7 @@ router.get("/course-units", validate(validation.courseUnitListQuery, "query"), g
 router.post("/course-units", validate(validation.courseUnitCreateBody), createCourseUnit);
 router.patch("/course-units/:id", validate(validation.courseUnitIdParams, "params"), validate(validation.courseUnitUpdateBody), updateCourseUnit);
 router.get("/academic-periods", validate(validation.academicPeriodListQuery, "query"), getAcademicPeriods);
+router.put("/academic-years/:academicYear/schedule", validate(validation.academicYearParams, "params"), validate(validation.academicYearScheduleBody), saveAcademicYearSchedule);
 router.post("/academic-periods", validate(validation.academicPeriodCreateBody), createAcademicPeriod);
 router.patch("/academic-periods/:id", validate(validation.academicPeriodIdParams, "params"), validate(validation.academicPeriodUpdateBody), updateAcademicPeriod);
 router.get("/enrolments", validate(validation.enrollmentListQuery, "query"), getEnrollments);

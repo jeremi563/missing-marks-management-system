@@ -63,6 +63,7 @@ const initialForm = {
   sessionDate: '',
   startsAt: '',
   endsAt: '',
+  lateGraceMinutes: '10',
 }
 
 function toLocalDateTimeInput(value) {
@@ -201,6 +202,11 @@ export default function LecturerAttendance() {
       setError('End time must be after the start time.')
       return
     }
+    const lateGraceMinutes = Number(form.lateGraceMinutes)
+    if (form.lateGraceMinutes.trim() === '' || !Number.isInteger(lateGraceMinutes) || lateGraceMinutes < 0 || lateGraceMinutes > 60) {
+      setError('Late grace must be a whole number between 0 and 60 minutes.')
+      return
+    }
     if (activeType === 'EXAM' && !form.assessmentId) {
       setError('Select the exam assessment before creating the session.')
       return
@@ -216,6 +222,7 @@ export default function LecturerAttendance() {
       classroomId: form.classroomId.trim(),
       startsAt: new Date(`${form.sessionDate}T${form.startsAt}`).toISOString(),
       endsAt: new Date(`${form.sessionDate}T${form.endsAt}`).toISOString(),
+      lateGraceMinutes,
       ...(['CAT', 'EXAM'].includes(activeType) ? { assessmentId: form.assessmentId } : {}),
     }
     try {
@@ -482,7 +489,7 @@ export default function LecturerAttendance() {
               <div className="lecturer-attendance-schedule">
                 <div className="lecturer-attendance-schedule-heading">
                   <CalendarClock size={17} />
-                  <div><strong>Schedule</strong><small>Choose one session date and its attendance time window.</small></div>
+                  <div><strong>Schedule</strong><small>Check-ins after the grace period are marked late; 0 means no grace.</small></div>
                 </div>
                 <div className="lecturer-attendance-schedule-grid">
                   <div className="form-field">
@@ -495,7 +502,21 @@ export default function LecturerAttendance() {
                   </div>
                   <div className="form-field">
                     <label htmlFor="session-end">End time</label>
-                      <input id="session-end" type="time" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} required />
+                    <input id="session-end" type="time" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} required />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="session-late-grace">Late grace (minutes)</label>
+                    <input
+                      id="session-late-grace"
+                      type="number"
+                      min="0"
+                      max="60"
+                      step="1"
+                      value={form.lateGraceMinutes}
+                      onChange={(event) => setForm({ ...form, lateGraceMinutes: event.target.value })}
+                      required
+                    />
+                    <small className="lecturer-attendance-field-hint">Default: 10 minutes. A check-in after the grace cutoff is marked late.</small>
                   </div>
                 </div>
               </div>
@@ -509,7 +530,7 @@ export default function LecturerAttendance() {
             <div className="lecturer-attendance-list-heading"><div><h3>{activeSession?.label} sessions</h3><p>Start or end an attendance window when needed.</p></div></div>
             {loading ? <LoadingState message={`Loading ${activeSession?.label.toLowerCase()} sessions…`} /> : error && sessions.length === 0 ? <ErrorState title="Unable to load sessions" message={error} onRetry={() => setRefresh((value) => value + 1)} /> : filteredSessions.length === 0 ? <EmptyState title={`No ${activeSession?.label.toLowerCase()} sessions yet`} message={`Create a ${activeSession?.label.toLowerCase()} attendance session to get started.`} /> : filteredSessions.map((session) => (
               <article className="record-card lecturer-attendance-session" key={session.id}>
-                <div className="lecturer-attendance-session-info"><span className="lecturer-attendance-session-icon"><CalendarClock size={18} /></span><div><h3>{session.courseUnit?.code || session.courseUnit?.name || `${activeSession?.label} session`}</h3><p>{session.startsAt ? new Date(session.startsAt).toLocaleString() : 'Start time unavailable'}</p><small>{session.classroom?.name || session.classroomName || session.id}</small>{session.endsAt && <small>Ends {new Date(session.endsAt).toLocaleString()}</small>}</div></div>
+                <div className="lecturer-attendance-session-info"><span className="lecturer-attendance-session-icon"><CalendarClock size={18} /></span><div><h3>{session.courseUnit?.code || session.courseUnit?.name || `${activeSession?.label} session`}</h3><p>{session.startsAt ? new Date(session.startsAt).toLocaleString() : 'Start time unavailable'}</p><small>{session.classroom?.name || session.classroomName || session.id}</small><small>Late grace: {session.lateGraceMinutes ?? 10} minutes</small>{session.endsAt && <small>Ends {new Date(session.endsAt).toLocaleString()}</small>}</div></div>
                 <div className="record-actions"><StatusChip status={session.status || 'scheduled'} />{String(session.status).toUpperCase() === 'SCHEDULED' && <button className="button button-secondary" type="button" onClick={() => updateSession(session, 'start')}>Start</button>}{String(session.status).toUpperCase() === 'ACTIVE' && <button className="button button-secondary" type="button" onClick={() => updateSession(session, 'end')}>End now</button>}</div>
                 {String(session.status).toUpperCase() === 'ACTIVE' && (
                   <>

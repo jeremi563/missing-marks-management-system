@@ -60,7 +60,7 @@ async function getAssessmentAndPeriod(db, assessmentId, academicPeriodId) {
 		}),
 		db.academicPeriod.findUnique({
 			where: { id: academicPeriodId },
-			select: { id: true, name: true, code: true, startsAt: true, endsAt: true },
+			select: { id: true, name: true, code: true, startsAt: true, endsAt: true, academicYear: true },
 		}),
 	]);
 	if (!assessment) throw new AppError(404, "Assessment not found");
@@ -79,6 +79,47 @@ async function requireAssignment(db, lecturerProfileId, courseUnitId, academicYe
 		select: { id: true },
 	});
 	if (!assignment) throw new AppError(404, "Active course-unit assignment not found");
+}
+
+async function getAssessmentAttendance(db, assessment, period, studentProfileIds) {
+	const sessionType = String(assessment.type).toUpperCase();
+	if (!studentProfileIds.length || !period.startsAt || !["CAT", "EXAM"].includes(sessionType)) return new Map();
+
+	const startsAt = {
+		gte: period.startsAt,
+		...(period.endsAt ? { lte: period.endsAt } : {}),
+	};
+	const records = await db.attendanceRecord.findMany({
+		where: {
+			studentProfileId: { in: studentProfileIds },
+			session: {
+				is: {
+					assessmentId: assessment.id,
+					courseUnitId: assessment.courseUnitId,
+					sessionType,
+					startsAt,
+				},
+			},
+		},
+		orderBy: [{ recordedAt: "desc" }, { id: "desc" }],
+		select: {
+			studentProfileId: true,
+			status: true,
+			examVerificationStatus: true,
+			recordedAt: true,
+		},
+	});
+
+	const attendanceByStudent = new Map();
+	for (const record of records) {
+		const eligible = ["PRESENT", "ATTENDED", "LATE"].includes(String(record.status).toUpperCase())
+			&& (sessionType !== "EXAM" || record.examVerificationStatus === "VERIFIED");
+		const current = attendanceByStudent.get(record.studentProfileId);
+		if (!current || (eligible && !current.eligible)) {
+			attendanceByStudent.set(record.studentProfileId, { ...record, eligible });
+		}
+	}
+	return attendanceByStudent;
 }
 
 export async function getLecturerMarkOptions({ db = prisma, userId }) {
@@ -106,7 +147,7 @@ export async function getLecturerMarkOptions({ db = prisma, userId }) {
 		}),
 		db.academicPeriod.findMany({
 			where: { startsAt: { not: null } },
-			select: { id: true, name: true, code: true, startsAt: true, endsAt: true },
+			select: { id: true, name: true, code: true, startsAt: true, endsAt: true, academicYear: true },
 			orderBy: { startsAt: "desc" },
 		}),
 	]);
@@ -146,6 +187,12 @@ export async function getAssessmentRoster({ db = prisma, userId, assessmentId, a
 			marks: { where: { assessmentId }, select: MARK_SELECT },
 		},
 	});
+	const attendanceByStudent = await getAssessmentAttendance(
+		db,
+		assessment,
+		period,
+		enrollments.map(({ student }) => student.id),
+	);
 	return {
 		assessment: {
 			id: assessment.id,
@@ -160,6 +207,7 @@ export async function getAssessmentRoster({ db = prisma, userId, assessmentId, a
 			enrollmentId: enrollment.id,
 			student: enrollment.student,
 			mark: enrollment.marks[0] ?? null,
+			attendance: attendanceByStudent.get(enrollment.student.id) ?? null,
 		})),
 	};
 }
@@ -171,6 +219,9 @@ export async function submitInitialMarks({ db = prisma, userId, assessmentId, ac
 			const { assessment, period, academicYear } = await getAssessmentAndPeriod(tx, assessmentId, academicPeriodId);
 			await requireAssignment(tx, lecturer.id, assessment.courseUnitId, academicYear);
 			const maximumMarks = markValue(assessment.maximumMarks);
+			if (marks.some(({ value }) => !Number.isInteger(value) || value < 0)) {
+				throw new AppError(400, "Marks must be nonnegative whole numbers");
+			}
 			if (marks.some(({ value }) => value > maximumMarks)) {
 				throw new AppError(400, "A mark cannot exceed the assessment maximum");
 			}
@@ -186,6 +237,10 @@ export async function submitInitialMarks({ db = prisma, userId, assessmentId, ac
 			const enrollmentByStudent = new Map(enrollments.map((enrollment) => [enrollment.studentProfileId, enrollment]));
 			if (enrollmentByStudent.size !== studentIds.length) {
 				throw new AppError(422, "Every student must be enrolled in this course unit for the selected academic period");
+			}
+			const attendanceByStudent = await getAssessmentAttendance(tx, assessment, period, studentIds);
+			if (studentIds.some((studentProfileId) => !attendanceByStudent.get(studentProfileId)?.eligible)) {
+				throw new AppError(422, "Marks can only be recorded for students with eligible attendance for this assessment session");
 			}
 			const created = [];
 			for (const item of marks) {
@@ -249,6 +304,9 @@ export async function getLecturerReportCorrections({ db = prisma, userId, report
 }
 
 export async function submitMarkCorrection({ db = prisma, userId, reportId, proposedValue, reason }) {
+	if (!Number.isInteger(proposedValue) || proposedValue < 0) {
+		throw new AppError(400, "Proposed mark must be a nonnegative whole number");
+	}
 	const lecturer = await getActiveLecturer(db, userId);
 	const report = await db.missingMarkReport.findFirst({
 		where: { id: reportId, assignedLecturerProfileId: lecturer.id },
@@ -259,7 +317,7 @@ export async function submitMarkCorrection({ db = prisma, userId, reportId, prop
 			studentProfileId: true,
 			courseUnitId: true,
 			academicPeriodId: true,
-			academicPeriod: { select: { id: true, startsAt: true } },
+			academicPeriod: { select: { id: true, startsAt: true, endsAt: true, academicYear: true } },
 			courseUnit: {
 				select: {
 					departmentId: true,
@@ -268,7 +326,7 @@ export async function submitMarkCorrection({ db = prisma, userId, reportId, prop
 			},
 			assessmentId: true,
 			assessment: {
-				select: { id: true, courseUnitId: true, maximumMarks: true },
+				select: { id: true, courseUnitId: true, type: true, maximumMarks: true },
 			},
 		},
 	});
@@ -310,9 +368,9 @@ export async function submitMarkCorrection({ db = prisma, userId, reportId, prop
 					courseUnitId: true,
 					academicPeriodId: true,
 					assessmentId: true,
-					academicPeriod: { select: { id: true, startsAt: true } },
+					academicPeriod: { select: { id: true, startsAt: true, endsAt: true, academicYear: true } },
 					courseUnit: { select: { departmentId: true, department: { select: { designatedCodUserId: true } } } },
-					assessment: { select: { id: true, courseUnitId: true, maximumMarks: true } },
+					assessment: { select: { id: true, courseUnitId: true, type: true, maximumMarks: true } },
 				},
 			});
 			if (
@@ -338,6 +396,15 @@ export async function submitMarkCorrection({ db = prisma, userId, reportId, prop
 				select: { id: true },
 			});
 			if (!currentEnrollment) throw new AppError(422, "The reported student is not enrolled for this assessment period");
+			const attendanceByStudent = await getAssessmentAttendance(
+				tx,
+				currentReport.assessment,
+				currentReport.academicPeriod,
+				[currentReport.studentProfileId],
+			);
+			if (!attendanceByStudent.get(currentReport.studentProfileId)?.eligible) {
+				throw new AppError(422, "A mark correction requires eligible attendance for this assessment session");
+			}
 			const pending = await tx.markCorrection.findFirst({
 				where: { reportId, status: "PENDING_REVIEW" },
 				select: { id: true },
@@ -436,8 +503,8 @@ function correctionSelect() {
 				status: true,
 				student: { select: { studentNumber: true, user: { select: { displayName: true, id: true } } } },
 				courseUnit: { select: { id: true, code: true, name: true, departmentId: true } },
-				academicPeriod: { select: { id: true, name: true, code: true, startsAt: true } },
-				assessment: { select: { id: true, code: true, name: true, maximumMarks: true } },
+				academicPeriod: { select: { id: true, name: true, code: true, startsAt: true, endsAt: true, academicYear: true } },
+				assessment: { select: { id: true, courseUnitId: true, code: true, name: true, type: true, maximumMarks: true } },
 			},
 		},
 		proposedBy: { select: { id: true, user: { select: { displayName: true } } } },
@@ -527,6 +594,10 @@ export async function decideCodMarkCorrection({ db = prisma, userId, correctionI
 			if (!correction.baselineVerified) {
 				throw conflict("This legacy proposal has no verified mark baseline; reject it with an explanation and submit a new verified proposal");
 			}
+			const proposedValue = markValue(correction.proposedValue);
+			if (!Number.isInteger(proposedValue) || proposedValue < 0) {
+				throw conflict("This proposal is not a nonnegative whole-number mark; reject it and submit a new whole-number proposal");
+			}
 			const assessment = correction.report.assessment;
 			if (!assessment || assessment.id !== correction.report.assessmentId) {
 				throw new AppError(422, "The report does not reference a valid assessment");
@@ -545,6 +616,15 @@ export async function decideCodMarkCorrection({ db = prisma, userId, correctionI
 				select: { id: true },
 			});
 			if (!enrollment) throw new AppError(422, "The reported student is no longer enrolled for this assessment period");
+			const attendanceByStudent = await getAssessmentAttendance(
+				tx,
+				assessment,
+				correction.report.academicPeriod,
+				[correction.report.studentProfileId],
+			);
+			if (!attendanceByStudent.get(correction.report.studentProfileId)?.eligible) {
+				throw new AppError(422, "Mark correction approval requires eligible attendance for this assessment session");
+			}
 
 			if (correction.markId) {
 				const current = await tx.studentMark.findUnique({
@@ -668,7 +748,7 @@ export async function getStudentMarks({ db = prisma, userId, academicPeriodId })
 			},
 			enrollment: {
 				select: {
-					academicPeriod: { select: { id: true, name: true, code: true, startsAt: true, endsAt: true } },
+					academicPeriod: { select: { id: true, name: true, code: true, startsAt: true, endsAt: true, academicYear: true } },
 				},
 			},
 		},

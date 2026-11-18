@@ -1,10 +1,7 @@
 import { z } from "zod";
 
 const uuid = z.string().uuid();
-const markValue = z.number().finite().min(0).refine(
-	(value) => Math.abs(value * 100 - Math.round(value * 100)) < 1e-8,
-	"Marks may have at most two decimal places",
-);
+const markValue = z.number().finite().int().min(0, "Marks cannot be negative");
 
 export const assessmentMarkParams = z.object({ assessmentId: uuid }).strict();
 export const correctionParams = z.object({ correctionId: uuid }).strict();

@@ -38,6 +38,9 @@ export const courseUnitUpdateBody = z.object({ courseId: uuid.optional(), code: 
 
 export const academicPeriodListQuery = pageQuery;
 export const academicPeriodIdParams = idParams;
+export const academicYearParams = z.object({
+	academicYear: z.string().regex(/^20\d{2}\/\d{2}$/),
+}).strict();
 const enrollmentWindow = (schema) => schema.refine((value) =>
 	!value.enrollmentOpensAt || !value.enrollmentClosesAt || value.enrollmentClosesAt > value.enrollmentOpensAt, {
 		message: "The enrollment closing date must be later than its opening date.",
@@ -63,6 +66,34 @@ export const academicPeriodUpdateBody = enrollmentWindow(oneAcademicYear(dateRan
 	enrollmentOpensAt: dateTime.nullable().optional(),
 	enrollmentClosesAt: dateTime.nullable().optional(),
 }).strict().refine((body) => Object.keys(body).length > 0, "At least one academic-period field must be provided."))));
+const semesterSchedule = z.object({
+	startsAt: dateTime,
+	endsAt: dateTime,
+	enrollmentOpensAt: dateTime.nullable().optional(),
+	enrollmentClosesAt: dateTime.nullable().optional(),
+}).strict().superRefine((period, context) => {
+	if (period.endsAt <= period.startsAt) {
+		context.addIssue({ code: "custom", path: ["endsAt"], message: "The end date must be later than the start date." });
+	}
+	if (Boolean(period.enrollmentOpensAt) !== Boolean(period.enrollmentClosesAt)) {
+		context.addIssue({ code: "custom", path: ["enrollmentClosesAt"], message: "Set both enrollment window dates, or leave both unset." });
+	}
+	if (period.enrollmentOpensAt && period.enrollmentClosesAt && period.enrollmentClosesAt <= period.enrollmentOpensAt) {
+		context.addIssue({ code: "custom", path: ["enrollmentClosesAt"], message: "The enrollment closing date must be later than its opening date." });
+	}
+});
+export const academicYearScheduleBody = z.object({
+	semester: z.number().int().min(1).max(3),
+	schedule: semesterSchedule,
+	courseIds: z.array(uuid).min(1).optional(),
+}).strict().superRefine((body, context) => {
+	if (body.semester === 3 && !body.courseIds?.length) {
+		context.addIssue({ code: "custom", path: ["courseIds"], message: "Select at least one course for semester 3." });
+	}
+	if (body.semester !== 3 && body.courseIds) {
+		context.addIssue({ code: "custom", path: ["courseIds"], message: "Course eligibility applies only to semester 3." });
+	}
+});
 
 export const enrollmentListQuery = pageQuery.extend({ studentProfileId: uuid.optional(), courseUnitId: uuid.optional(), academicPeriodId: uuid.optional() }).strict();
 export const enrollmentIdParams = idParams;
@@ -76,7 +107,7 @@ export const classroomUpdateBody = classroomCreateBody.partial().refine((body) =
 
 export const assessmentListQuery = pageQuery.extend({ courseUnitId: uuid.optional(), type: z.string().trim().min(1).max(80).optional() }).strict();
 export const assessmentIdParams = idParams;
-export const assessmentCreateBody = z.object({ courseUnitId: uuid, code: z.string().trim().min(1).max(80).optional(), name: z.string().trim().min(1).max(200), type: z.string().trim().min(1).max(80), assessmentDate: dateTime.optional(), maximumMarks: z.number().finite().min(0).max(999999.99).optional(), requiredForEligibility: z.boolean().optional(), attendanceRequired: z.boolean().optional(), submissionRequired: z.boolean().optional() }).strict();
+export const assessmentCreateBody = z.object({ courseUnitId: uuid, code: z.string().trim().min(1).max(80).optional(), name: z.string().trim().min(1).max(200), type: z.enum(["CAT", "EXAM"]), assessmentDate: dateTime.optional(), maximumMarks: z.number().finite().min(0).max(999999.99).optional(), requiredForEligibility: z.boolean().optional(), attendanceRequired: z.boolean().optional(), submissionRequired: z.boolean().optional() }).strict();
 export const assessmentUpdateBody = assessmentCreateBody.omit({ courseUnitId: true }).partial().refine((body) => Object.keys(body).length > 0, "At least one assessment field must be provided.");
 
 export const assessmentTypeListQuery = pageQuery.extend({ isActive: z.enum(["true", "false"]).transform((value) => value === "true").optional() }).strict();

@@ -75,7 +75,7 @@ async function eventStillOverdue(tx, event, now) {
 				schedulingDeadlineAt: true,
 				administrativeResolutionRequired: true,
 				courseUnitId: true,
-				academicPeriod: { select: { startsAt: true } },
+				academicPeriod: { select: { startsAt: true, academicYear: true } },
 				courseUnit: { select: { department: { select: { id: true, designatedCodUserId: true } } } },
 			},
 		});

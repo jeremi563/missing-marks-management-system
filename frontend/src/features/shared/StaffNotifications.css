@@ -57,7 +57,7 @@
 
 .staff-notifications__count {
   white-space: nowrap;
-  background: #f8fafc;
+  background: #d2d4d5;
 }
 
 .staff-notifications__toolbar {
@@ -131,7 +131,7 @@
   height: 2.5rem;
   place-items: center;
   border-radius: 50%;
-  background: #eef2ff;
+  background: #caccd8;
   color: #4338ca;
 }
 
@@ -152,7 +152,7 @@
 
 .staff-notifications__title span {
   border-radius: 999px;
-  background: #dbeafe;
+  background: #b9c6d7;
   color: #1d4ed8;
   padding: 0.15rem 0.5rem;
   font-size: 0.72rem;
@@ -194,7 +194,7 @@
   margin-bottom: 1rem;
   border: 1px solid #fda29b;
   border-radius: 0.65rem;
-  background: #fef3f2;
+  background: #d7cdcc;
   color: #b42318;
   padding: 0.75rem 1rem;
 }

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CodDepartmentWorkspace from '../../src/features/cod/CodDepartmentWorkspace'
 
@@ -11,6 +11,8 @@ vi.mock('../../src/api/cod', () => ({
 
 import {
   getCodDepartmentCourseUnits,
+  getCodDepartmentLecturers,
+  getCodDepartmentStudents,
   getCodDepartments,
 } from '../../src/api/cod'
 
@@ -20,6 +22,56 @@ afterEach(() => {
 })
 
 describe('CodDepartmentWorkspace', () => {
+  it('opens on the department student directory and lists lecturers in the same page', async () => {
+    getCodDepartments.mockResolvedValue({
+      success: true,
+      data: [{ id: 'department-in', name: 'Information Technology', code: 'IN' }],
+    })
+    getCodDepartmentStudents.mockResolvedValue({
+      success: true,
+      data: {
+        items: [{
+          id: 'student-in',
+          studentNumber: 'IN16/12345/26',
+          officialEmail: 'student@example.test',
+          user: { displayName: 'Student One', isActive: true },
+        }],
+        pagination: { page: 1, totalPages: 1, total: 1 },
+      },
+    })
+    getCodDepartmentLecturers.mockResolvedValue({
+      success: true,
+      data: {
+        items: [{
+          id: 'lecturer-in',
+          displayName: 'Lecturer One',
+          email: 'lecturer@example.test',
+          lecturerProfile: { staffNumber: 'IN/1234/lecturer' },
+        }],
+        pagination: { page: 1, totalPages: 1, total: 1 },
+      },
+    })
+
+    render(<CodDepartmentWorkspace />)
+
+    expect(await screen.findByText('Student One')).toBeTruthy()
+    expect(screen.getByText('IN16/12345/26')).toBeTruthy()
+    expect(getCodDepartmentStudents).toHaveBeenCalledWith({
+      departmentId: 'department-in',
+      page: 1,
+      limit: 20,
+    })
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Lecturers' }))
+    expect(await screen.findByText('Lecturer One')).toBeTruthy()
+    expect(screen.getByText('IN/1234/lecturer')).toBeTruthy()
+    expect(getCodDepartmentLecturers).toHaveBeenCalledWith({
+      departmentId: 'department-in',
+      page: 1,
+      limit: 20,
+    })
+  })
+
   it('groups course-unit codes under their course and does not display unit names', async () => {
     getCodDepartments.mockResolvedValue({
       success: true,
@@ -35,6 +87,7 @@ describe('CodDepartmentWorkspace', () => {
     })
 
     render(<CodDepartmentWorkspace />)
+    fireEvent.click(await screen.findByRole('tab', { name: 'Course units' }))
 
     expect(await screen.findByText('16 — Computing')).toBeTruthy()
     expect(screen.getByText('17 — Networking')).toBeTruthy()

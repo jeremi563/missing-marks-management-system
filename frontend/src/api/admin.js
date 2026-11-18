@@ -31,6 +31,7 @@ export const updateAdminCourseUnit = (id, data) => request('patch', `/admin/cour
 export const getAdminAcademicPeriods = (params = {}) => request('get', '/admin/academic-periods', undefined, { params })
 export const createAdminAcademicPeriod = (data) => request('post', '/admin/academic-periods', data)
 export const updateAdminAcademicPeriod = (id, data) => request('patch', `/admin/academic-periods/${id}`, data)
+export const saveAdminAcademicYearSchedule = (academicYear, data) => request('put', `/admin/academic-years/${encodeURIComponent(academicYear)}/schedule`, data)
 export const getAdminEnrollments = (params = {}) => request('get', '/admin/enrolments', undefined, { params })
 export const deleteAdminEnrollment = (id) => request('delete', `/admin/enrolments/${id}`)
 export const getLecturerMappings = (params = {}) => request('get', '/admin/lecturer-mappings', undefined, { params })

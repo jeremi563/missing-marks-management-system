@@ -201,7 +201,7 @@ export async function createStandaloneStudentSpecialCase({
 				where: { studentProfileId_courseUnitId_academicPeriodId: { studentProfileId: student.id, courseUnitId, academicPeriodId } },
 				select: {
 					id: true,
-					academicPeriod: { select: { id: true, name: true, code: true, startsAt: true, endsAt: true } },
+					academicPeriod: { select: { id: true, name: true, code: true, startsAt: true, endsAt: true, academicYear: true } },
 					courseUnit: { select: { id: true, code: true, name: true, departmentId: true } },
 				},
 			});
@@ -332,7 +332,7 @@ export async function listStudentSpecialCaseOptions({ db = prisma, userId, now =
 			where: { studentProfileId: student.id },
 			orderBy: [{ academicPeriod: { startsAt: "desc" } }, { courseUnit: { code: "asc" } }],
 			select: {
-				academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+				academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true, academicYear: true } },
 				courseUnit: { select: { id: true, code: true, name: true } },
 			},
 		}),
@@ -494,7 +494,7 @@ async function getAuthorizedCase({ db, userId, role, caseId }) {
 			} },
 			student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
 			courseUnit: { select: { id: true, code: true, name: true, department: { select: { id: true, designatedCodUserId: true } } } },
-			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true } },
+			academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, endsAt: true, academicYear: true } },
 			assessment: { select: { id: true, code: true, name: true, type: true, assessmentDate: true } },
 			reviews: { orderBy: { createdAt: "asc" }, select: { id: true, reviewerUserId: true, reviewerRole: true, action: true, decision: true, comments: true, previousStatus: true, newStatus: true, createdAt: true } },
 			schedules: { orderBy: { version: "asc" }, select: { id: true, version: true, startsAt: true, endsAt: true, venue: true, status: true, scheduledByUserId: true, acknowledgedAt: true, acknowledgedByUserId: true, supersedesScheduleId: true, changeReason: true, createdAt: true } },
@@ -626,7 +626,7 @@ export async function recommendStandaloneSpecialCase({ db = prisma, userId, case
 				status: true, administrativeResolutionRequired: true,
 				student: { select: { userId: true } },
 				courseUnit: { select: { id: true, departmentId: true } },
-				academicPeriod: { select: { startsAt: true } },
+				academicPeriod: { select: { startsAt: true, academicYear: true } },
 			},
 		});
 		if (!item || item.reportId || !item.studentProfileId || !item.courseUnit || !item.academicPeriod) {
@@ -992,7 +992,7 @@ export async function decideSpecialCase({ db = prisma, userId, caseId, decision,
 				status: true, submittedByUserId: true, administrativeResolutionRequired: true,
 				student: { select: { userId: true } },
 				courseUnit: { select: { department: { select: { id: true, designatedCodUserId: true } } } },
-				academicPeriod: { select: { startsAt: true } },
+				academicPeriod: { select: { startsAt: true, academicYear: true } },
 				report: { select: { student: { select: { userId: true } }, courseUnit: { select: { department: { select: { id: true, designatedCodUserId: true } } } } } },
 			},
 		});
@@ -1024,7 +1024,7 @@ async function lecturerWorkflowContext(tx, userId, caseId) {
 		select: {
 			id: true, reportId: true, studentProfileId: true, courseUnitId: true, academicPeriodId: true,
 			status: true, administrativeResolutionRequired: true, schedulingDeadlineAt: true, student: { select: { userId: true } },
-			academicPeriod: { select: { startsAt: true } },
+			academicPeriod: { select: { startsAt: true, academicYear: true } },
 		},
 	});
 	if (!item || item.reportId || !item.studentProfileId || !item.academicPeriod || !item.courseUnitId) {
