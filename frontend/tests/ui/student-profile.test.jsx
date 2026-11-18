@@ -25,6 +25,7 @@ describe('StudentProfile', () => {
           displayName: 'Taylor Student',
           email: 'taylor@example.test',
         },
+        course: { code: '16', name: 'Computer Science' },
       },
     })
 
@@ -34,6 +35,7 @@ describe('StudentProfile', () => {
     expect(screen.getByRole('heading', { name: 'Taylor Student' })).toBeTruthy()
     expect(screen.getAllByText('STU-001')).toHaveLength(2)
     expect(screen.getByText('student@university.test')).toBeTruthy()
+    expect(screen.getByText('16 — Computer Science')).toBeTruthy()
     expect(getStudentProfile).toHaveBeenCalledOnce()
   })
 })

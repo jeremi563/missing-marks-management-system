@@ -5,6 +5,7 @@ import {
   User,
   Mail,
   Hash,
+  BookOpen,
   RefreshCw,
 } from 'lucide-react'
 import { getStudentProfile } from '../../api/student'
@@ -90,6 +91,10 @@ function StudentProfile() {
     )
   }
 
+  const registeredCourse = profile.course?.name
+    ? [profile.course.code, profile.course.name].filter(Boolean).join(' — ')
+    : getValue(profile.course?.code)
+
   return (
     <div className="student-profile">
       <div className="profile-header">
@@ -134,6 +139,12 @@ function StudentProfile() {
             icon={<Hash />}
             label="Registration Number"
             value={getValue(profile.studentNumber)}
+          />
+
+          <ProfileField
+            icon={<BookOpen />}
+            label="Registered Course"
+            value={registeredCourse}
           />
         </div>
       </section>

@@ -15,14 +15,14 @@ test("lists departments from course units assigned to the lecturer", async () =>
 	const prisma = {
 		lecturerProfile: {
 			findUnique: async () => ({
-				unitAssignments: [{ courseUnit: { department: { id: departmentId, name: "Computing", code: "COMP" } } }],
+				unitAssignments: [{ courseUnit: { department: { id: departmentId, name: "Computing", code: "COMP", initials: "IN" } } }],
 			}),
 		},
 	};
 
 	const result = await getLecturerDepartmentOptions(prisma, lecturerUserId);
 
-	assert.deepEqual(result.assignedDepartments, [{ id: departmentId, name: "Computing", code: "COMP" }]);
+	assert.deepEqual(result.assignedDepartments, [{ id: departmentId, name: "Computing", code: "COMP", initials: "IN" }]);
 });
 
 test("limits the COD inbox to departments currently designated to that COD", async () => {

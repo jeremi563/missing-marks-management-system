@@ -38,7 +38,18 @@ export async function getStudentProfile(prisma, userId) {
 		throw error;
 	}
 
-	return profile;
+	const registration = parseStudentRegistrationNumber(profile.studentNumber);
+	const course = registration
+		? await prisma.course.findFirst({
+			where: {
+				code: registration.courseCode,
+				department: { initials: registration.departmentInitials },
+			},
+			select: { code: true, name: true },
+		})
+		: null;
+
+	return { ...profile, course };
 }
 
 export function buildAcademicYearOptions(enrolledPeriods, now = new Date()) {

@@ -4,6 +4,7 @@ import { ChevronDown, LayoutDashboard, LogOut, X } from 'lucide-react'
 import { useAuth } from '../../auth/useAuth'
 
 function itemMatchesPath(item, pathname) {
+  if (item.matchesRoute) return item.matchesRoute(pathname)
   return item.end
     ? pathname === item.to
     : pathname === item.to || pathname.startsWith(`${item.to}/`)
@@ -13,17 +14,20 @@ export default function Sidebar({ isOpen, onClose, navigationItems = [], roleLab
   const { logout } = useAuth()
   const { pathname } = useLocation()
   const [menuState, setMenuState] = useState({ pathname: '', group: null })
-  const renderLink = ({ to, label, icon: Icon, end }, className = 'sidebar-link') => (
+  const renderLink = (item, className = 'sidebar-link') => {
+    const { to, label, icon: Icon, end } = item
+    return (
     <NavLink
       key={to}
       to={to}
       end={end}
       onClick={onClose}
-      className={({ isActive }) => `${className} ${isActive ? 'active' : ''}`}
+      className={({ isActive }) => `${className} ${(item.matchesRoute ? item.matchesRoute(pathname) : isActive) ? 'active' : ''}`}
     >
       {Icon && <Icon size={18} />}<span>{label}</span>
     </NavLink>
-  )
+    )
+  }
 
   return (
     <>

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import StudentReportCreate from '../../src/features/student/StudentReportCreate'
@@ -12,6 +12,7 @@ import { createStudentReport, getStudentReportOptions } from '../../src/api/stud
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.clearAllMocks()
 })
 
@@ -58,7 +59,7 @@ describe('StudentReportCreate', () => {
     })
   })
 
-  it('shows each attendance requirement when report submission is blocked', async () => {
+  it('shows each attendance requirement and dismisses the submission error after five seconds', async () => {
     getStudentReportOptions.mockResolvedValue({
       success: true,
       data: [{
@@ -90,9 +91,14 @@ describe('StudentReportCreate', () => {
     fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
     fireEvent.change(screen.getByLabelText('Academic year'), { target: { value: '2026/27' } })
     fireEvent.change(screen.getByLabelText('Explain the issue'), { target: { value: 'My mark is missing.' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit report' }))
+    vi.useFakeTimers()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Submit report' }))
+      await Promise.resolve()
+      await Promise.resolve()
+    })
 
-    const alert = await screen.findByRole('alert')
+    const alert = screen.getByRole('alert')
     expect(alert.textContent).toContain('Your report was not submitted')
     expect(screen.getByRole('heading', { name: 'Your report wasn’t submitted' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Class attendance' })).toBeTruthy()
@@ -100,5 +106,9 @@ describe('StudentReportCreate', () => {
     expect(screen.getByRole('heading', { name: 'Exam attendance' })).toBeTruthy()
     expect(screen.getByText('1 of 3 checks met')).toBeTruthy()
     expect(screen.getAllByText('Not met').length).toBe(2)
+    act(() => vi.advanceTimersByTime(4999))
+    expect(screen.getByRole('alert')).toBeTruthy()
+    act(() => vi.advanceTimersByTime(1))
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

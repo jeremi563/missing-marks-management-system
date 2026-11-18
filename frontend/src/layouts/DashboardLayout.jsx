@@ -16,7 +16,7 @@ export default function DashboardLayout({ roleLabel, title, navigationItems }) {
     : fullName || user?.email
   const routeItems = navigationItems.flatMap((item) => item.items || [item])
   const currentPage = routeItems
-    .filter(({ to, end }) => pathname === to || (!end && pathname.startsWith(`${to}/`)))
+    .filter(({ to, end, matchesRoute }) => matchesRoute?.(pathname) || pathname === to || (!end && pathname.startsWith(`${to}/`)))
     .sort((first, second) => second.to.length - first.to.length)[0]
   const pageTitle = currentPage?.label || title
 

@@ -107,7 +107,7 @@ export const classroomUpdateBody = classroomCreateBody.partial().refine((body) =
 
 export const assessmentListQuery = pageQuery.extend({ courseUnitId: uuid.optional(), type: z.string().trim().min(1).max(80).optional() }).strict();
 export const assessmentIdParams = idParams;
-export const assessmentCreateBody = z.object({ courseUnitId: uuid, code: z.string().trim().min(1).max(80).optional(), name: z.string().trim().min(1).max(200), type: z.string().trim().min(1).max(80), assessmentDate: dateTime.optional(), maximumMarks: z.number().finite().min(0).max(999999.99).optional(), requiredForEligibility: z.boolean().optional(), attendanceRequired: z.boolean().optional(), submissionRequired: z.boolean().optional() }).strict();
+export const assessmentCreateBody = z.object({ courseUnitId: uuid, code: z.string().trim().min(1).max(80).optional(), name: z.string().trim().min(1).max(200), type: z.enum(["CAT", "EXAM"]), assessmentDate: dateTime.optional(), maximumMarks: z.number().finite().min(0).max(999999.99).optional(), requiredForEligibility: z.boolean().optional(), attendanceRequired: z.boolean().optional(), submissionRequired: z.boolean().optional() }).strict();
 export const assessmentUpdateBody = assessmentCreateBody.omit({ courseUnitId: true }).partial().refine((body) => Object.keys(body).length > 0, "At least one assessment field must be provided.");
 
 export const assessmentTypeListQuery = pageQuery.extend({ isActive: z.enum(["true", "false"]).transform((value) => value === "true").optional() }).strict();

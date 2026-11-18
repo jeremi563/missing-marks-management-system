@@ -31,6 +31,7 @@ test("loads profile by authenticated user ID and selects only permitted fields",
 		officialEmail: "student@university.example.test",
 		notificationEmail: "student@example.test",
 		user: { id: "user-1", displayName: "Example Student", email: "student@example.test" },
+		course: null,
 	};
 	const prisma = {
 		studentProfile: {
@@ -46,6 +47,30 @@ test("loads profile by authenticated user ID and selects only permitted fields",
 	assert.deepEqual(query.where, { userId: "user-1" });
 	assert.deepEqual(result, expectedProfile);
 	assert.equal("passwordHash" in query.select.user.select, false);
+});
+
+test("adds the course matched by the student's registration number to the profile", async () => {
+	let courseQuery;
+	const prisma = {
+		studentProfile: {
+			findUnique: async () => ({
+				id: "profile-1",
+				studentNumber: "IN16/01234/26",
+				user: { id: "user-1", displayName: "Example Student", email: "student@example.test" },
+			}),
+		},
+		course: {
+			findFirst: async (query) => {
+				courseQuery = query;
+				return { code: "16", name: "Computer Science" };
+			},
+		},
+	};
+
+	const result = await getStudentProfile(prisma, "user-1");
+
+	assert.deepEqual(courseQuery.where, { code: "16", department: { initials: "IN" } });
+	assert.deepEqual(result.course, { code: "16", name: "Computer Science" });
 });
 
 test("returns not found when the authenticated user has no student profile", async () => {

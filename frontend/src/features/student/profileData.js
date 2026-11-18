@@ -10,6 +10,9 @@ export function normalizeStudentProfile(response) {
     displayName: profile.user?.displayName || profile.displayName || 'Student',
     email: profile.officialEmail || profile.user?.email || profile.notificationEmail || '',
     studentNumber: profile.studentNumber || '',
+    course: profile.course && typeof profile.course === 'object'
+      ? { code: profile.course.code || '', name: profile.course.name || '' }
+      : null,
     officialEmail: profile.officialEmail || '',
     notificationEmail: profile.notificationEmail || '',
   }

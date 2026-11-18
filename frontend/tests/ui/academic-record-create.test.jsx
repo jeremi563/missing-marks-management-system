@@ -73,7 +73,7 @@ describe('AcademicRecordCreateForm', () => {
     })
   })
 
-  it('creates an exam with normalized type and all configured assessment inputs', async () => {
+  it('creates a Main Exam with normalized type and all configured assessment inputs', async () => {
       getAdminCourseUnits.mockResolvedValue({
         success: true,
         data: { items: [{ id: 'course-1', code: 'IN101', name: 'Computing' }] },
@@ -82,8 +82,12 @@ describe('AcademicRecordCreateForm', () => {
 
       render(<AcademicRecordCreateForm resourceKey="assessments" onCreated={vi.fn()} />)
       fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
-      fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'EXAM' } })
-      fireEvent.change(screen.getByLabelText('Assessment name'), { target: { value: 'Main exam' } })
+      const typeSelect = screen.getByLabelText('Type')
+      expect(Array.from(typeSelect.options, (option) => option.value)).toEqual(['CAT', 'EXAM'])
+      fireEvent.change(typeSelect, { target: { value: 'EXAM' } })
+      expect(screen.getByLabelText('Assessment name').value).toBe('Main Exam')
+      expect(screen.getByLabelText('Assessment name').readOnly).toBe(true)
+      expect(screen.getByText('For end-of-semester exams.')).toBeTruthy()
       fireEvent.change(screen.getByLabelText('Assessment code (optional)'), { target: { value: 'EXAM1' } })
       fireEvent.change(screen.getByLabelText('Date (optional)'), { target: { value: '2026-11-16' } })
       fireEvent.change(screen.getByLabelText('Maximum marks (optional)'), { target: { value: '70' } })
@@ -95,7 +99,7 @@ describe('AcademicRecordCreateForm', () => {
       await waitFor(() => {
         expect(createAdminAssessment).toHaveBeenCalledWith({
           courseUnitId: 'course-1',
-          name: 'Main exam',
+          name: 'Main Exam',
           type: 'EXAM',
           code: 'EXAM1',
           assessmentDate: new Date('2026-11-16T00:00:00.000Z').toISOString(),
@@ -107,26 +111,4 @@ describe('AcademicRecordCreateForm', () => {
     })
   })
 
-  it('preserves custom assessment types through the Other option', async () => {
-    getAdminCourseUnits.mockResolvedValue({
-      success: true,
-      data: { items: [{ id: 'course-1', code: 'IN101', name: 'Computing' }] },
-    })
-    createAdminAssessment.mockResolvedValue({ success: true })
-
-    render(<AcademicRecordCreateForm resourceKey="assessments" onCreated={vi.fn()} />)
-    fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
-    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'OTHER' } })
-    fireEvent.change(screen.getByLabelText('Other assessment type'), { target: { value: 'ASSIGNMENT' } })
-    fireEvent.change(screen.getByLabelText('Assessment name'), { target: { value: 'Assignment 1' } })
-    fireEvent.submit(screen.getByRole('button', { name: 'Create assessment' }).closest('form'))
-
-    await waitFor(() => {
-      expect(createAdminAssessment).toHaveBeenCalledWith(expect.objectContaining({
-        courseUnitId: 'course-1',
-        name: 'Assignment 1',
-        type: 'ASSIGNMENT',
-      }))
-    })
-  })
 })

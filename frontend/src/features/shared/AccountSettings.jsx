@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Camera, Check, Eye, EyeOff, KeyRound, Mail, ShieldCheck, Trash2, Upload, UserRound } from 'lucide-react'
 import { changePassword, requestEmailChange, updateAvatar } from '../../api/auth'
+import { getLecturerDepartments } from '../../api/lecturer'
 import { useAuth } from '../../auth/useAuth'
 import { meetsPasswordPolicy, PASSWORD_POLICY_MESSAGE } from '../../auth/password-policy'
 import './AccountSettings.css'
@@ -27,6 +28,39 @@ export default function AccountSettings({ roleLabel }) {
   const [avatarError, setAvatarError] = useState('')
   const [avatarSuccess, setAvatarSuccess] = useState('')
   const [avatarSaving, setAvatarSaving] = useState(false)
+  const [lecturerDepartments, setLecturerDepartments] = useState([])
+  const [departmentsLoading, setDepartmentsLoading] = useState(roleLabel === 'Lecturer')
+  const [departmentsError, setDepartmentsError] = useState('')
+  const [departmentRetry, setDepartmentRetry] = useState(0)
+
+  useEffect(() => {
+    if (roleLabel !== 'Lecturer') return undefined
+    let active = true
+    getLecturerDepartments()
+      .then((response) => {
+        const data = response?.data ?? response
+        if (!Array.isArray(data?.assignedDepartments)) {
+          throw new Error('The server returned invalid department data.')
+        }
+        if (active) {
+          setLecturerDepartments(data.assignedDepartments)
+          setDepartmentsError('')
+        }
+      })
+      .catch((requestError) => {
+        if (active) setDepartmentsError(requestError.userMessage || requestError.message || 'Unable to load your department codes.')
+      })
+      .finally(() => {
+        if (active) setDepartmentsLoading(false)
+      })
+    return () => { active = false }
+  }, [departmentRetry, roleLabel])
+
+  const retryDepartments = () => {
+    setDepartmentsError('')
+    setDepartmentsLoading(true)
+    setDepartmentRetry((current) => current + 1)
+  }
 
   const update = (event) => {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
@@ -153,6 +187,21 @@ export default function AccountSettings({ roleLabel }) {
               <p className="eyebrow">PROFILE</p>
               <h3 id="settings-profile-title">{displayName}</h3>
               <p>{user?.email || 'No email address available'}</p>
+              {roleLabel === 'Lecturer' && <div className="settings-profile-departments">
+                <span className="settings-profile-departments-label">Department codes</span>
+                {departmentsLoading ? <span role="status">Loading…</span>
+                  : departmentsError ? <div className="settings-profile-departments-error" role="alert">
+                    <span>{departmentsError}</span>
+                    <button className="button button-secondary" type="button" onClick={retryDepartments}>Try again</button>
+                  </div>
+                    : lecturerDepartments.length
+                      ? <div className="settings-department-codes">
+                        {lecturerDepartments.map((department) => <span key={department.id} title={department.name}>
+                          {department.code || department.initials || 'Code unavailable'}
+                        </span>)}
+                      </div>
+                      : <span>No departments assigned</span>}
+              </div>}
             </div>
           </div>
           <div className="settings-photo-tools">

@@ -17,7 +17,7 @@ const initialForms = {
   units: { departmentId: '', courseId: '', code: '', name: '' },
   periods: { code: '', name: '', startsAt: '', endsAt: '', enrollmentOpensAt: '', enrollmentClosesAt: '' },
   classrooms: { name: '', latitude: '', longitude: '', boundaryMeters: '100', isActive: true },
-  assessments: { courseUnitId: '', code: 'CAT1', name: 'CAT 1', type: 'CAT', customType: '', catNumber: '1', assessmentDate: '', maximumMarks: '', requiredForEligibility: false, attendanceRequired: false, submissionRequired: false },
+  assessments: { courseUnitId: '', code: 'CAT1', name: 'CAT 1', type: 'CAT', catNumber: '1', assessmentDate: '', maximumMarks: '', requiredForEligibility: false, attendanceRequired: false, submissionRequired: false },
 }
 
 export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
@@ -93,14 +93,13 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
           isActive: form.isActive,
         })
       } else if (resourceKey === 'assessments') {
-        const enteredType = form.type === 'OTHER' ? form.customType.trim() : form.type.trim()
-        const normalizedType = enteredType.toUpperCase()
+        const normalizedType = form.type.trim().toUpperCase()
         const isCat = normalizedType === 'CAT'
         const { courseUnitId, assessmentDate, maximumMarks, requiredForEligibility, attendanceRequired, submissionRequired } = form
         await createAdminAssessment({
           courseUnitId,
-          name: isCat ? `CAT ${form.catNumber}` : form.name.trim(),
-          type: ['CAT', 'EXAM'].includes(normalizedType) ? normalizedType : enteredType,
+          name: isCat ? `CAT ${form.catNumber}` : 'Main Exam',
+          type: normalizedType,
           ...(isCat ? { code: `CAT${form.catNumber}` } : form.code.trim() ? { code: form.code.trim() } : {}),
           ...(assessmentDate ? { assessmentDate: new Date(`${assessmentDate}T00:00:00.000Z`).toISOString() } : {}),
           ...(maximumMarks !== '' ? { maximumMarks: Number(maximumMarks) } : {}),
@@ -170,23 +169,20 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
           <div className="form-field"><label htmlFor="assessment-course">Course unit</label><select id="assessment-course" name="courseUnitId" value={form.courseUnitId} onChange={update} required><option value="">Select a course unit</option>{courseUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.code} — {unit.name}</option>)}</select></div>
           <div className="form-field"><label htmlFor="assessment-type">Type</label><select id="assessment-type" name="type" value={form.type} onChange={(event) => {
             const type = event.target.value
+            const normalizedType = type.trim().toUpperCase()
               setForm((current) => ({
                 ...current,
                 type,
-                customType: '',
-                ...(type.trim().toUpperCase() === 'CAT'
+                ...(normalizedType === 'CAT'
                   ? { code: `CAT${current.catNumber}`, name: `CAT ${current.catNumber}` }
-                  : current.type.trim().toUpperCase() === 'CAT' ? { code: '', name: '' } : {}),
+                  : { code: '', name: 'Main Exam' }),
               }))
-          }} required><option value="CAT">CAT</option><option value="EXAM">Exam</option><option value="OTHER">Other</option></select><small>Choose CAT or Exam, or select Other for another assessment type.</small></div>
-          {form.type === 'OTHER' && (
-            <div className="form-field"><label htmlFor="assessment-custom-type">Other assessment type</label><input id="assessment-custom-type" name="customType" value={form.customType} onChange={update} maxLength={80} required /></div>
-          )}
+          }} required><option value="CAT">CAT</option><option value="EXAM">Exam</option></select><small>Assessment types are CAT and Exam only.</small></div>
           {form.type.trim().toUpperCase() === 'CAT' ? (
             <div className="form-field"><label htmlFor="assessment-cat-number">CAT number</label><select id="assessment-cat-number" name="catNumber" value={form.catNumber} onChange={(event) => setForm((current) => ({ ...current, catNumber: event.target.value, code: `CAT${event.target.value}`, name: `CAT ${event.target.value}` }))} required><option value="1">CAT 1</option><option value="2">CAT 2</option></select><small>The code and name are set consistently so lecturers can select the configured CAT when creating attendance.</small></div>
           ) : (
             <>
-              <div className="form-field"><label htmlFor="assessment-name">Assessment name</label><input id="assessment-name" name="name" value={form.name} onChange={update} maxLength={200} required /></div>
+              <div className="form-field"><label htmlFor="assessment-name">Assessment name</label><input id="assessment-name" name="name" value={form.name} readOnly required /><small>For end-of-semester exams.</small></div>
               <div className="form-field"><label htmlFor="assessment-code">Assessment code (optional)</label><input id="assessment-code" name="code" value={form.code} onChange={update} maxLength={80} /></div>
             </>
           )}

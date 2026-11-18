@@ -54,6 +54,15 @@ export default function StudentReportCreate() {
     return () => { active = false }
   }, [optionsRetry])
 
+  useEffect(() => {
+    if (!error) return undefined
+    const dismissalTimer = window.setTimeout(() => {
+      setError('')
+      setAttendanceChecks([])
+    }, 5000)
+    return () => window.clearTimeout(dismissalTimer)
+  }, [error])
+
   const retryLoadingOptions = () => {
     setLoadingOptions(true)
     setOptionsError('')

@@ -77,30 +77,55 @@ describe('Student DashboardLayout', () => {
     expect(screen.queryByRole('link', { name: 'My reports' })).toBeNull()
   })
 
-  it('groups all account navigation outside the pinned dashboard link', () => {
+  it('keeps report history active on detail pages without activating report submission', () => {
+    render(
+      <AuthContext.Provider value={{ user: { displayName: 'Taylor Student' } }}>
+        <MemoryRouter initialEntries={['/student/reports/report-123']}>
+          <Routes>
+            <Route
+              path="/student"
+              element={<DashboardLayout roleLabel="Student" title="Student Dashboard" navigationItems={navigation.student} />}
+            >
+              <Route path="reports/:reportId" element={<p>Report details</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    )
+
+    const reportHistory = screen.getByRole('link', { name: 'My missing-mark reports' })
+    const reportSubmission = screen.getByRole('link', { name: 'Submit a report' })
+    expect(reportHistory.className).toContain('active')
+    expect(reportSubmission.className).not.toContain('active')
+    expect(screen.getByRole('heading', { name: 'My missing-mark reports' })).toBeTruthy()
+  })
+
+  it('groups related pages and keeps single-page destinations direct', () => {
     for (const [role, items] of Object.entries(navigation)) {
       expect(items[0].to).toBe(`/${role}`)
       expect(items[0].label).toBe('Dashboard')
-      expect(items.slice(1).every((item) => Array.isArray(item.items) && item.items.length > 0)).toBe(true)
+      expect(items.slice(1).filter(({ items: groupItems }) => groupItems).every(({ items: groupItems }) => groupItems.length > 1)).toBe(true)
     }
     expect(navigation.admin.slice(1).map(({ label }) => label)).toEqual([
-      'Staff',
-      'Accounts',
-      'Academic',
-      'Oversight',
-      'Account',
+      'People & access',
+      'Academic setup',
+      'Operations & oversight',
+      'Account settings',
+    ])
+    expect(navigation.admin.filter(({ items }) => !items).slice(1).map(({ to }) => to)).toEqual([
+      '/admin/academic',
+      '/admin/account-settings',
     ])
     expect(navigation.student.slice(1).map(({ label }) => label)).toEqual([
-      'Academics',
+      'My studies',
       'Attendance & exams',
-      'Reports',
-      'Requests & cases',
+      'Reports & support',
       'Account',
     ])
     expect(navigation.lecturer.slice(1).map(({ label }) => label)).toEqual([
       'Teaching',
-      'Assessment',
-      'Requests & reviews',
+      'Assessments',
+      'Reviews & requests',
       'Account',
     ])
     expect(navigation.lecturer.slice(1, 3).flatMap(({ items }) => items.map(({ to }) => to))).toEqual([
@@ -114,16 +139,20 @@ describe('Student DashboardLayout', () => {
       '/lecturer/exam-booklets',
     ])
     expect(navigation.cod.slice(1).map(({ label }) => label)).toEqual([
-      'Department',
-      'Teaching',
-      'Assessment',
-      'Lecturer tasks',
-      'Approvals',
-      'Reports & marks',
-      'Cases & attendance',
+      'Department management',
+      'Teaching oversight',
+      'Assessment oversight',
+      'Lecturer work',
+      'Enrollment & staff approvals',
+      'Reports & corrections',
+      'Student support',
       'Account',
     ])
-    expect(navigation.cod.slice(2, 5).flatMap(({ items }) => items.map(({ to }) => to))).toEqual([
+    expect(navigation.student.flatMap(({ items }) => items || []).map(({ to }) => to)).toContain('/student/attendance/check-in')
+    expect(navigation.student.flatMap(({ items }) => items || []).map(({ to }) => to)).toContain('/student/reports/new')
+    expect(navigation.cod.slice(1, 4).flatMap(({ items }) => items.map(({ to }) => to))).toEqual([
+      '/cod/departments',
+      '/cod/course-unit-assignments',
       '/cod/teaching/course-units',
       '/cod/teaching/students',
       '/cod/teaching/attendance',
@@ -132,9 +161,18 @@ describe('Student DashboardLayout', () => {
       '/cod/assessment/cat-submissions',
       '/cod/assessment/exam-attendance',
       '/cod/assessment/exam-booklets',
+    ])
+    expect(navigation.cod.slice(4, 8).flatMap(({ items }) => items.map(({ to }) => to))).toEqual([
       '/cod/lecturer/enrollment-requests',
       '/cod/lecturer/reports',
       '/cod/lecturer/special-cases',
+      '/cod/enrollment-requests',
+      '/cod/lecturer-approvals',
+      '/cod/reports',
+      '/cod/mark-corrections',
+      '/cod/appeals',
+      '/cod/attendance',
+      '/cod/special-cases',
     ])
   })
 })

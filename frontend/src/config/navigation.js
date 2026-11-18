@@ -2,36 +2,35 @@ import {
   Building2, LayoutDashboard, FileText, ClipboardList, Users, Settings, Bell, UserRound, UserCheck, GraduationCap, UserPlus, BookOpen, UserRoundSearch, BookOpenCheck, FileSpreadsheet,
 } from 'lucide-react'
 
+const matchesStudentReportHistory = (pathname) => pathname === '/student/reports'
+  || (/^\/student\/reports\/[^/]+$/.test(pathname) && pathname !== '/student/reports/new')
+
 export const navigation = {
   student: [
     { label: 'Dashboard', to: '/student', icon: LayoutDashboard, end: true },
     {
-      label: 'Academics',
+      label: 'My studies',
       icon: BookOpen,
       items: [
         { label: 'My marks', to: '/student/marks', icon: FileSpreadsheet },
-        { label: 'Course enrollment', to: '/student/enrollments', icon: BookOpenCheck },
+        { label: 'Course enrollment requests', to: '/student/enrollments', icon: BookOpenCheck },
       ],
     },
     {
       label: 'Attendance & exams',
       icon: ClipboardList,
       items: [
-        { label: 'Attendance', to: '/student/attendance', icon: ClipboardList },
-        { label: 'Exam booklet verification', to: '/student/exam-booklets', icon: ClipboardList },
+        { label: 'Attendance history', to: '/student/attendance', icon: ClipboardList, end: true },
+        { label: 'Check in to a session', to: '/student/attendance/check-in', icon: ClipboardList },
+        { label: 'Exam booklet check-in', to: '/student/exam-booklets', icon: ClipboardList },
       ],
     },
     {
-      label: 'Reports',
+      label: 'Reports & support',
       icon: FileText,
       items: [
-        { label: 'My reports', to: '/student/reports', icon: FileText },
-      ],
-    },
-    {
-      label: 'Requests & cases',
-      icon: ClipboardList,
-      items: [
+        { label: 'My missing-mark reports', to: '/student/reports', icon: FileText, end: true, matchesRoute: matchesStudentReportHistory },
+        { label: 'Submit a report', to: '/student/reports/new', icon: FileText, end: true },
         { label: 'Appeals', to: '/student/appeals', icon: ClipboardList },
         { label: 'Special cases', to: '/student/special-cases', icon: FileText },
       ],
@@ -53,27 +52,27 @@ export const navigation = {
       icon: BookOpen,
       items: [
         { label: 'My course units', to: '/lecturer/course-units', icon: BookOpen },
-        { label: 'My students', to: '/lecturer/students', icon: UserRoundSearch },
-        { label: 'Attendance', to: '/lecturer/attendance', icon: ClipboardList },
-        { label: 'Attendance lists', to: '/lecturer/attendance-lists', icon: ClipboardList },
+        { label: 'Enrolled students', to: '/lecturer/students', icon: UserRoundSearch },
+        { label: 'Attendance sessions', to: '/lecturer/attendance', icon: ClipboardList },
+        { label: 'Attendance records', to: '/lecturer/attendance-lists', icon: ClipboardList },
       ],
     },
     {
-      label: 'Assessment',
+      label: 'Assessments',
       icon: FileSpreadsheet,
       items: [
         { label: 'Assessment marks', to: '/lecturer/marks', icon: FileSpreadsheet },
-        { label: 'CAT submissions', to: '/lecturer/cat-submissions', icon: ClipboardList },
+        { label: 'CAT attendance review', to: '/lecturer/cat-submissions', icon: ClipboardList },
         { label: 'Exam attendance review', to: '/lecturer/exam-attendance', icon: ClipboardList },
         { label: 'Exam booklet verification', to: '/lecturer/exam-booklets', icon: ClipboardList },
       ],
     },
     {
-      label: 'Requests & reviews',
+      label: 'Reviews & requests',
       icon: FileText,
       items: [
-        { label: 'Enrollment requests', to: '/lecturer/enrollment-requests', icon: UserCheck },
-        { label: 'Assigned reports', to: '/lecturer/reports', icon: FileText },
+        { label: 'Course enrollment requests', to: '/lecturer/enrollment-requests', icon: UserCheck },
+        { label: 'Assigned missing-mark reports', to: '/lecturer/reports', icon: FileText },
         { label: 'Special cases', to: '/lecturer/special-cases', icon: Users },
       ],
     },
@@ -82,72 +81,72 @@ export const navigation = {
       icon: UserRound,
       items: [
         { label: 'Notifications', to: '/lecturer/notifications', icon: Bell },
-        { label: 'Settings', to: '/lecturer/settings', icon: Settings },
+        { label: 'Account settings', to: '/lecturer/settings', icon: Settings },
       ],
     },
   ],
   cod: [
     { label: 'Dashboard', to: '/cod', icon: LayoutDashboard, end: true },
     {
-      label: 'Department',
+      label: 'Department management',
       icon: Building2,
       items: [
         { label: 'Department directory', to: '/cod/departments', icon: Building2 },
-        { label: 'Unit Delegation', to: '/cod/course-unit-assignments', icon: UserPlus },
+        { label: 'Course-unit assignments', to: '/cod/course-unit-assignments', icon: UserPlus },
       ],
     },
     {
-      label: 'Teaching',
+      label: 'Teaching oversight',
       icon: BookOpen,
       items: [
-        { label: 'My course units', to: '/cod/teaching/course-units', icon: BookOpen },
-        { label: 'My students', to: '/cod/teaching/students', icon: UserRoundSearch },
-        { label: 'Attendance', to: '/cod/teaching/attendance', icon: ClipboardList },
-        { label: 'Attendance lists', to: '/cod/teaching/attendance-lists', icon: ClipboardList },
+        { label: 'Course units', to: '/cod/teaching/course-units', icon: BookOpen },
+        { label: 'Enrolled students', to: '/cod/teaching/students', icon: UserRoundSearch },
+        { label: 'Attendance sessions', to: '/cod/teaching/attendance', icon: ClipboardList },
+        { label: 'Attendance records', to: '/cod/teaching/attendance-lists', icon: ClipboardList },
       ],
     },
     {
-      label: 'Assessment',
+      label: 'Assessment oversight',
       icon: FileSpreadsheet,
       items: [
         { label: 'Assessment marks', to: '/cod/assessment/marks', icon: FileSpreadsheet },
-        { label: 'CAT submissions', to: '/cod/assessment/cat-submissions', icon: ClipboardList },
+        { label: 'CAT attendance review', to: '/cod/assessment/cat-submissions', icon: ClipboardList },
         { label: 'Exam attendance review', to: '/cod/assessment/exam-attendance', icon: ClipboardList },
         { label: 'Exam booklet verification', to: '/cod/assessment/exam-booklets', icon: ClipboardList },
       ],
     },
     {
-      label: 'Lecturer tasks',
+      label: 'Lecturer work',
       icon: FileText,
       items: [
-        { label: 'My enrollment requests', to: '/cod/lecturer/enrollment-requests', icon: UserCheck },
-        { label: 'Assigned reports', to: '/cod/lecturer/reports', icon: FileText },
+        { label: 'Lecturer enrollment requests', to: '/cod/lecturer/enrollment-requests', icon: UserCheck },
+        { label: 'Assigned missing-mark reports', to: '/cod/lecturer/reports', icon: FileText },
         { label: 'Lecturer special cases', to: '/cod/lecturer/special-cases', icon: Users },
       ],
     },
     {
-      label: 'Approvals',
+      label: 'Enrollment & staff approvals',
       icon: UserCheck,
       items: [
-        { label: 'Enrollment requests', to: '/cod/enrollment-requests', icon: UserCheck },
+        { label: 'Student enrollment requests', to: '/cod/enrollment-requests', icon: UserCheck },
         { label: 'Lecturer approvals', to: '/cod/lecturer-approvals', icon: UserCheck },
       ],
     },
     {
-      label: 'Reports & marks',
+      label: 'Reports & corrections',
       icon: FileSpreadsheet,
       items: [
-        { label: 'Reports', to: '/cod/reports', icon: FileText },
+        { label: 'Missing-mark reports', to: '/cod/reports', icon: FileText },
         { label: 'Mark corrections', to: '/cod/mark-corrections', icon: FileSpreadsheet },
       ],
     },
     {
-      label: 'Cases & attendance',
+      label: 'Student support',
       icon: ClipboardList,
       items: [
-        { label: 'Appeals', to: '/cod/appeals', icon: ClipboardList },
+        { label: 'Student appeals', to: '/cod/appeals', icon: ClipboardList },
         { label: 'Attendance review', to: '/cod/attendance', icon: ClipboardList },
-        { label: 'Special cases', to: '/cod/special-cases', icon: Users },
+        { label: 'Student special cases', to: '/cod/special-cases', icon: Users },
       ],
     },
     {
@@ -155,51 +154,33 @@ export const navigation = {
       icon: UserRound,
       items: [
         { label: 'Notifications', to: '/cod/notifications', icon: Bell },
-        { label: 'Settings', to: '/cod/settings', icon: Settings },
+        { label: 'Account settings', to: '/cod/settings', icon: Settings },
       ],
     },
   ],
   admin: [
     { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, end: true },
     {
-      label: 'Staff',
-      icon: GraduationCap,
-      items: [
-        { label: 'Lecturer approvals', to: '/admin/approvals', icon: UserCheck },
-        { label: 'Lecturers', to: '/admin/lecturers', icon: GraduationCap },
-      ],
-    },
-    {
-      label: 'Accounts',
+      label: 'People & access',
       icon: Users,
       items: [
         { label: 'All accounts', to: '/admin/users', icon: Users },
-        { label: 'Students', to: '/admin/students', icon: UserRound },
-        { label: 'Roster import', to: '/admin/roster-import', icon: FileSpreadsheet },
+        { label: 'Student accounts', to: '/admin/students', icon: UserRound },
+        { label: 'Lecturer accounts', to: '/admin/lecturers', icon: GraduationCap },
+        { label: 'Lecturer approvals', to: '/admin/approvals', icon: UserCheck },
+        { label: 'Import student roster', to: '/admin/roster-import', icon: FileSpreadsheet },
       ],
     },
+    { label: 'Academic setup', to: '/admin/academic', icon: ClipboardList },
     {
-      label: 'Academic',
-      icon: ClipboardList,
-      items: [
-        { label: 'Academic setup', to: '/admin/academic', icon: ClipboardList },
-      ],
-    },
-    {
-      label: 'Oversight',
+      label: 'Operations & oversight',
       icon: FileText,
       items: [
-        { label: 'Report summaries', to: '/admin/reports', icon: FileText },
+        { label: 'Missing-mark reports', to: '/admin/reports', icon: FileText },
         { label: 'Audit logs', to: '/admin/audit-logs', icon: ClipboardList },
         { label: 'System settings', to: '/admin/settings', icon: Settings },
       ],
     },
-    {
-      label: 'Account',
-      icon: UserRound,
-      items: [
-        { label: 'Account settings', to: '/admin/account-settings', icon: UserRound },
-      ],
-    },
+    { label: 'Account settings', to: '/admin/account-settings', icon: UserRound },
   ],
 }

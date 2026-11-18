@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { academicPeriodCreateBody, academicYearScheduleBody, assessmentCreateBody, classroomCreateBody, courseCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody } from "../../src/modules/admin/academic.validation.js";
+import { academicPeriodCreateBody, academicYearScheduleBody, assessmentCreateBody, assessmentUpdateBody, classroomCreateBody, courseCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody } from "../../src/modules/admin/academic.validation.js";
 import { reopenReportBody, reassignReportBody } from "../../src/modules/admin/operations.validation.js";
 
 const id = "00000000-0000-4000-8000-000000000001";
@@ -74,6 +74,10 @@ test("classroom validation enforces coordinate and boundary ranges", () => {
 
 test("assessment validation accepts optional flags and rejects invalid marks", () => {
 	assert.equal(assessmentCreateBody.safeParse({ courseUnitId: id, name: "CAT 1", type: "CAT", maximumMarks: 30, attendanceRequired: true }).success, true);
+	assert.equal(assessmentCreateBody.safeParse({ courseUnitId: id, name: "Main Exam", type: "EXAM" }).success, true);
+	assert.equal(assessmentCreateBody.safeParse({ courseUnitId: id, name: "Assignment 1", type: "ASSIGNMENT" }).success, false);
+	assert.equal(assessmentUpdateBody.safeParse({ type: "EXAM" }).success, true);
+	assert.equal(assessmentUpdateBody.safeParse({ type: "ASSIGNMENT" }).success, false);
 	assert.equal(assessmentCreateBody.safeParse({ courseUnitId: id, name: "CAT 1", type: "CAT", maximumMarks: -1 }).success, false);
 });
 

@@ -43,12 +43,20 @@ tr:hover td { background: #d2d4d4; }
 #lecturer-directory-panel th,
 #lecturer-directory-panel td { padding: 8px 10px; line-height: 1.3; }
 #lecturer-directory-panel .record-actions { flex-wrap: nowrap; }
-.session-expiry-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: #0a1b1fa8; }
-.session-expiry-dialog { width: min(100%, 440px); padding: 26px; color: var(--ink); border-radius: 16px; box-shadow: 0 20px 70px #0817194d; }
-.session-expiry-dialog h2 { margin: 0 0 10px; font-size: 20px; }
-.session-expiry-dialog p { margin: 0; color: var(--muted); line-height: 1.5; }
-.session-expiry-dialog .session-expiry-error { margin-top: 12px; color: #b64242; font-size: 13px; }
-.session-expiry-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.session-expiry-overlay { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 1000; width: min(390px, calc(100vw - 24px)); pointer-events: none; }
+.session-expiry-dialog { width: 100%; padding: 17px 18px; color: #f8fafc; background: #17232d; border: 1px solid #3b4c58; border-left: 4px solid var(--primary); border-radius: 12px; box-shadow: 0 12px 32px #07101870; pointer-events: auto; }
+.session-expiry-dialog h2 { margin: 0 0 6px; color: #f8fafc; font-size: 15px; }
+.session-expiry-dialog p { margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.5; }
+.session-expiry-dialog .session-expiry-error { margin-top: 10px; color: #fecaca; font-size: 11px; }
+.session-expiry-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px; }
+.session-expiry-actions .button { min-height: 35px; padding: 0 11px; border-radius: 8px; font-size: 11px; }
+.session-expiry-actions .button-secondary { color: #e2e8f0; background: #34424d; border-color: #4b5b67; box-shadow: none; }
+.session-expiry-actions .button-secondary:hover { color: #fff; background: #43515c; border-color: #657681; box-shadow: none; }
+.session-expiry-actions .button-primary { box-shadow: none; }
+@media (max-width: 480px) {
+  .session-expiry-overlay { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); width: min(370px, calc(100vw - 20px)); }
+  .session-expiry-dialog { padding: 15px; }
+}
 .academic-record-form { display: grid; gap: 16px; margin-bottom: 20px; }
 .academic-record-form h3 { margin: 0; }
 .academic-record-form .form-grid { align-items: center; }
