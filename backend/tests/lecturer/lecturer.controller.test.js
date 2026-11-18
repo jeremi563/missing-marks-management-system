@@ -271,6 +271,67 @@ test("returns enrolled students only from the authenticated lecturer's assigned 
   assert.deepEqual(res.body.pagination, { page: 1, limit: 20, total: 1, totalPages: 1 });
 });
 
+test('filters lecturer enrollments by department, academic period, and student or course search', async () => {
+  const academicYear = academicYearForDate(new Date());
+  const where = {
+    OR: [{ academicPeriodId: { in: ['period-1'] }, courseUnitId: { in: ['unit-1'] } }],
+    AND: [
+      { courseUnit: { departmentId: { in: ['department-1'] } } },
+      { academicPeriodId: 'period-1' },
+      {
+        OR: [
+          { student: { studentNumber: { contains: 'Sam', mode: 'insensitive' } } },
+          { student: { user: { displayName: { contains: 'Sam', mode: 'insensitive' } } } },
+          { student: { user: { email: { contains: 'Sam', mode: 'insensitive' } } } },
+          { courseUnit: { code: { contains: 'Sam', mode: 'insensitive' } } },
+          { courseUnit: { name: { contains: 'Sam', mode: 'insensitive' } } },
+        ],
+      },
+    ],
+  };
+  const prisma = {
+    lecturerProfile: { findUnique: async () => ({ id: 'lecturer-profile-1' }) },
+    courseUnitLecturer: {
+      findMany: async () => [{ courseUnitId: 'unit-1', academicYear }],
+    },
+    academicPeriod: {
+      findMany: async () => [{
+        id: 'period-1',
+        name: 'Semester One',
+        code: 'S1',
+        academicYear,
+        semester: 1,
+      }],
+    },
+    unitEnrollment: {
+      count: async (args) => {
+        assert.deepEqual(args.where, where);
+        return 0;
+      },
+      findMany: async (args) => {
+        assert.deepEqual(args.where, where);
+        return [];
+      },
+    },
+  };
+  const res = createResponse();
+
+  await getAssignedStudents({
+    user: { id: 'lecturer-user-1' },
+    app: { locals: { prisma } },
+    query: { page: 1, limit: 20, departmentIds: ['department-1'], academicPeriodId: 'period-1', search: 'Sam' },
+  }, res, () => {});
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body.filters.academicPeriods, [{
+    id: 'period-1',
+    name: 'Semester One',
+    code: 'S1',
+    academicYear,
+    semester: 1,
+  }]);
+});
+
 test('returns 401 when authentication is missing', async () => {
   const req = {
     user: null,

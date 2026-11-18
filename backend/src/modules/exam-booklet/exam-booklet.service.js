@@ -27,12 +27,28 @@ function assertExamSession(session) {
 	return session;
 }
 
+function sessionEndTimestamp(session) {
+	return new Date(
+		String(session.status).toLowerCase() === "completed" ? session.updatedAt : session.endsAt,
+	).valueOf();
+}
+
 function assertSessionOpen(session, now) {
-	if (
-		String(session.status).toLowerCase() !== "active"
-		|| new Date(session.startsAt) > now
-		|| (session.endsAt && new Date(session.endsAt) <= now)
-	) {
+	const status = String(session.status).toLowerCase();
+	const nowValue = now.valueOf();
+	const startsAt = new Date(session.startsAt).valueOf();
+	const endedAt = sessionEndTimestamp(session);
+	const graceMinutes = Number.isInteger(session.lateGraceMinutes) && session.lateGraceMinutes > 0
+		? session.lateGraceMinutes
+		: 0;
+	const cutoff = Number.isFinite(endedAt) ? endedAt + graceMinutes * 60_000 : null;
+	const withinActiveWindow = status === "active" && (cutoff === null || nowValue < cutoff);
+	const withinCompletedWindow = status === "completed"
+		&& Number.isFinite(endedAt)
+		&& nowValue >= endedAt
+		&& nowValue < cutoff;
+
+	if (startsAt > nowValue || (!withinActiveWindow && !withinCompletedWindow)) {
 		throw new AppError(409, "This examination session is not currently accepting booklet verification");
 	}
 }
@@ -49,6 +65,8 @@ async function getExamSession(db, sessionId) {
 			status: true,
 			startsAt: true,
 			endsAt: true,
+			lateGraceMinutes: true,
+			updatedAt: true,
 			courseUnit: {
 				select: {
 					id: true,
@@ -126,7 +144,7 @@ function bookletSelect() {
 		verificationMethod: true,
 		student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true } } } },
 		assessment: { select: { id: true, code: true, name: true, type: true } },
-		session: { select: { id: true, startsAt: true, endsAt: true, status: true, sessionType: true, courseUnit: { select: { id: true, code: true, name: true } } } },
+		session: { select: { id: true, startsAt: true, endsAt: true, status: true, lateGraceMinutes: true, updatedAt: true, sessionType: true, courseUnit: { select: { id: true, code: true, name: true } } } },
 	};
 }
 
@@ -308,12 +326,13 @@ export async function listStudentExamBooklets(db, userId) {
 			createdAt: true,
 			studentProfileId: true,
 			assessment: { select: { id: true, code: true, name: true, type: true } },
-			session: { select: { id: true, startsAt: true, endsAt: true, status: true, courseUnit: { select: { code: true, name: true } } } },
+			session: { select: { id: true, startsAt: true, endsAt: true, status: true, lateGraceMinutes: true, updatedAt: true, courseUnit: { select: { code: true, name: true } } } },
 		},
 	});
 }
 
 async function recordAttendanceVerification(tx, { session, student, userId, method, now }) {
+	const afterSessionEnd = now.valueOf() >= sessionEndTimestamp(session);
 	let record = await tx.attendanceRecord.findUnique({
 		where: { sessionId_studentProfileId: { sessionId: session.id, studentProfileId: student.id } },
 		select: {
@@ -333,7 +352,7 @@ async function recordAttendanceVerification(tx, { session, student, userId, meth
 			data: [{
 				sessionId: session.id,
 				studentProfileId: student.id,
-				status: "PRESENT",
+				status: afterSessionEnd ? "LATE" : "PRESENT",
 				locationVerified: false,
 				recordedAt: now,
 				examVerificationStatus: "VERIFIED",
@@ -349,10 +368,12 @@ async function recordAttendanceVerification(tx, { session, student, userId, meth
 		});
 	}
 
+	const nextStatus = record.status === "ABSENT" && afterSessionEnd ? "LATE" : record.status;
 	if (record.examVerificationStatus !== "VERIFIED") {
 		const updated = await tx.attendanceRecord.updateMany({
-			where: { id: record.id, examVerificationStatus: record.examVerificationStatus },
+			where: { id: record.id, status: record.status, examVerificationStatus: record.examVerificationStatus },
 			data: {
+				status: nextStatus,
 				examVerificationStatus: "VERIFIED",
 				examVerificationMethod: method,
 				examVerificationActorUserId: userId,
@@ -360,16 +381,19 @@ async function recordAttendanceVerification(tx, { session, student, userId, meth
 			},
 		});
 		if (updated.count !== 1) throw new AppError(409, "Examination attendance changed during verification; retry");
+		record.status = nextStatus;
 	} else {
 		const updated = await tx.attendanceRecord.updateMany({
-			where: { id: record.id, examVerificationStatus: "VERIFIED" },
+			where: { id: record.id, status: record.status, examVerificationStatus: "VERIFIED" },
 			data: {
+				status: nextStatus,
 				examVerificationMethod: method,
 				examVerificationActorUserId: userId,
 				examVerificationActorAt: now,
 			},
 		});
 		if (updated.count !== 1) throw new AppError(409, "Examination attendance changed during verification; retry");
+		record.status = nextStatus;
 	}
 
 	await tx.attendanceHistory.createMany({

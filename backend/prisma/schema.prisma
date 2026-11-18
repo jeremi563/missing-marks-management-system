@@ -258,6 +258,7 @@ model Course {
 
   department Department  @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   courseUnits CourseUnit[]
+  academicPeriods AcademicPeriod[]
 
   @@unique([departmentId, code])
   @@index([departmentId])
@@ -292,6 +293,9 @@ model CourseUnit {
 model AcademicPeriod {
   id        String    @id @default(uuid()) @db.Uuid
   code      String?   @unique
+  academicYear String? @map("academic_year")
+  semester Int?
+  scheduleKey String? @unique @map("schedule_key")
   name      String
   startsAt  DateTime? @map("starts_at")
   endsAt    DateTime? @map("ends_at")
@@ -299,12 +303,14 @@ model AcademicPeriod {
   enrollmentClosesAt DateTime? @map("enrollment_closes_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
+  eligibleCourses Course[]
   enrollments UnitEnrollment[]
   reports     MissingMarkReport[]
   specialCases SpecialCase[]
   enrollmentRequests StudentEnrollmentRequest[]
 
   @@index([name])
+  @@unique([academicYear, semester])
   @@map("academic_periods")
 }
 
@@ -458,6 +464,7 @@ model AttendanceSession {
   status            String    @default("scheduled")
   startsAt          DateTime  @map("starts_at")
   endsAt            DateTime? @map("ends_at")
+  lateGraceMinutes  Int       @default(10) @map("late_grace_minutes")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

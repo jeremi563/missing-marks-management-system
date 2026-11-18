@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { academicPeriodCreateBody, assessmentCreateBody, classroomCreateBody, courseCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody } from "../../src/modules/admin/academic.validation.js";
+import { academicPeriodCreateBody, academicYearScheduleBody, assessmentCreateBody, classroomCreateBody, courseCreateBody, courseUnitCreateBody, departmentCreateBody, departmentMemberParams, departmentUpdateBody } from "../../src/modules/admin/academic.validation.js";
 import { reopenReportBody, reassignReportBody } from "../../src/modules/admin/operations.validation.js";
 
 const id = "00000000-0000-4000-8000-000000000001";
@@ -45,6 +45,26 @@ test("academic period validation requires dates within one Nairobi academic year
 		enrollmentOpensAt: "2026-09-01T00:00:00+03:00",
 	}).success, false);
 	assert.equal(academicPeriodCreateBody.safeParse({ name: "No dates" }).success, false);
+});
+
+test("academic-year semester validation accepts one semester and requires courses for semester 3", () => {
+	assert.equal(academicYearScheduleBody.safeParse({
+		semester: 1,
+		schedule: { startsAt: "2026-09-01T00:00:00+03:00", endsAt: "2026-12-20T23:59:59+03:00" },
+	}).success, true);
+	assert.equal(academicYearScheduleBody.safeParse({
+		semester: 3,
+		schedule: { startsAt: "2027-05-01T00:00:00+03:00", endsAt: "2027-08-31T23:59:59+03:00" },
+		courseIds: [id],
+	}).success, true);
+	assert.equal(academicYearScheduleBody.safeParse({
+		semester: 3,
+		schedule: { startsAt: "2027-05-01T00:00:00Z", endsAt: "2027-08-31T00:00:00Z" },
+	}).success, false);
+	assert.equal(academicYearScheduleBody.safeParse({
+		semester1: { startsAt: "2026-09-01T00:00:00Z", endsAt: "2026-12-20T00:00:00Z" },
+		semester2: { startsAt: "2027-01-05T00:00:00Z", endsAt: "2027-04-30T00:00:00Z" },
+	}).success, false);
 });
 
 test("classroom validation enforces coordinate and boundary ranges", () => {

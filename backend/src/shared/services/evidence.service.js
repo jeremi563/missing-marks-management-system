@@ -87,7 +87,7 @@ export async function getEvidenceDownload({
 				courseUnitId: true,
 				administrativeResolutionRequired: true,
 				courseUnit: { select: { departmentId: true } },
-				academicPeriod: { select: { startsAt: true } },
+				academicPeriod: { select: { startsAt: true, academicYear: true } },
 			} },
 		},
 	});

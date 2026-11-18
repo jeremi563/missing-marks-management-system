@@ -5,6 +5,7 @@ import {
 	createCourse,
 	createCourseUnit,
 	deleteMapping,
+	saveAcademicYearSchedule,
 	updateAcademicPeriod,
 	updateCourseUnit,
 } from "../../src/modules/admin/academic.service.js";
@@ -158,6 +159,126 @@ test("academic-period creation and update reject periods crossing Nairobi academ
 		id: "period-1",
 		endsAt: new Date("2027-09-01T00:00:00+03:00"),
 	}), { statusCode: 422 });
+});
+
+test("admin saves one semester at a time for the current academic year", async () => {
+	const periods = new Map();
+	let savedData;
+	let auditEvent;
+	const tx = {
+		course: { findMany: async ({ where }) => where.id.in.map((id) => ({ id })) },
+		academicPeriod: {
+			findUnique: async ({ where }) => periods.get(where.scheduleKey) ?? null,
+			upsert: async ({ where, create, update }) => {
+				const current = periods.get(where.scheduleKey);
+				savedData = current ? update : create;
+				const result = { id: current?.id ?? "period-1", ...savedData };
+				periods.set(where.scheduleKey, result);
+				return result;
+			},
+		},
+		auditLog: { create: async ({ data }) => { auditEvent = data; return data; } },
+	};
+	const db = { $transaction: async (operation) => operation(tx) };
+	const result = await saveAcademicYearSchedule({
+		db,
+		actorUserId: "admin-1",
+		academicYear: "2026/27",
+		semester: 1,
+		schedule: {
+			startsAt: new Date("2026-08-31T21:00:00.000Z"),
+			endsAt: new Date("2026-12-20T20:59:59.999Z"),
+		},
+		now: new Date("2026-11-18T09:00:00.000Z"),
+	});
+	assert.equal(result.semester, 1);
+	assert.equal(periods.has("2026/27:S2"), false);
+	assert.equal(savedData.academicYear, "2026/27");
+	assert.equal(auditEvent.metadata.semester, 1);
+});
+
+test("admin cannot set up semester 2 before semester 1 ends", async () => {
+	let upserted = false;
+	const tx = {
+		academicPeriod: {
+			findUnique: async ({ where }) => where.scheduleKey === "2026/27:S1"
+				? { id: "semester-1", endsAt: new Date("2026-12-20T20:59:59.999Z") }
+				: null,
+			upsert: async () => { upserted = true; },
+		},
+	};
+	await assert.rejects(saveAcademicYearSchedule({
+		db: { $transaction: async (operation) => operation(tx) },
+		actorUserId: "admin-1",
+		academicYear: "2026/27",
+		semester: 2,
+		schedule: { startsAt: new Date("2027-01-04T21:00:00.000Z"), endsAt: new Date("2027-04-30T20:59:59.999Z") },
+		now: new Date("2026-12-20T20:59:59.999Z"),
+	}), { statusCode: 409 });
+	assert.equal(upserted, false);
+});
+
+test("admin can set up semester 2 after semester 1 has ended", async () => {
+	const periods = new Map([["2026/27:S1", {
+		id: "semester-1",
+		endsAt: new Date("2026-12-20T20:59:59.999Z"),
+	}]]);
+	let saved;
+	const tx = {
+		academicPeriod: {
+			findUnique: async ({ where }) => periods.get(where.scheduleKey) ?? null,
+			upsert: async ({ create }) => { saved = create; return { id: "semester-2", ...create }; },
+		},
+		auditLog: { create: async () => ({}) },
+	};
+	const result = await saveAcademicYearSchedule({
+		db: { $transaction: async (operation) => operation(tx) },
+		actorUserId: "admin-1",
+		academicYear: "2026/27",
+		semester: 2,
+		schedule: { startsAt: new Date("2027-01-04T21:00:00.000Z"), endsAt: new Date("2027-04-30T20:59:59.999Z") },
+		now: new Date("2026-12-20T21:00:00.000Z"),
+	});
+	assert.equal(result.semester, 2);
+	assert.equal(saved.scheduleKey, "2026/27:S2");
+});
+
+test("admin can set up course-scoped semester 3 after semester 2 has ended", async () => {
+	const periods = new Map([["2026/27:S2", {
+		id: "semester-2",
+		endsAt: new Date("2027-04-30T20:59:59.999Z"),
+	}]]);
+	let created;
+	const tx = {
+		course: { findMany: async ({ where }) => where.id.in.map((id) => ({ id })) },
+		academicPeriod: {
+			findUnique: async ({ where }) => periods.get(where.scheduleKey) ?? null,
+			upsert: async ({ create }) => { created = create; return { id: "semester-3", ...create }; },
+		},
+		auditLog: { create: async () => ({}) },
+	};
+	const result = await saveAcademicYearSchedule({
+		db: { $transaction: async (operation) => operation(tx) },
+		actorUserId: "admin-1",
+		academicYear: "2026/27",
+		semester: 3,
+		schedule: { startsAt: new Date("2027-04-30T21:00:00.000Z"), endsAt: new Date("2027-08-31T20:59:59.999Z") },
+		courseIds: ["course-1"],
+		now: new Date("2027-04-30T21:00:00.000Z"),
+	});
+	assert.equal(result.semester, 3);
+	assert.deepEqual(created.eligibleCourses, { connect: [{ id: "course-1" }] });
+});
+
+test("admin cannot schedule a past academic year", async () => {
+	await assert.rejects(saveAcademicYearSchedule({
+		db: {},
+		actorUserId: "admin-1",
+		academicYear: "2025/26",
+		semester: 1,
+		schedule: { startsAt: new Date("2025-08-31T21:00:00.000Z"), endsAt: new Date("2025-12-20T20:59:59.999Z") },
+		now: new Date("2026-11-18T09:00:00.000Z"),
+	}), { statusCode: 409 });
 });
 
 test("administrator removal deactivates a lecturer assignment and keeps its history", async () => {

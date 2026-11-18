@@ -31,6 +31,7 @@ function fixture({ booklet: bookletOverrides = {}, record = null, session: sessi
 			status: "active",
 			startsAt: new Date("2026-11-15T11:00:00.000Z"),
 			endsAt: new Date("2026-11-15T13:00:00.000Z"),
+			lateGraceMinutes: 10,
 			courseUnit: { id: "unit-1", code: "IN101", name: "Computing", departmentId: "department-1", department: { designatedCodUserId: "cod-user-1" } },
 			assessment: { id: "assessment-1", code: "EXAM", name: "Final examination", type: "EXAM", courseUnitId: "unit-1" },
 			...sessionOverrides,
@@ -250,7 +251,7 @@ test("wrong examination, inactive session, missing enrollment and duplicate scan
 	await assert.rejects(scanStudentExamBooklet(inactive.db, "student-user-1", { sessionId: "session-1", token }, now), { statusCode: 409 });
 	assert.equal(inactive.state.scans[0].exceptionCode, "INACTIVE_SESSION");
 
-	const expired = fixture({ session: { endsAt: now } });
+	const expired = fixture({ session: { endsAt: new Date(now.valueOf() - 10 * 60_000) } });
 	await assert.rejects(scanStudentExamBooklet(expired.db, "student-user-1", { sessionId: "session-1", token }, now), { statusCode: 409 });
 	assert.equal(expired.state.scans[0].exceptionCode, "INACTIVE_SESSION");
 
@@ -264,6 +265,72 @@ test("wrong examination, inactive session, missing enrollment and duplicate scan
 	assert.equal(repeated.duplicate, true);
 	assert.equal(duplicate.state.scans[1].outcome, "DUPLICATE");
 	assert.equal(duplicate.state.scans.filter(({ outcome }) => outcome === "SUCCESS").length, 1);
+});
+
+test("booklet verification remains available only through the configured post-end grace window", async () => {
+	const withinGrace = fixture({
+		session: { endsAt: new Date(now.valueOf() - 5 * 60_000), lateGraceMinutes: 10 },
+	});
+	const result = await scanStudentExamBooklet(withinGrace.db, "student-user-1", { sessionId: "session-1", token }, now);
+	assert.equal(result.status, "VERIFIED");
+	assert.equal(withinGrace.state.booklet.status, "VERIFIED");
+	assert.equal(withinGrace.state.record.status, "LATE");
+
+	const completedWithinGrace = fixture({
+		session: {
+			status: "completed",
+			endsAt: new Date(now.valueOf() - 20 * 60_000),
+			updatedAt: new Date(now.valueOf() - 5 * 60_000),
+			lateGraceMinutes: 10,
+		},
+	});
+	await scanInvigilatorExamBooklet(
+		completedWithinGrace.db,
+		"lecturer-user-1",
+		"session-1",
+		{ token, identityConfirmed: true },
+		now,
+	);
+	assert.equal(completedWithinGrace.state.booklet.status, "VERIFIED");
+	assert.equal(completedWithinGrace.state.record.status, "LATE");
+
+	const absentWithinGrace = fixture({
+		session: {
+			status: "completed",
+			endsAt: new Date(now.valueOf() - 20 * 60_000),
+			updatedAt: new Date(now.valueOf() - 5 * 60_000),
+			lateGraceMinutes: 10,
+		},
+		record: {
+			id: "attendance-1",
+			status: "ABSENT",
+			examVerificationStatus: "PENDING_REVIEW",
+		},
+	});
+	await scanInvigilatorExamBooklet(
+		absentWithinGrace.db,
+		"lecturer-user-1",
+		"session-1",
+		{ token, identityConfirmed: true },
+		now,
+	);
+	assert.equal(absentWithinGrace.state.record.status, "LATE");
+	assert.equal(absentWithinGrace.state.record.examVerificationStatus, "VERIFIED");
+	assert.equal(absentWithinGrace.state.history[0].status, "LATE");
+
+	const outsideGrace = fixture({
+		session: {
+			status: "completed",
+			endsAt: new Date(now.valueOf() - 20 * 60_000),
+			updatedAt: new Date(now.valueOf() - 10 * 60_000),
+			lateGraceMinutes: 10,
+		},
+	});
+	await assert.rejects(
+		previewInvigilatorExamBooklet(outsideGrace.db, "lecturer-user-1", "session-1", token, now),
+		{ statusCode: 409 },
+	);
+	assert.equal(outsideGrace.state.scans[0].exceptionCode, "INACTIVE_SESSION");
 });
 
 test("concurrent scans produce one successful verification and one safe duplicate result", async () => {

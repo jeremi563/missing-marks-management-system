@@ -11,8 +11,9 @@ test("academic years use Nairobi September-to-August boundaries", () => {
 	assert.equal(academicYearForDate("invalid"), null);
 });
 
-test("academic periods derive their year only from startsAt", () => {
+test("academic periods prefer their stored year and fall back to startsAt", () => {
 	assert.equal(academicYearForPeriod({ startsAt: new Date("2026-09-01T00:00:00Z"), name: "2019/20" }), "2026/27");
+	assert.equal(academicYearForPeriod({ academicYear: "2026/27", startsAt: new Date("2027-05-01T00:00:00Z") }), "2026/27");
 	assert.equal(academicYearForPeriod({ name: "Semester 1 2026/27", code: "2026" }), null);
 	assert.equal(academicYearForPeriod({ name: "Semester 1" }), null);
 });

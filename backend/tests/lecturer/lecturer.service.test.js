@@ -201,7 +201,7 @@ test('summarizes CAT, exam, and class attendance against the report academic yea
     const { prisma } = createReportDetailsPrisma({
       assessments: [
         { id: 'cat-1', type: 'CAT', code: 'CAT1', name: 'CAT 1', attendanceRecords: [], sessions: [{ id: 'cat-session', records: [] }] },
-        { id: 'exam-1', type: 'EXAM', code: 'EXAM', name: 'Final Exam', attendanceRecords: [{ status: 'PRESENT' }], sessions: [{ id: 'exam-session', records: [] }] },
+        { id: 'exam-1', type: 'EXAM', code: 'EXAM', name: 'Final Exam', attendanceRecords: [{ status: 'LATE' }], sessions: [{ id: 'exam-session', records: [] }] },
       ],
       classSessions: [
         { id: 'class-1', records: [{ status: 'PRESENT' }] },
@@ -907,6 +907,7 @@ test('creates a CLASS attendance session without an assessment', async () => {
   assert.equal(result.qrToken.length, 64);
   assert.equal(calls.sessionCreateArgs.data.assessmentId, null);
   assert.equal(calls.sessionCreateArgs.data.sessionType, 'CLASS');
+  assert.equal(calls.sessionCreateArgs.data.lateGraceMinutes, 10);
   assert.equal(
     calls.sessionCreateArgs.data.accessTokenHash.length,
     64
@@ -967,7 +968,7 @@ test('creates a CAT attendance session using a registered CAT assessment', async
       ...validClassSession,
       sessionType: 'CAT',
       assessmentId: 'assessment-1',
-
+      lateGraceMinutes: 5,
     }
   );
   assert.equal(result.session.id, 'session-1');
@@ -981,6 +982,7 @@ test('creates a CAT attendance session using a registered CAT assessment', async
     'assessment-1'
   );
   assert.equal(calls.sessionCreateArgs.data.sessionType, 'CAT');
+  assert.equal(calls.sessionCreateArgs.data.lateGraceMinutes, 5);
 });
 
 test('creates an EXAM attendance session using a registered EXAM assessment', async () => {
@@ -1376,10 +1378,21 @@ test('prevents lecturer from retrieving another lecturer attendance session', as
 const createAttendanceLifecyclePrisma = ({
   status = 'scheduled',
   records = [],
+  enrollments = [],
+  expiredSessions = [],
   lecturer = { id: 'lecturer-1' },
-  session = { id: 'session-1', status },
+  session = {
+    id: 'session-1',
+    status,
+    courseUnitId: 'unit-1',
+    startsAt: new Date('2026-11-13T06:00:00.000Z'),
+    endsAt: new Date('2030-11-13T08:00:00.000Z'),
+    courseUnit: { code: 'IN101', name: 'Computing' },
+  },
 } = {}) => {
   const calls = {};
+  const storedRecords = [...records];
+  const storedHistory = [];
   const prisma = {
     lecturerProfile: {
       findUnique: async (args) => {
@@ -1392,24 +1405,55 @@ const createAttendanceLifecyclePrisma = ({
         calls.sessionFindArgs = args;
         return session;
       },
+      findMany: async (args) => {
+        calls.expiredSessionsArgs = args;
+        return expiredSessions;
+      },
       updateMany: async (args) => {
         calls.updateArgs = args;
+        calls.updateArgsList = [...(calls.updateArgsList ?? []), args];
         return { count: 1 };
       },
       findUnique: async (args) => {
         calls.sessionUniqueArgs = args;
-        return { id: 'session-1', status: calls.updateArgs.data.status };
+        return { ...session, status: calls.updateArgs.data.status };
       },
     },
     attendanceRecord: {
       findMany: async (args) => {
         calls.recordsArgs = args;
-        return records;
+        return storedRecords.filter((record) => (
+          (!args.where.sessionId || !record.sessionId || record.sessionId === args.where.sessionId)
+          && (!args.where.studentProfileId?.in || args.where.studentProfileId.in.includes(record.studentProfileId))
+          && (!args.where.status || args.where.status === record.status)
+        ));
+      },
+      createMany: async (args) => {
+        calls.createdRecords = args;
+        storedRecords.push(...args.data.map((record, index) => ({
+          ...record,
+          id: `absent-record-${storedRecords.length + index}`,
+        })));
+        return { count: args.data.length };
       },
     },
+    unitEnrollment: {
+      findMany: async (args) => {
+        calls.enrollmentsArgs = args;
+        return enrollments;
+      },
+    },
+    attendanceHistory: {
+      createMany: async (args) => {
+        calls.createdHistory = args;
+        storedHistory.push(...args.data);
+        return { count: args.data.length };
+      },
+    },
+    $transaction: async (operation) => operation(prisma),
   };
 
-  return { prisma, calls };
+  return { prisma, calls, storedRecords, storedHistory };
 };
 
 test('starts only the authenticated lecturer scheduled session', async () => {
@@ -1450,6 +1494,47 @@ test('ends only the authenticated lecturer active session', async () => {
   });
 });
 
+test('marks enrolled students without check-ins absent when a lecturer ends an active session', async () => {
+  const records = [{
+    id: 'present-record',
+    sessionId: 'session-1',
+    studentProfileId: 'student-1',
+    status: 'PRESENT',
+    locationVerified: true,
+  }];
+  const enrollments = [
+    { studentProfileId: 'student-1' },
+    { studentProfileId: 'student-2' },
+    { studentProfileId: 'student-2' },
+  ];
+  const { prisma, calls, storedRecords, storedHistory } = createAttendanceLifecyclePrisma({
+    status: 'active',
+    records,
+    enrollments,
+  });
+
+  await endAttendanceSession(prisma, 'user-1', 'session-1');
+
+  assert.deepEqual(calls.createdRecords.data, [{
+    sessionId: 'session-1',
+    studentProfileId: 'student-2',
+    status: 'ABSENT',
+    locationVerified: false,
+    recordedAt: calls.createdHistory.data[0].signedAt,
+  }]);
+  assert.deepEqual(calls.createdHistory.data, [{
+    attendanceRecordId: storedRecords[1].id,
+    studentProfileId: 'student-2',
+    courseUnitCode: 'IN101',
+    courseUnitName: 'Computing',
+    sessionStartedAt: new Date('2026-11-13T06:00:00.000Z'),
+    status: 'ABSENT',
+    locationVerified: false,
+    signedAt: calls.createdHistory.data[0].signedAt,
+  }]);
+  assert.equal(storedHistory.length, 1);
+});
+
 test('extends only the owned active session to a later future end time', async () => {
   const now = new Date('2026-11-13T07:00:00.000Z');
   let updateArgs;
@@ -1488,44 +1573,84 @@ test('rejects an extension that does not move the session end time later', async
   );
 });
 
-test('automatically completes active sessions whose end time has passed and invalidates their links', async () => {
+test('automatically completes expired sessions and marks absences only for sessions that were active', async () => {
   const now = new Date('2026-11-13T10:00:00.000Z');
-  let updateArgs;
-  const prisma = {
-    attendanceSession: {
-      updateMany: async (args) => {
-        updateArgs = args;
-        return { count: 2 };
-      },
-    },
-  };
+  const expiredSessions = [
+    { id: 'active-session', status: 'active', endsAt: new Date('2026-11-13T08:00:00.000Z') },
+    { id: 'scheduled-session', status: 'scheduled', endsAt: new Date('2026-11-13T08:00:00.000Z') },
+  ];
+  const { prisma, calls, storedRecords, storedHistory } = createAttendanceLifecyclePrisma({
+    expiredSessions,
+    enrollments: [{ studentProfileId: 'student-1' }],
+  });
 
   assert.equal(await completeExpiredAttendanceSessions(prisma, now), 2);
-  assert.deepEqual(updateArgs, {
-    where: { status: { in: ['scheduled', 'active'] }, endsAt: { lte: now } },
-    data: { status: 'completed', accessTokenHash: null },
+  assert.deepEqual(calls.expiredSessionsArgs.where, {
+    status: { in: ['scheduled', 'active'] },
+    endsAt: { lte: now },
   });
+  assert.equal(calls.updateArgsList.length, 2);
+  assert.ok(calls.updateArgsList.every(({ data }) => (
+    data.status === 'completed' && data.accessTokenHash === null
+  )));
+  assert.equal(storedRecords.length, 1);
+  assert.equal(storedRecords[0].status, 'ABSENT');
+  assert.equal(storedRecords[0].sessionId, 'active-session');
+  assert.equal(storedHistory.length, 1);
 });
 
-test('returns attendance records in newest-first order for an owned session', async () => {
-  const records = [{ id: 'record-1' }];
-  const { prisma, calls } = createAttendanceLifecyclePrisma({ records });
+test('returns every enrolled student for an owned session with attendance status', async () => {
+  const records = [{
+    id: 'record-1',
+    studentProfileId: 'student-1',
+    status: 'LATE',
+    locationVerified: true,
+    recordedAt: new Date('2026-11-13T07:00:00.000Z'),
+  }];
+  const enrollments = [
+    {
+      student: { id: 'student-1', studentNumber: 'IN16/00001/26', user: { displayName: 'Ada Student' } },
+      academicPeriod: { id: 'period-1', name: 'Semester One', startsAt: new Date('2026-09-01'), academicYear: '2026/27', semester: 1 },
+    },
+    {
+      student: { id: 'student-2', studentNumber: 'IN16/00002/26', user: { displayName: 'Ben Student' } },
+      academicPeriod: { id: 'period-2', name: 'Semester One', startsAt: new Date('2026-09-01'), academicYear: '2026/27', semester: 1 },
+    },
+  ];
+  const { prisma, calls } = createAttendanceLifecyclePrisma({ records, enrollments });
 
   const result = await getAttendanceSessionRecords(prisma, 'user-1', 'session-1');
 
-  assert.deepEqual(result, records);
+  assert.deepEqual(result.map(({ student, status, attended, locationVerified }) => ({
+    studentNumber: student.studentNumber,
+    status,
+    attended,
+    locationVerified,
+  })), [
+    { studentNumber: 'IN16/00001/26', status: 'LATE', attended: true, locationVerified: true },
+    { studentNumber: 'IN16/00002/26', status: 'ABSENT', attended: false, locationVerified: null },
+  ]);
+  assert.deepEqual(result[0].academicPeriods[0], {
+    id: 'period-1',
+    name: 'Semester One',
+    startsAt: new Date('2026-09-01'),
+    academicYear: '2026/27',
+    semester: 1,
+  });
   assert.deepEqual(calls.sessionFindArgs.where, {
     id: 'session-1',
     lecturerProfileId: 'lecturer-1',
   });
+  assert.equal(calls.enrollmentsArgs.where.courseUnitId, 'unit-1');
+  assert.deepEqual(calls.enrollmentsArgs.where.academicPeriod.OR[0], { academicYear: '2026/27' });
   assert.deepEqual(calls.recordsArgs, {
     where: { sessionId: 'session-1' },
     select: {
       id: true,
+      studentProfileId: true,
       status: true,
       locationVerified: true,
       recordedAt: true,
-      student: { select: { id: true, studentNumber: true } },
     },
     orderBy: { recordedAt: 'desc' },
   });

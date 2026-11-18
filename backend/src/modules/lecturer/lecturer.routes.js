@@ -27,9 +27,11 @@ import {
   getCatSubmissionsController,
   getCatSubmissionController,
   postCatSubmissionDecisionController,
+  postBulkCatSubmissionDecisionController,
   getLecturerExamAttendanceController,
   getLecturerExamAttendanceRecordController,
   postLecturerExamAttendanceDecisionController,
+  postBulkLecturerExamAttendanceDecisionController,
 } from './lecturer.controller.js';
 import { getAssessmentTypes, getLecturerCaseById, getLecturerCases, createLecturerCase, startReportWork, recommendLecturerSpecialCase, scheduleLecturerSpecialCase, rescheduleLecturerSpecialCase, recordLecturerSpecialCaseAttendance, cancelLecturerSpecialCase } from '../feature5/feature5.controller.js';
 import { createSpecialCaseBody, lecturerSpecialCaseRecommendationBody, pageQuery, specialCaseIdParams, specialCaseScheduleBody, specialCaseRescheduleBody, specialCaseAttendanceBody, specialCaseCancellationBody } from '../feature5/feature5.validation.js';
@@ -49,9 +51,11 @@ import {
   catSubmissionsQuerySchema,
   catSubmissionParamsSchema,
   catSubmissionDecisionSchema,
+  catSubmissionBulkDecisionSchema,
   examAttendanceQuerySchema,
   examAttendanceParamsSchema,
   examAttendanceDecisionSchema,
+  examAttendanceBulkDecisionSchema,
 } from './lecturer.validation.js';
 import { createLecturerDiscrepancy, getLecturerDiscrepancy, getLecturerDiscrepancies, reviewLecturerDiscrepancy, respondLecturerDiscrepancy } from './attendance-discrepancy.controller.js';
 import { attendanceDiscrepancyListQuerySchema, attendanceDiscrepancyParamsSchema, createAttendanceDiscrepancySchema, reviewAttendanceDiscrepancySchema } from './lecturer.validation.js';
@@ -99,9 +103,11 @@ router.patch('/notifications/read-all', authenticate, authorize('lecturer'), pat
 router.patch('/notifications/:notificationId/read', authenticate, authorize('lecturer'), validate(userNotificationIdParams, 'params'), patchUserNotificationRead);
 router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCourseUnits);
 router.get('/cat-submissions', authenticate, authorize('lecturer'), validate(catSubmissionsQuerySchema, 'query'), getCatSubmissionsController);
+router.post('/cat-submissions/bulk-decision', authenticate, authorize('lecturer'), validate(catSubmissionBulkDecisionSchema, 'body'), postBulkCatSubmissionDecisionController);
 router.get('/cat-submissions/:submissionId', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), getCatSubmissionController);
 router.post('/cat-submissions/:submissionId/decision', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), validate(catSubmissionDecisionSchema, 'body'), postCatSubmissionDecisionController);
 router.get('/exam-attendance', authenticate, authorize('lecturer'), validate(examAttendanceQuerySchema, 'query'), getLecturerExamAttendanceController);
+router.post('/exam-attendance/bulk-decision', authenticate, authorize('lecturer'), validate(examAttendanceBulkDecisionSchema, 'body'), postBulkLecturerExamAttendanceDecisionController);
 router.get('/exam-attendance/:recordId', authenticate, authorize('lecturer'), validate(examAttendanceParamsSchema, 'params'), getLecturerExamAttendanceRecordController);
 router.post('/exam-attendance/:recordId/decision', authenticate, authorize('lecturer'), validate(examAttendanceParamsSchema, 'params'), validate(examAttendanceDecisionSchema, 'body'), postLecturerExamAttendanceDecisionController);
 router.post('/exam-booklets/sessions/:sessionId/allocate', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletSessionParams, postExamBookletAllocations);

@@ -28,7 +28,11 @@ export async function listStudentEnrollmentOptions(db, userId, now = new Date())
 	const [academicPeriods, enrollments, requests] = await Promise.all([
 		db.academicPeriod.findMany({
 			orderBy: [{ startsAt: "desc" }, { name: "asc" }],
-			select: { id: true, code: true, name: true, startsAt: true, enrollmentOpensAt: true, enrollmentClosesAt: true },
+			select: {
+				id: true, code: true, name: true, startsAt: true, academicYear: true, semester: true,
+				enrollmentOpensAt: true, enrollmentClosesAt: true,
+				eligibleCourses: { select: { id: true } },
+			},
 		}),
 		db.unitEnrollment.findMany({
 			where: {
@@ -39,9 +43,11 @@ export async function listStudentEnrollmentOptions(db, userId, now = new Date())
 				},
 			},
 			select: {
+				createdAt: true,
 				courseUnitId: true,
 				academicPeriodId: true,
-				academicPeriod: { select: { name: true, code: true, startsAt: true } },
+				courseUnit: { select: { code: true, name: true } },
+				academicPeriod: { select: { id: true, name: true, code: true, startsAt: true, academicYear: true, semester: true } },
 			},
 		}),
 		db.studentEnrollmentRequest.findMany({
@@ -62,7 +68,7 @@ export async function listStudentEnrollmentOptions(db, userId, now = new Date())
 				updatedAt: true,
 				decisionNote: true,
 				courseUnit: { select: { code: true, name: true } },
-				academicPeriod: { select: { code: true, name: true } },
+				academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, academicYear: true, semester: true } },
 				reviewedBy: { select: { displayName: true } },
 			},
 		}),
@@ -81,6 +87,7 @@ export async function listStudentEnrollmentOptions(db, userId, now = new Date())
 		orderBy: [{ code: "asc" }],
 		select: {
 			id: true,
+			courseId: true,
 			code: true,
 			name: true,
 			department: { select: { id: true, name: true, initials: true } },
@@ -94,13 +101,17 @@ export async function listStudentEnrollmentOptions(db, userId, now = new Date())
 			},
 		},
 	});
+	const studentCourseIds = new Set(courseUnits.map(({ courseId }) => courseId).filter(Boolean));
+	const eligibleOpenPeriods = openPeriods.filter((period) =>
+		period.semester !== 3 || period.eligibleCourses.some(({ id }) => studentCourseIds.has(id))
+	);
 
 	return {
 		courses: courseUnits.map(({ lecturerMappings, ...course }) => ({
 			...course,
 			lecturers: lecturerMappings.map(({ lecturer }) => lecturer.user).filter(Boolean),
 		})),
-		academicPeriods: openPeriods,
+		academicPeriods: eligibleOpenPeriods,
 		enrollments,
 		requests,
 	};
@@ -115,7 +126,11 @@ export async function createStudentEnrollmentRequests(db, userId, { courseUnitId
 		const registration = parseStudentRegistrationNumber(student.studentNumber);
 		const period = await tx.academicPeriod.findUnique({
 			where: { id: academicPeriodId },
-			select: { id: true, name: true, code: true, startsAt: true, enrollmentOpensAt: true, enrollmentClosesAt: true },
+			select: {
+				id: true, name: true, code: true, startsAt: true, academicYear: true, semester: true,
+				enrollmentOpensAt: true, enrollmentClosesAt: true,
+				eligibleCourses: { select: { id: true } },
+			},
 		});
 		if (!period || !isEnrollmentOpen(period, now)) throw new AppError(422, "Enrollment is not open for the selected academic period");
 		const academicYear = academicYearForPeriod(period);
@@ -130,6 +145,7 @@ export async function createStudentEnrollmentRequests(db, userId, { courseUnitId
 			},
 			select: {
 				id: true,
+				courseId: true,
 				code: true,
 				department: {
 					select: {
@@ -155,6 +171,12 @@ export async function createStudentEnrollmentRequests(db, userId, { courseUnitId
 		});
 		if (courseUnits.length !== uniqueCourseUnitIds.length) {
 			throw new AppError(422, "Select only department course units that have an active, approved lecturer assigned");
+		}
+		if (period.semester === 3) {
+			const eligibleCourseIds = new Set(period.eligibleCourses.map(({ id }) => id));
+			if (courseUnits.some(({ courseId }) => !eligibleCourseIds.has(courseId))) {
+				throw new AppError(422, "Semester 3 enrollment is limited to the courses selected by the administrator");
+			}
 		}
 
 		const [enrollments, existingRequests] = await Promise.all([
@@ -247,7 +269,7 @@ function reviewerWhere(scope, status, periods) {
 export async function listEnrollmentRequestsForReviewer(db, userId, status) {
 	const [scope, periods] = await Promise.all([
 		getReviewerScope(db, userId),
-		db.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true } }),
+		db.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true, academicYear: true } }),
 	]);
 	if (!scope.assignments.length && !scope.departmentIds.length) throw new AppError(403, "You are not assigned to review course enrollment requests");
 	return db.studentEnrollmentRequest.findMany({
@@ -272,7 +294,7 @@ export async function decideEnrollmentRequests(db, userId, { requestIds, decisio
 	try {
 		return await db.$transaction(async (tx) => {
 			const scope = await getReviewerScope(tx, userId);
-			const periods = await tx.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true } });
+			const periods = await tx.academicPeriod.findMany({ select: { id: true, name: true, code: true, startsAt: true, academicYear: true } });
 			if (!scope.assignments.length && !scope.departmentIds.length) throw new AppError(403, "You are not assigned to review course enrollment requests");
 
 			const requests = await tx.studentEnrollmentRequest.findMany({
@@ -284,7 +306,7 @@ export async function decideEnrollmentRequests(db, userId, { requestIds, decisio
 					academicPeriodId: true,
 					courseUnit: { select: { departmentId: true, code: true, department: { select: { name: true } } } },
 					student: { select: { userId: true } },
-					academicPeriod: { select: { name: true, code: true, startsAt: true } },
+					academicPeriod: { select: { name: true, code: true, startsAt: true, academicYear: true } },
 				},
 			});
 			if (requests.length !== ids.length) throw new AppError(409, "One or more selected requests are no longer pending");

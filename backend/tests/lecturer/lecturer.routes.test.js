@@ -73,28 +73,34 @@ test('registers an authenticated lecturer attendance-link generation endpoint', 
   assert.equal(route.route.stack.length, 4);
 });
 
-test('registers the authenticated CAT submission queue, details and decision endpoints', () => {
+test('registers the authenticated CAT submission queue, details, and single and bulk decisions', () => {
   const list = router.stack.find((layer) => layer.route?.path === '/cat-submissions' && layer.route.methods.get);
   const detail = router.stack.find((layer) => layer.route?.path === '/cat-submissions/:submissionId' && layer.route.methods.get);
   const decision = router.stack.find((layer) => layer.route?.path === '/cat-submissions/:submissionId/decision' && layer.route.methods.post);
+  const bulkDecision = router.stack.find((layer) => layer.route?.path === '/cat-submissions/bulk-decision' && layer.route.methods.post);
   assert.ok(list);
   assert.equal(list.route.stack.length, 4);
   assert.ok(detail);
   assert.equal(detail.route.stack.length, 4);
   assert.ok(decision);
   assert.equal(decision.route.stack.length, 5);
+  assert.ok(bulkDecision);
+  assert.equal(bulkDecision.route.stack.length, 4);
 });
 
-test('registers authenticated examination attendance queue, details and decision endpoints', () => {
+test('registers authenticated examination attendance queue, details, and single and bulk decisions', () => {
   const list = router.stack.find((layer) => layer.route?.path === '/exam-attendance' && layer.route.methods.get);
   const detail = router.stack.find((layer) => layer.route?.path === '/exam-attendance/:recordId' && layer.route.methods.get);
   const decision = router.stack.find((layer) => layer.route?.path === '/exam-attendance/:recordId/decision' && layer.route.methods.post);
+  const bulkDecision = router.stack.find((layer) => layer.route?.path === '/exam-attendance/bulk-decision' && layer.route.methods.post);
   assert.ok(list);
   assert.equal(list.route.stack.length, 4);
   assert.ok(detail);
   assert.equal(detail.route.stack.length, 4);
   assert.ok(decision);
   assert.equal(decision.route.stack.length, 5);
+  assert.ok(bulkDecision);
+  assert.equal(bulkDecision.route.stack.length, 4);
 });
 
 test('registers an authenticated end-time extension endpoint with body validation', () => {
@@ -148,9 +154,13 @@ test('exposes assigned departments for lecturer filters without a post-login mem
 
 test('validates lecturer student department filters as UUID lists', () => {
   const departmentId = '00000000-0000-4000-8000-000000000001';
+  const academicPeriodId = '00000000-0000-4000-8000-000000000002';
   assert.deepEqual(lecturerStudentsQuerySchema.parse({ departmentIds: departmentId }).departmentIds, [departmentId]);
   assert.deepEqual(lecturerStudentsQuerySchema.parse({ departmentIds: '' }).departmentIds, []);
+  assert.equal(lecturerStudentsQuerySchema.parse({ academicPeriodId, search: 'Sam' }).academicPeriodId, academicPeriodId);
   assert.equal(lecturerStudentsQuerySchema.safeParse({ departmentIds: 'invalid' }).success, false);
+  assert.equal(lecturerStudentsQuerySchema.safeParse({ academicPeriodId: 'invalid' }).success, false);
+  assert.equal(lecturerStudentsQuerySchema.safeParse({ search: '   ' }).success, false);
 });
 
 test('applies authentication, authorization and UUID validation', () => {
