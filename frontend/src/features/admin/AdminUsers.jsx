@@ -15,6 +15,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import ConfirmationDialog from '../../components/ui/ConfirmationDialog'
+import './AdminUsers.css'
 
 export default function AdminUsers({ roleFilter = null }) {
   const { user: currentUser } = useAuth()
@@ -220,7 +221,7 @@ export default function AdminUsers({ roleFilter = null }) {
     : roleFilter === 'lecturer' ? users : roleFilter ? users : orderedUsers
 
   return (
-    <section>
+    <section className={roleFilter === 'student' ? 'admin-student-page' : undefined}>
       <header className="page-heading"><div><p className="eyebrow">ADMINISTRATION</p><h2>{pageTitle}</h2><p>{pageDescription}</p></div><button className="button button-secondary" onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={16} /> Refresh</button></header>
       {error && <div className="form-alert" role="alert">{error}</div>}
       {notice && <div className="form-success" role="status">{notice}</div>}

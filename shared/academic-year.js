@@ -37,7 +37,7 @@ export function academicYearForDate(value) {
 }
 
 export function academicYearForPeriod(period) {
-	return period?.startsAt ? academicYearForDate(period.startsAt) : null;
+	return period?.academicYear || (period?.startsAt ? academicYearForDate(period.startsAt) : null);
 }
 
 export function nairobiDateAtStartOfDay(value) {

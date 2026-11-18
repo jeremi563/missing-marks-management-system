@@ -32,7 +32,7 @@ The following core models are implemented in the shared Prisma schema. Exact fie
 | `StudentMark` | Official assessment mark attached to an existing unit enrollment. |
 | `StudentEnrollmentRequest` | A student's request to enroll in a course unit for an academic period, pending lecturer/COD review. |
 | `MissingMarkReport` | A student's missing-mark case and its current status. |
-| `AttendanceSession` | A class or attendance event created by an authorised lecturer. |
+| `AttendanceSession` | A class or attendance event created by an authorised lecturer, with a configurable late-grace period (default 10 minutes). |
 | `AttendanceRecord` | A student's attendance record for a session. |
 | `Appeal` | An appeal associated with a report, subject to the approved policy. |
 | `Notification` | A notification for an authorised user. |
@@ -137,7 +137,7 @@ This inventory documents the current schema, not a claim that every business rul
 | `departments` | `id: UUID`, `name: String`, `code: String?`, timestamps | Academic department; non-null code is unique. |
 | `department_memberships` | `id: UUID`, `userId/departmentId: UUID`, `createdAt: DateTime` | Links staff/accounts to departments; `(userId, departmentId)` unique. Role-specific access is still enforced in services. |
 | `course_units` | `id: UUID`, `departmentId: UUID`, `code/name: String`, timestamps | A unit belongs to one department. `(departmentId, code)` is unique. |
-| `academic_periods` | `id: UUID`, `code: String?`, `name: String`, `startsAt/endsAt: DateTime?`, `enrollmentOpensAt/enrollmentClosesAt: DateTime?`, `createdAt: DateTime` | Academic period referenced by enrollments and reports. Administrators control student enrollment availability with an explicit open/close window; periods without both dates are closed. |
+| `academic_periods` | `id: UUID`, `code: String?`, `academicYear: String?`, `semester: Int?`, `scheduleKey: String?`, `name: String`, `startsAt/endsAt: DateTime?`, `enrollmentOpensAt/enrollmentClosesAt: DateTime?`, `createdAt: DateTime` | Academic period referenced by enrollments and reports. New schedules store an explicit year and semester; semester 3 may be associated with multiple eligible courses. Legacy periods retain null semester metadata. Administrators control student enrollment availability with an explicit open/close window; periods without both dates are closed. |
 | `unit_enrollments` | `id: UUID`, `studentProfileId/courseUnitId/academicPeriodId: UUID`, `createdAt: DateTime` | Student enrollment in a unit for a period; that three-column combination is unique. |
 | `student_marks` | `id/unitEnrollmentId/assessmentId/enteredByLecturerId: UUID`, `value: Decimal(8,2)`, `version: Int`, timestamps | Official mark for one enrolled student and assessment. `(unitEnrollmentId, assessmentId)` is unique; the enrollment derives student, course unit, and period. A database trigger rejects mismatched assessment/enrollment course units. |
 | `course_unit_lecturers` | `id: UUID`, `courseUnitId/lecturerProfileId: UUID`, `academicYear: String?`, `createdAt: DateTime` | Lecturer-to-unit assignment; a course unit has at most one assignment per academic year. New assignments always have an academic year. Legacy duplicate mappings retain their rows but are unscoped (`academicYear = NULL`) so they cannot grant current access. |
@@ -226,12 +226,14 @@ There is deliberately no partial unique index for “one active report”; that 
 
 Academic entities and audit-relevant children use restrictive foreign keys so deleting a parent cannot silently erase history. User-role links and notifications cascade with user deletion; optional notification-to-report, audit-actor, and setting-updater references become null when their parent is removed. Attendance history uses an optional source-record relation with `SetNull`, retaining its snapshot if the source row is removed. The team must confirm archival and retention policy before exposing destructive API operations.
 
+Academic-year scheduling automatically targets the current Nairobi academic year and configures one semester at a time. Semester 2 setup is blocked until semester 1's configured end date has passed; optional semester 3 is similarly blocked until semester 2 ends. Defaults are September 1–December 20 and January 5–April 30, and administrators can adjust period and enrollment-window dates. Semester 3 uses a shared date range and a many-to-many course eligibility relation; enrollment requests are restricted to those selected courses. A unique academic-year/semester key permits one shared period per semester/year while legacy rows with null metadata remain valid.
+
 ## 14. Decisions still required
 
 Do not silently treat these as finalized by the schema:
 
 - Whether COD and Academic Officer are one role or distinct roles. The current policy allows an account to hold both lecturer and COD roles; student and administrator roles are exclusive in validation and authorization.
-- Academic year/semester/class-group representation and the official uniqueness convention for academic periods.
+- Whether academic-year scheduling should include class-group-specific periods beyond the implemented course-scoped semester 3.
 - Whether every report must reference an `Assessment` or whether `assessmentComponent` text is sufficient.
 - Exact report, appeal, attendance, session, CAT submission, special-case and discrepancy status values and transitions.
 - Final decision authority, student edit/withdraw conditions, appeal count/deadline, and active-report duplicate rule.

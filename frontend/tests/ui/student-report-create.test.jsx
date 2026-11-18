@@ -57,4 +57,48 @@ describe('StudentReportCreate', () => {
       }, [])
     })
   })
+
+  it('shows each attendance requirement when report submission is blocked', async () => {
+    getStudentReportOptions.mockResolvedValue({
+      success: true,
+      data: [{
+        id: 'course-1',
+        code: 'IN101',
+        name: 'Introduction to Computing',
+        academicYears: [{ value: '2026/27', label: '2026/27', academicPeriodId: 'period-1' }],
+      }],
+    })
+    createStudentReport.mockRejectedValue({
+      userMessage: 'Your report was not submitted because one or more attendance requirements were not met.',
+      response: {
+        data: {
+          details: [
+            { path: 'attendance.classAttendance', message: 'Class attendance: not met; attended 3 of 5 sessions (60%; 80% required).' },
+            { path: 'attendance.catAttendance', message: 'CAT attendance: met; attendance at at least one CAT session is required.' },
+            { path: 'attendance.examAttendance', message: 'Exam attendance: not met; exam attendance is required.' },
+          ],
+        },
+      },
+    })
+
+    render(
+      <MemoryRouter>
+        <StudentReportCreate />
+      </MemoryRouter>
+    )
+
+    fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
+    fireEvent.change(screen.getByLabelText('Academic year'), { target: { value: '2026/27' } })
+    fireEvent.change(screen.getByLabelText('Explain the issue'), { target: { value: 'My mark is missing.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit report' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('Your report was not submitted')
+    expect(screen.getByRole('heading', { name: 'Your report wasn’t submitted' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Class attendance' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'CAT attendance' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Exam attendance' })).toBeTruthy()
+    expect(screen.getByText('1 of 3 checks met')).toBeTruthy()
+    expect(screen.getAllByText('Not met').length).toBe(2)
+  })
 })

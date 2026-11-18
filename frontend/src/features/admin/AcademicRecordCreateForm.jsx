@@ -14,10 +14,10 @@ import { extractRecords } from '../shared/recordUtils'
 
 const initialForms = {
   courses: { departmentId: '', code: '', name: '' },
-  units: { courseId: '', code: '', name: '' },
+  units: { departmentId: '', courseId: '', code: '', name: '' },
   periods: { code: '', name: '', startsAt: '', endsAt: '', enrollmentOpensAt: '', enrollmentClosesAt: '' },
   classrooms: { name: '', latitude: '', longitude: '', boundaryMeters: '100', isActive: true },
-  assessments: { courseUnitId: '', code: 'CAT1', name: 'CAT 1', type: 'CAT', catNumber: '1', assessmentDate: '', maximumMarks: '', requiredForEligibility: false, attendanceRequired: false, submissionRequired: false },
+  assessments: { courseUnitId: '', code: 'CAT1', name: 'CAT 1', type: 'CAT', customType: '', catNumber: '1', assessmentDate: '', maximumMarks: '', requiredForEligibility: false, attendanceRequired: false, submissionRequired: false },
 }
 
 export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
@@ -35,7 +35,7 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
       setError('')
       try {
         const [departmentResponse, coursesResponse, courseUnitsResponse] = await Promise.all([
-          resourceKey === 'courses' ? getAdminDepartments({ page: 1, limit: 100 }) : null,
+          ['courses', 'units'].includes(resourceKey) ? getAdminDepartments({ page: 1, limit: 100 }) : null,
           resourceKey === 'units' ? getAdminCourses({ page: 1, limit: 100 }) : null,
           resourceKey === 'assessments' ? getAdminCourseUnits({ page: 1, limit: 100 }) : null,
         ])
@@ -55,6 +55,10 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
 
   const update = (event) => {
     const { name, value, type, checked } = event.target
+    if (resourceKey === 'units' && name === 'departmentId') {
+      setForm((current) => ({ ...current, departmentId: value, courseId: '' }))
+      return
+    }
     setForm((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
   }
 
@@ -66,7 +70,8 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
       if (resourceKey === 'courses') {
         await createAdminCourse({ ...form, code: form.code.trim(), name: form.name.trim() })
       } else if (resourceKey === 'units') {
-        await createAdminCourseUnit({ ...form, code: form.code.trim(), name: form.name.trim() })
+        const { courseId, code, name } = form
+        await createAdminCourseUnit({ courseId, code: code.trim(), name: name.trim() })
       } else if (resourceKey === 'periods') {
         const startsAt = nairobiDateAtStartOfDay(form.startsAt)
         const endsAt = form.endsAt ? nairobiDateAtEndOfDay(form.endsAt) : null
@@ -88,7 +93,7 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
           isActive: form.isActive,
         })
       } else if (resourceKey === 'assessments') {
-        const enteredType = form.type.trim()
+        const enteredType = form.type === 'OTHER' ? form.customType.trim() : form.type.trim()
         const normalizedType = enteredType.toUpperCase()
         const isCat = normalizedType === 'CAT'
         const { courseUnitId, assessmentDate, maximumMarks, requiredForEligibility, attendanceRequired, submissionRequired } = form
@@ -114,9 +119,12 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
   }
 
   const label = resourcesLabel[resourceKey]
+  const coursesForDepartment = resourceKey === 'units'
+    ? courseUnits.filter((course) => course.department?.id === form.departmentId)
+    : []
   const optionsUnavailable = ['courses', 'units', 'assessments'].includes(resourceKey)
     && (loadingOptions || (resourceKey === 'courses' && departments.length === 0)
-      || (resourceKey === 'units' && courseUnits.length === 0)
+      || (resourceKey === 'units' && (departments.length === 0 || courseUnits.length === 0))
       || (resourceKey === 'assessments' && courseUnits.length === 0))
 
   return (
@@ -132,7 +140,8 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
       )}
       {resourceKey === 'units' && (
         <div className="form-grid">
-          <div className="form-field"><label htmlFor="unit-course">Course</label><select id="unit-course" name="courseId" value={form.courseId} onChange={update} required><option value="">Select a course</option>{courseUnits.map((course) => <option key={course.id} value={course.id}>{course.department?.code || course.department?.name} · {course.code} — {course.name}</option>)}</select></div>
+          <div className="form-field"><label htmlFor="unit-department">Department</label><select id="unit-department" name="departmentId" value={form.departmentId} onChange={update} required><option value="">Select a department</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></div>
+          <div className="form-field"><label htmlFor="unit-course">Course</label><select id="unit-course" name="courseId" value={form.courseId} onChange={update} disabled={!form.departmentId} required><option value="">Select a course</option>{coursesForDepartment.map((course) => <option key={course.id} value={course.id}>{course.code} — {course.name}</option>)}</select></div>
           <div className="form-field"><label htmlFor="unit-code">Course-unit code</label><input id="unit-code" name="code" value={form.code} onChange={update} maxLength={50} required /></div>
           <div className="form-field"><label htmlFor="unit-name">Course-unit name</label><input id="unit-name" name="name" value={form.name} onChange={update} maxLength={200} required /></div>
         </div>
@@ -159,16 +168,20 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
       {resourceKey === 'assessments' && (
         <div className="form-grid">
           <div className="form-field"><label htmlFor="assessment-course">Course unit</label><select id="assessment-course" name="courseUnitId" value={form.courseUnitId} onChange={update} required><option value="">Select a course unit</option>{courseUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.code} — {unit.name}</option>)}</select></div>
-          <div className="form-field"><label htmlFor="assessment-type">Type</label><input id="assessment-type" name="type" value={form.type} onChange={(event) => {
+          <div className="form-field"><label htmlFor="assessment-type">Type</label><select id="assessment-type" name="type" value={form.type} onChange={(event) => {
             const type = event.target.value
               setForm((current) => ({
                 ...current,
                 type,
+                customType: '',
                 ...(type.trim().toUpperCase() === 'CAT'
                   ? { code: `CAT${current.catNumber}`, name: `CAT ${current.catNumber}` }
                   : current.type.trim().toUpperCase() === 'CAT' ? { code: '', name: '' } : {}),
               }))
-          }} maxLength={80} placeholder="CAT, EXAM, or another type" required /><small>Use CAT to configure the CAT 1 or CAT 2 session option.</small></div>
+          }} required><option value="CAT">CAT</option><option value="EXAM">Exam</option><option value="OTHER">Other</option></select><small>Choose CAT or Exam, or select Other for another assessment type.</small></div>
+          {form.type === 'OTHER' && (
+            <div className="form-field"><label htmlFor="assessment-custom-type">Other assessment type</label><input id="assessment-custom-type" name="customType" value={form.customType} onChange={update} maxLength={80} required /></div>
+          )}
           {form.type.trim().toUpperCase() === 'CAT' ? (
             <div className="form-field"><label htmlFor="assessment-cat-number">CAT number</label><select id="assessment-cat-number" name="catNumber" value={form.catNumber} onChange={(event) => setForm((current) => ({ ...current, catNumber: event.target.value, code: `CAT${event.target.value}`, name: `CAT ${event.target.value}` }))} required><option value="1">CAT 1</option><option value="2">CAT 2</option></select><small>The code and name are set consistently so lecturers can select the configured CAT when creating attendance.</small></div>
           ) : (
@@ -184,7 +197,8 @@ export default function AcademicRecordCreateForm({ resourceKey, onCreated }) {
           <label className="academic-record-checkbox"><input type="checkbox" name="submissionRequired" checked={form.submissionRequired} onChange={update} /> Submission required</label>
         </div>
       )}
-      {optionsUnavailable && <p className="field-hint">{loadingOptions ? 'Loading form options…' : `Set up the required ${resourceKey === 'courses' ? 'departments' : resourceKey === 'units' ? 'courses' : 'course units'} first.`}</p>}
+      {optionsUnavailable && <p className="field-hint">{loadingOptions ? 'Loading form options…' : `Set up the required ${resourceKey === 'courses' ? 'departments' : resourceKey === 'units' ? 'departments and courses' : 'course units'} first.`}</p>}
+      {resourceKey === 'units' && form.departmentId && coursesForDepartment.length === 0 && !loadingOptions && <p className="field-hint">No courses are available for this department. Create a course first.</p>}
       <button className="button button-primary" type="submit" disabled={creating || optionsUnavailable}>{creating ? 'Creating…' : `Create ${label.toLowerCase().replace(/s$/, '')}`}</button>
     </form>
   )

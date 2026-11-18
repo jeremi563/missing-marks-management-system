@@ -54,6 +54,7 @@ it('shows examination attendance verification status and rejection reason', asyn
     data: [
       {
         id: 'exam-pending',
+        status: 'LATE',
         examVerificationStatus: 'PENDING_REVIEW',
         session: { assessment: { name: 'Final Exam' }, courseUnit: { code: 'IN101', name: 'Computing' } },
         academicYear: '2026/27',
@@ -72,6 +73,7 @@ it('shows examination attendance verification status and rejection reason', asyn
 
   render(<StudentAttendance />)
   expect(await screen.findByText('PENDING REVIEW')).not.toBeNull()
+  expect(screen.getByText('LATE')).not.toBeNull()
   expect(screen.getByText('REJECTED')).not.toBeNull()
   expect(screen.getByText('Not on the examination register.')).not.toBeNull()
 })

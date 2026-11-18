@@ -9,7 +9,7 @@
 .enrollment-inbox-search { position: relative; display: block; width: min(100%, 340px); }
 .enrollment-inbox-search svg { position: absolute; top: 50%; left: 13px; color: #839a9b; transform: translateY(-50%); pointer-events: none; }
 .enrollment-inbox-search input { padding-left: 40px; }
-.enrollment-bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; background: #f0f8f6; border: 1px solid #d5e9e4; border-radius: 12px; }
+.enrollment-bulk-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 15px; background: #cbd2d0; border: 1px solid #d5e9e4; border-radius: 12px; }
 .enrollment-select-all { display: inline-flex; align-items: center; gap: 9px; color: #456267; font-size: 12px; font-weight: 650; cursor: pointer; }
 .enrollment-select-all input, .enrollment-request-checkbox input { width: 16px; min-height: 16px; height: 16px; margin: 0; accent-color: var(--primary); cursor: pointer; }
 .enrollment-bulk-actions { display: flex; gap: 9px; }

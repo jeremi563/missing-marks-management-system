@@ -42,11 +42,26 @@
   color: var(--text-muted, #667085);
 }
 
+.lecturer-student-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(260px, 1fr);
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.lecturer-student-filters label {
+  display: grid;
+  gap: 0.4rem;
+  color: var(--ink, #132d35);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 .lecturer-department-filter-panel {
   display: grid;
   gap: 1rem;
   padding: clamp(17px, 2.4vw, 24px);
-  background: var(--surface, #fff);
+  background: var(--surface, #d8d8d8);
   border: 1px solid var(--line, #dce8e7);
   border-radius: 15px;
   box-shadow: 0 5px 20px #163c4008;
@@ -102,7 +117,7 @@
 .lecturer-department-selection-count {
   padding: 0.38rem 0.65rem;
   color: #17675f;
-  background: #e9f6f2;
+  background: #c5d0cc;
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 700;
@@ -185,7 +200,7 @@
   width: 19px;
   height: 19px;
   color: #fff;
-  background: #fff;
+  background: #d8d8d8;
   border: 1.5px solid #b8c9c7;
   border-radius: 6px;
 }
@@ -202,7 +217,7 @@
   min-height: 30px;
   padding: 0 0.45rem;
   color: #17675f;
-  background: #e4f3f1;
+  background: #c1cdcc;
   border-radius: 8px;
   font-size: 0.72rem;
   font-weight: 800;
@@ -240,6 +255,10 @@
   .lecturer-department-filter-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .lecturer-student-filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .lecturer-department-filter-controls {

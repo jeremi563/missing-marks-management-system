@@ -36,6 +36,7 @@ import LecturerReports from './features/lecturer/LecturerReports'
 import LecturerCourseUnits from './features/lecturer/LecturerCourseUnits'
 import LecturerStudents from './features/lecturer/LecturerStudents'
 import LecturerAttendance from './features/lecturer/LecturerAttendance'
+import LecturerAttendanceLists from './features/lecturer/LecturerAttendanceLists'
 import LecturerCatSubmissions from './features/lecturer/LecturerCatSubmissions'
 import LecturerExamAttendance from './features/lecturer/LecturerExamAttendance'
 import LecturerExamBooklets from './features/lecturer/LecturerExamBooklets'
@@ -136,6 +137,7 @@ function App() {
               <Route path="reports" element={<LecturerReports />} />
               <Route path="notifications" element={<StaffNotifications audience="lecturer" />} />
               <Route path="attendance" element={<LecturerAttendance />} />
+              <Route path="attendance-lists" element={<LecturerAttendanceLists />} />
               <Route path="cat-submissions" element={<LecturerCatSubmissions />} />
               <Route path="exam-attendance" element={<LecturerExamAttendance />} />
               <Route path="exam-booklets" element={<LecturerExamBooklets />} />
@@ -162,6 +164,17 @@ function App() {
               />
               <Route path="departments" element={<CodDepartmentWorkspace />} />
               <Route path="course-unit-assignments" element={<CodCourseUnitAssignments />} />
+              <Route path="teaching/course-units" element={<LecturerCourseUnits />} />
+              <Route path="teaching/students" element={<LecturerStudents />} />
+              <Route path="teaching/attendance" element={<LecturerAttendance />} />
+              <Route path="teaching/attendance-lists" element={<LecturerAttendanceLists />} />
+              <Route path="assessment/marks" element={<LecturerMarks />} />
+              <Route path="assessment/cat-submissions" element={<LecturerCatSubmissions />} />
+              <Route path="assessment/exam-attendance" element={<LecturerExamAttendance />} />
+              <Route path="assessment/exam-booklets" element={<LecturerExamBooklets />} />
+              <Route path="lecturer/enrollment-requests" element={<EnrollmentRequestInbox />} />
+              <Route path="lecturer/reports" element={<LecturerReports />} />
+              <Route path="lecturer/special-cases" element={<LecturerSpecialCases />} />
               <Route path="enrollment-requests" element={<EnrollmentRequestInbox audience="cod" />} />
               <Route path="lecturer-approvals" element={<CodApprovals />} />
               <Route path="reports" element={<CodReports />} />

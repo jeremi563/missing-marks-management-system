@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  decideLecturerCatSubmissions,
   decideLecturerCatSubmission,
   getLecturerCatSubmission,
   getLecturerCatSubmissions,
@@ -10,6 +11,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import { extractRecords } from '../shared/recordUtils'
+import './LecturerCatSubmissions.css'
 
 function unwrap(response) {
   const first = response?.data ?? response
@@ -24,6 +26,7 @@ export default function LecturerCatSubmissions() {
   const [courseUnits, setCourseUnits] = useState([])
   const [assessments, setAssessments] = useState([])
   const [submissions, setSubmissions] = useState([])
+  const [selectedIds, setSelectedIds] = useState([])
   const [pagination, setPagination] = useState({ page: 1, totalPages: 0 })
   const [selected, setSelected] = useState(null)
   const [status, setStatus] = useState('PENDING_REVIEW')
@@ -37,10 +40,17 @@ export default function LecturerCatSubmissions() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [bulkComments, setBulkComments] = useState('')
+  const [bulkReason, setBulkReason] = useState('')
+  const [bulkRejecting, setBulkRejecting] = useState(false)
 
   const loadSubmissions = useCallback(async () => {
     setLoading(true)
     setError('')
+    setSelectedIds([])
+    setBulkComments('')
+    setBulkReason('')
+    setBulkRejecting(false)
     try {
       const response = await getLecturerCatSubmissions({
         page,
@@ -124,8 +134,44 @@ export default function LecturerCatSubmissions() {
     }
   }
 
+  const decideSelected = async (decision) => {
+    if (selectedIds.length === 0) return
+    if (decision === 'REJECT' && !bulkReason.trim()) {
+      setError('Enter a rejection reason before rejecting selected submissions.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await decideLecturerCatSubmissions({
+        submissionIds: selectedIds,
+        decision,
+        ...(decision === 'REJECT' ? { reason: bulkReason.trim() } : {}),
+        ...(decision === 'VERIFY' && bulkComments.trim() ? { comments: bulkComments.trim() } : {}),
+      })
+      setNotice(`${selectedIds.length} CAT submissions ${decision === 'VERIFY' ? 'verified' : 'rejected'}.`)
+      setSelected(null)
+      setSelectedIds([])
+      setBulkComments('')
+      setBulkReason('')
+      setBulkRejecting(false)
+      await loadSubmissions()
+    } catch (requestError) {
+      setError(requestError.userMessage || 'Unable to record the selected CAT submission decisions.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pendingIds = submissions
+    .filter((submission) => submission.status === 'PENDING_REVIEW')
+    .map(({ id }) => id)
+  const allPendingSelected = pendingIds.length > 0 && pendingIds.every((id) => selectedIds.includes(id))
+
   return (
-    <section>
+    <section className="cat-submissions-page">
       <header className="page-heading">
         <div>
           <p className="eyebrow">LECTURER PORTAL</p>
@@ -136,6 +182,62 @@ export default function LecturerCatSubmissions() {
 
       {error && <ErrorState message={error} onRetry={loadSubmissions} />}
       {notice && <div className="form-success" role="status">{notice}</div>}
+
+      {pendingIds.length > 0 && (
+        <section className="panel cat-submission-bulk-actions" aria-label="Bulk CAT submission review">
+          <label>
+            <input
+              type="checkbox"
+              aria-label="Select all pending submissions on this page"
+              checked={allPendingSelected}
+              disabled={busy || loading}
+              onChange={(event) => setSelectedIds(event.target.checked ? pendingIds : [])}
+            />
+            Select all pending submissions on this page
+          </label>
+          <span>{selectedIds.length} selected</span>
+          {bulkRejecting ? (
+            <div className="cat-submission-bulk-rejection">
+              <label>Reason for rejecting selected submissions
+                <textarea
+                  aria-label="Bulk rejection reason"
+                  value={bulkReason}
+                  onChange={(event) => setBulkReason(event.target.value)}
+                  maxLength={2000}
+                  required
+                  disabled={busy || loading}
+                />
+              </label>
+              <div className="form-actions">
+                <button className="button button-secondary" type="button" disabled={busy || loading} onClick={() => { setBulkRejecting(false); setBulkReason('') }}>Cancel</button>
+                <button className="button button-primary" type="button" disabled={busy || loading || !selectedIds.length || !bulkReason.trim()} onClick={() => decideSelected('REJECT')}>
+                  {busy ? 'Saving…' : `Reject ${selectedIds.length} selected`}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <label>Verification comments (optional)
+                <textarea
+                  aria-label="Bulk verification comments"
+                  value={bulkComments}
+                  onChange={(event) => setBulkComments(event.target.value)}
+                  maxLength={2000}
+                  disabled={!selectedIds.length || busy || loading}
+                />
+              </label>
+              <div className="form-actions">
+                <button className="button button-primary" type="button" disabled={busy || loading || !selectedIds.length} onClick={() => decideSelected('VERIFY')}>
+                  {busy ? 'Saving…' : `Verify ${selectedIds.length} selected`}
+                </button>
+                <button className="button button-secondary" type="button" disabled={busy || loading || !selectedIds.length} onClick={() => { setBulkRejecting(true); setBulkReason(''); setError('') }}>
+                  Reject selected
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       <section className="panel">
         <div className="form-grid">
@@ -170,10 +272,11 @@ export default function LecturerCatSubmissions() {
             <section className="panel">
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Student</th><th>Assessment</th><th>Course unit</th><th>Submitted</th><th>Status</th><th>Review</th></tr></thead>
+                  <thead><tr><th>Select</th><th>Student</th><th>Assessment</th><th>Course unit</th><th>Submitted</th><th>Status</th><th>Review</th></tr></thead>
                   <tbody>
                     {submissions.map((submission) => (
                       <tr key={submission.id}>
+                        <td><input type="checkbox" aria-label={`Select ${submission.student?.user?.displayName || submission.student?.studentNumber || 'student'} CAT submission`} checked={selectedIds.includes(submission.id)} disabled={submission.status !== 'PENDING_REVIEW' || busy} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...new Set([...current, submission.id])] : current.filter((id) => id !== submission.id))} /></td>
                         <td>{submission.student?.user?.displayName || 'Student'}<small>{submission.student?.studentNumber}</small></td>
                         <td>{submission.assessment?.code || submission.assessment?.name}</td>
                         <td>{submission.assessment?.courseUnit?.code} · {submission.assessment?.courseUnit?.name}</td>

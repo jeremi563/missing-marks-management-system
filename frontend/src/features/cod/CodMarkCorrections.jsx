@@ -9,7 +9,7 @@ import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import StatusChip from '../../components/ui/StatusChip'
-import { extractRecords } from '../shared/recordUtils'
+import { extractRecords, formatMarkValue } from '../shared/recordUtils'
 
 function unwrap(response) {
   const first = response?.data ?? response
@@ -128,7 +128,7 @@ export default function CodMarkCorrections() {
                         <td>{item.report.student.user.displayName || item.report.student.studentNumber}</td>
                         <td>{item.report.courseUnit.code}</td>
                         <td>{item.report.assessment?.name || 'Assessment unavailable'}</td>
-                        <td>{item.proposedValue}</td>
+                        <td>{formatMarkValue(item.proposedValue)}</td>
                         <td><StatusChip status={item.status} /></td>
                         <td><button className="button button-secondary" type="button" disabled={busy} onClick={() => openCorrection(item.id)}>Review</button></td>
                       </tr>
@@ -147,8 +147,8 @@ export default function CodMarkCorrections() {
           <p><strong>Student:</strong> {selected.report.student.user.displayName || selected.report.student.studentNumber} · {selected.report.student.studentNumber}</p>
           <p><strong>Course unit:</strong> {selected.report.courseUnit.code} · {selected.report.courseUnit.name}</p>
           <p><strong>Assessment:</strong> {selected.report.assessment?.name || 'Unavailable'} · {selected.report.academicPeriod.name}</p>
-          <p><strong>Original mark:</strong> {selected.originalValue ?? 'No official mark existed when proposed'}</p>
-          <p><strong>Proposed mark:</strong> {selected.proposedValue}</p>
+          <p><strong>Original mark:</strong> {selected.originalValue == null ? 'No official mark existed when proposed' : formatMarkValue(selected.originalValue)}</p>
+          <p><strong>Proposed mark:</strong> {formatMarkValue(selected.proposedValue)}</p>
           <p><strong>Lecturer reason:</strong> {selected.reason}</p>
           {!selected.baselineVerified && selected.status === 'PENDING_REVIEW' && <div className="form-alert" role="alert">This legacy proposal has no verified baseline. It cannot be approved; reject it with an explanation so the lecturer can submit a verified proposal.</div>}
           {selected.reviewComments && <p><strong>Review comments:</strong> {selected.reviewComments}</p>}
@@ -162,7 +162,7 @@ export default function CodMarkCorrections() {
               </div>
             </div>
           )}
-          {selected.decidedAt && <p><strong>Decision recorded:</strong> {new Date(selected.decidedAt).toLocaleString()} {selected.reviewedBy?.displayName ? `by ${selected.reviewedBy.displayName}` : ''}{selected.finalValue != null ? ` · final mark ${selected.finalValue}` : ''}</p>}
+          {selected.decidedAt && <p><strong>Decision recorded:</strong> {new Date(selected.decidedAt).toLocaleString()} {selected.reviewedBy?.displayName ? `by ${selected.reviewedBy.displayName}` : ''}{selected.finalValue != null ? ` · final mark ${formatMarkValue(selected.finalValue)}` : ''}</p>}
         </section>
       )}
       {error && !items.length && <ErrorState title="Unable to load corrections" message={error} onRetry={loadQueue} />}

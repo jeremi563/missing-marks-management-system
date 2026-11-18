@@ -7,11 +7,19 @@ import {
 import EmptyState from '../../components/ui/EmptyState'
 import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
-import { extractRecords } from '../shared/recordUtils'
+import { extractRecords, formatMarkValue } from '../shared/recordUtils'
 
 function unwrap(response) {
   const first = response?.data ?? response
   return first?.data ?? first
+}
+
+function formatAttendance(attendance, assessmentType) {
+  if (!attendance) return 'No attendance record'
+  const status = String(attendance.status || 'UNKNOWN').replaceAll('_', ' ')
+  if (String(assessmentType).toUpperCase() !== 'EXAM') return status
+  const verification = String(attendance.examVerificationStatus || 'NOT VERIFIED').replaceAll('_', ' ')
+  return `${status} · ${verification}`
 }
 
 export default function LecturerMarks() {
@@ -67,7 +75,7 @@ export default function LecturerMarks() {
   }, [canLoadRoster, loadRoster])
 
   const markableStudents = useMemo(
-    () => roster?.students?.filter(({ mark }) => !mark) ?? [],
+    () => roster?.students?.filter(({ mark, attendance }) => !mark && attendance?.eligible) ?? [],
     [roster],
   )
 
@@ -78,6 +86,10 @@ export default function LecturerMarks() {
       .map(({ student }) => ({ studentProfileId: student.id, value: Number(drafts[student.id]) }))
     if (!marks.length) {
       setError('Enter at least one mark before submitting.')
+      return
+    }
+    if (marks.some(({ value }) => !Number.isInteger(value))) {
+      setError('Marks must be whole numbers.')
       return
     }
     setBusy(true)
@@ -102,7 +114,7 @@ export default function LecturerMarks() {
         <div>
           <p className="eyebrow">LECTURER PORTAL</p>
           <h2>Assessment marks</h2>
-          <p>Submit initial marks for students enrolled in your assigned course units.</p>
+          <p>Submit whole-number marks only for students with eligible attendance in your assigned course units.</p>
         </div>
       </header>
       {error && <div className="form-alert" role="alert">{error}</div>}
@@ -142,19 +154,23 @@ export default function LecturerMarks() {
                       ? <EmptyState title="No enrolled students" message="There are no enrollments for this assessment and period." />
                       : (
                         <>
+                          <p>Students need a recorded PRESENT/ATTENDED/LATE attendance status to receive a mark. Exam attendance must also be verified. Ineligible students are shown as incomplete (**); the marker is not saved as a numeric mark.</p>
                           <div className="table-wrap">
                             <table>
-                              <thead><tr><th>Student</th><th>Student number</th><th>Official mark</th><th>Initial mark</th></tr></thead>
+                              <thead><tr><th>Student</th><th>Student number</th><th>Attendance</th><th>Official mark</th><th>Initial mark</th></tr></thead>
                               <tbody>
-                                {roster.students.map(({ student, mark }) => (
+                                {roster.students.map(({ student, mark, attendance }) => (
                                   <tr key={student.id}>
                                     <td>{student.user?.displayName || 'Student'}</td>
                                     <td>{student.studentNumber}</td>
-                                    <td>{mark ? mark.value : '—'}</td>
+                                    <td>{formatAttendance(attendance, roster.assessment.type)}</td>
+                                    <td>{mark ? formatMarkValue(mark.value) : '—'}</td>
                                     <td>
                                       {mark
                                         ? <span>Submitted</span>
-                                        : <input aria-label={`Initial mark for ${student.studentNumber}`} type="number" min="0" max={roster.assessment.maximumMarks} step="0.01" value={drafts[student.id] ?? ''} onChange={(event) => setDrafts((current) => ({ ...current, [student.id]: event.target.value }))} />}
+                                        : attendance?.eligible
+                                          ? <input aria-label={`Initial mark for ${student.studentNumber}`} type="number" min="0" max={roster.assessment.maximumMarks} step="1" value={drafts[student.id] ?? ''} onChange={(event) => setDrafts((current) => ({ ...current, [student.id]: event.target.value }))} />
+                                          : <input aria-label={`Incomplete mark for ${student.studentNumber}`} type="text" value="**" readOnly disabled />}
                                     </td>
                                   </tr>
                                 ))}

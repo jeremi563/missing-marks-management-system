@@ -1,8 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Send } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CircleCheck, CircleHelp, CircleX, Send } from 'lucide-react'
 import { createStudentReport, getStudentReportOptions } from '../../api/student'
 import { formatEvidenceSize, validateEvidenceSelection } from '../shared/evidenceFiles'
+import './StudentReportCreate.css'
+
+const attendanceCheckLabels = {
+  'attendance.classAttendance': 'Class attendance',
+  'attendance.catAttendance': 'CAT attendance',
+  'attendance.examAttendance': 'Exam attendance',
+}
+
+function getAttendanceCheckState(message) {
+  const normalized = message.toLowerCase()
+  if (normalized.includes(': not met;')) return 'not-met'
+  if (normalized.includes(': met;')) return 'met'
+  return 'unknown'
+}
+
+function getAttendanceCheckDescription(message) {
+  return message
+    .replace(/^[^:]+:\s*/, '')
+    .replace(/^(met|not met|not confirmed);\s*/i, '')
+}
 
 export default function StudentReportCreate() {
   const [form, setForm] = useState({ courseUnitId: '', academicYear: '', description: '' })
@@ -11,6 +31,7 @@ export default function StudentReportCreate() {
   const [optionsError, setOptionsError] = useState('')
   const [optionsRetry, setOptionsRetry] = useState(0)
   const [error, setError] = useState('')
+  const [attendanceChecks, setAttendanceChecks] = useState([])
   const [evidenceFiles, setEvidenceFiles] = useState([])
   const [evidenceError, setEvidenceError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -39,6 +60,7 @@ export default function StudentReportCreate() {
     setOptionsRetry((retry) => retry + 1)
   }
   const selectedCourseUnit = courseUnits.find(({ id }) => id === form.courseUnitId)
+  const metAttendanceChecks = attendanceChecks.filter(({ message }) => getAttendanceCheckState(message) === 'met').length
   const update = (event) => setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
   const selectEvidence = (event) => {
     const nextFiles = [...evidenceFiles, ...Array.from(event.currentTarget.files || [])]
@@ -57,6 +79,7 @@ export default function StudentReportCreate() {
   const submit = async (event) => {
     event.preventDefault()
     setError('')
+    setAttendanceChecks([])
     setSubmitting(true)
     const payload = {
       courseUnitId: form.courseUnitId.trim(),
@@ -68,6 +91,10 @@ export default function StudentReportCreate() {
       navigate('/student/reports', { replace: true })
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to submit your report.')
+      const details = requestError.response?.data?.details
+      setAttendanceChecks(Array.isArray(details)
+        ? details.filter(({ path, message }) => path?.startsWith('attendance.') && message)
+        : [])
     } finally {
       setSubmitting(false)
     }
@@ -80,7 +107,44 @@ export default function StudentReportCreate() {
         <Link className="button button-secondary" to="/student/reports"><ArrowLeft size={16} /> My reports</Link>
       </header>
       <form className="panel" onSubmit={submit}>
-        {error && <div className="form-alert" role="alert">{error}</div>}
+        {error && (
+          <section className="report-submit-error" role="alert" aria-labelledby="report-submit-error-title">
+            <header className="report-submit-error__header">
+              <span className="report-submit-error__icon" aria-hidden="true"><AlertTriangle size={21} /></span>
+              <div>
+                <p className="report-submit-error__eyebrow">Submission blocked</p>
+                <h3 id="report-submit-error-title">Your report wasn’t submitted</h3>
+                <p className="report-submit-error__message">{error}</p>
+              </div>
+            </header>
+            {attendanceChecks.length > 0 && (
+              <>
+                <div className="report-submit-error__summary">
+                  <h4>Attendance eligibility</h4>
+                  <span>{metAttendanceChecks} of {attendanceChecks.length} checks met</span>
+                </div>
+                <ul className="report-submit-error__checks">
+                  {attendanceChecks.map(({ path, message }) => {
+                    const state = getAttendanceCheckState(message)
+                    const CheckIcon = state === 'met' ? CircleCheck : state === 'not-met' ? CircleX : CircleHelp
+                    const stateLabel = state === 'met' ? 'Met' : state === 'not-met' ? 'Not met' : 'Not confirmed'
+                    return (
+                      <li className={`report-submit-error__check report-submit-error__check--${state}`} key={path}>
+                        <CheckIcon className="report-submit-error__check-icon" size={20} aria-hidden="true" />
+                        <div className="report-submit-error__check-copy">
+                          <h5>{attendanceCheckLabels[path] || 'Attendance requirement'}</h5>
+                          <p>{getAttendanceCheckDescription(message)}</p>
+                        </div>
+                        <span className="report-submit-error__state">{stateLabel}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+                <p className="report-submit-error__footnote">Meet the outstanding requirements, then try submitting again. No report was created.</p>
+              </>
+            )}
+          </section>
+        )}
         {optionsError && <div className="form-alert" role="alert">{optionsError} <button className="link-button" type="button" onClick={retryLoadingOptions}>Try again</button></div>}
         <div className="form-grid">
           <div className="form-field"><label htmlFor="course-unit-id">Course unit</label><select id="course-unit-id" name="courseUnitId" value={form.courseUnitId} onChange={(event) => setForm((current) => ({ ...current, courseUnitId: event.target.value, academicPeriodId: '' }))} required disabled={loadingOptions || courseUnits.length === 0}><option value="">{loadingOptions ? 'Loading course units…' : courseUnits.length ? 'Select a course unit' : 'No enrolled course units found'}</option>{courseUnits.map((courseUnit) => <option key={courseUnit.id} value={courseUnit.id}>{courseUnit.code} — {courseUnit.name}</option>)}</select></div>

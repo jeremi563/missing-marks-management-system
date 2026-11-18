@@ -82,7 +82,7 @@ describe('AcademicRecordCreateForm', () => {
 
       render(<AcademicRecordCreateForm resourceKey="assessments" onCreated={vi.fn()} />)
       fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
-      fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'Exam' } })
+      fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'EXAM' } })
       fireEvent.change(screen.getByLabelText('Assessment name'), { target: { value: 'Main exam' } })
       fireEvent.change(screen.getByLabelText('Assessment code (optional)'), { target: { value: 'EXAM1' } })
       fireEvent.change(screen.getByLabelText('Date (optional)'), { target: { value: '2026-11-16' } })
@@ -104,6 +104,29 @@ describe('AcademicRecordCreateForm', () => {
           attendanceRequired: true,
           submissionRequired: true,
       })
+    })
+  })
+
+  it('preserves custom assessment types through the Other option', async () => {
+    getAdminCourseUnits.mockResolvedValue({
+      success: true,
+      data: { items: [{ id: 'course-1', code: 'IN101', name: 'Computing' }] },
+    })
+    createAdminAssessment.mockResolvedValue({ success: true })
+
+    render(<AcademicRecordCreateForm resourceKey="assessments" onCreated={vi.fn()} />)
+    fireEvent.change(await screen.findByLabelText('Course unit'), { target: { value: 'course-1' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'OTHER' } })
+    fireEvent.change(screen.getByLabelText('Other assessment type'), { target: { value: 'ASSIGNMENT' } })
+    fireEvent.change(screen.getByLabelText('Assessment name'), { target: { value: 'Assignment 1' } })
+    fireEvent.submit(screen.getByRole('button', { name: 'Create assessment' }).closest('form'))
+
+    await waitFor(() => {
+      expect(createAdminAssessment).toHaveBeenCalledWith(expect.objectContaining({
+        courseUnitId: 'course-1',
+        name: 'Assignment 1',
+        type: 'ASSIGNMENT',
+      }))
     })
   })
 })

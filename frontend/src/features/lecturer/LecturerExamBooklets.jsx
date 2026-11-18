@@ -11,6 +11,7 @@ import {
   scanLecturerExamBooklet,
 } from '../../api/lecturer'
 import { extractRecords } from '../shared/recordUtils'
+import { useExamBookletVerificationWindow } from '../shared/examBookletVerificationWindow'
 
 function unwrap(response) {
   const first = response?.data ?? response
@@ -37,6 +38,8 @@ export default function LecturerExamBooklets() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const selectedSession = sessions.find(({ id }) => id === sessionId)
+  const canVerifyBooklet = useExamBookletVerificationWindow(selectedSession)
 
   const loadSessions = useCallback(async () => {
     const response = await getLecturerAttendanceSessions()
@@ -110,6 +113,10 @@ export default function LecturerExamBooklets() {
   const previewToken = async (token) => {
     setError('')
     setNotice('')
+    if (!canVerifyBooklet) {
+      setError('The booklet verification window is closed for this examination session.')
+      return
+    }
     if (!sessionId || !/^[a-f0-9]{64}$/i.test(token)) {
       setError('The QR code is invalid or no examination session is selected.')
       return
@@ -127,6 +134,11 @@ export default function LecturerExamBooklets() {
 
   const confirmScan = async () => {
     if (!preview || !sessionId) return
+    if (!canVerifyBooklet) {
+      setPreview(null)
+      setError('The booklet verification window is closed for this examination session.')
+      return
+    }
     setBusy(true)
     setError('')
     try {
@@ -144,6 +156,10 @@ export default function LecturerExamBooklets() {
 
   const manualLookup = async (event) => {
     event.preventDefault()
+    if (!canVerifyBooklet) {
+      setError('The booklet verification window is closed for this examination session.')
+      return
+    }
     if (!sessionId || !manualConfirmed) {
       setError("Select an examination session and confirm that the student's physical identity matches the displayed allocation.")
       return
@@ -235,8 +251,10 @@ export default function LecturerExamBooklets() {
                 <section className="panel">
                   <h3>Invigilator QR scan</h3>
                   <p>Scan the QR code, compare the displayed student details to the student's physical identity, then confirm to verify attendance.</p>
-                  <QrCameraScanner onDecode={previewToken} disabled={busy || Boolean(preview)} label="Start booklet QR scanner" />
-                  {preview && (
+                  {canVerifyBooklet
+                    ? <QrCameraScanner onDecode={previewToken} disabled={busy || Boolean(preview)} label="Start booklet QR scanner" />
+                    : <p role="status">Booklet verification is closed for this examination session.</p>}
+                  {preview && canVerifyBooklet && (
                     <div className="exam-booklet-confirmation" role="group" aria-label="Confirm student identity">
                       <h4>Confirm student identity</h4>
                       <p><strong>Student:</strong> {preview.allocation.student?.user?.displayName || 'Student'}</p>
@@ -254,13 +272,13 @@ export default function LecturerExamBooklets() {
                   <p>Use manual lookup only after checking the student's physical identity against the examination allocation.</p>
                   <form className="form-grid" onSubmit={manualLookup}>
                     <label>Student registration number
-                      <input value={manualStudentNumber} onChange={(event) => setManualStudentNumber(event.target.value)} required maxLength={80} />
+                      <input value={manualStudentNumber} onChange={(event) => setManualStudentNumber(event.target.value)} required maxLength={80} disabled={!canVerifyBooklet || busy} />
                     </label>
                     <label className="checkbox-label">
-                      <input type="checkbox" checked={manualConfirmed} onChange={(event) => setManualConfirmed(event.target.checked)} />
+                      <input type="checkbox" checked={manualConfirmed} onChange={(event) => setManualConfirmed(event.target.checked)} disabled={!canVerifyBooklet || busy} />
                       I confirmed the student's physical identity.
                     </label>
-                    <button className="button button-secondary" type="submit" disabled={busy || !manualConfirmed}>Find and verify allocation</button>
+                    <button className="button button-secondary" type="submit" disabled={busy || !canVerifyBooklet || !manualConfirmed}>Find and verify allocation</button>
                   </form>
                 </section>
 

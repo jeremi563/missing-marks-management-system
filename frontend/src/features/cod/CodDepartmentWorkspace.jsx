@@ -14,9 +14,9 @@ import { extractRecords, groupCourseUnitsByCourse } from '../shared/recordUtils'
 
 const PAGE_SIZE = 20
 const contentTabs = [
-  { key: 'course-units', label: 'Course units', load: getCodDepartmentCourseUnits },
   { key: 'students', label: 'Students', load: getCodDepartmentStudents },
   { key: 'lecturers', label: 'Lecturers', load: getCodDepartmentLecturers },
+  { key: 'course-units', label: 'Course units', load: getCodDepartmentCourseUnits },
 ]
 
 function unwrapResult(response) {
@@ -27,7 +27,7 @@ export default function CodDepartmentWorkspace() {
   const [departments, setDepartments] = useState([])
   const [departmentsLoaded, setDepartmentsLoaded] = useState(false)
   const [selectedDepartmentId, setSelectedDepartmentId] = useState('')
-  const [activeTab, setActiveTab] = useState('course-units')
+  const [activeTab, setActiveTab] = useState('students')
   const [records, setRecords] = useState([])
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 })
   const [page, setPage] = useState(1)
@@ -98,9 +98,9 @@ export default function CodDepartmentWorkspace() {
     <section>
       <header className="page-heading">
         <div>
-          <p className="eyebrow">COD WORKSPACE</p>
-          <h2>Department workspace</h2>
-          <p>View course units, registered students, and lecturers for your designated departments.</p>
+          <p className="eyebrow">COD PORTAL / DEPARTMENT DIRECTORY</p>
+          <h2>Department directory</h2>
+          <p>Browse registered students and lecturers in your designated departments, or view their course units.</p>
         </div>
         <button className="button button-secondary" type="button" onClick={retry}><RefreshCw size={16} /> Refresh</button>
       </header>

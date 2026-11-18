@@ -13,7 +13,7 @@
   padding: clamp(26px, 4vw, 46px);
   overflow: hidden;
   color: #173840;
-  background: linear-gradient(90deg, #90c6cf4f, #33a1b4b4 50%, #63acb9a9 100%);
+  background: linear-gradient(90deg, #7aa7b04f, #2b8898b4 50%, #54929da9 100%);
   border: 1px solid rgba(51, 161, 180, .28);
   border-radius: 19px;
   box-shadow: var(--account-card-shadow);
@@ -23,7 +23,7 @@
 
 .portal-role-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 15px; }
 
-.portal-role-badge { padding: 5px 9px; color: #173840; background: #ffffff66; border: 1px solid #17384024; border-radius: 999px; font-size: 11px; font-weight: 750; line-height: 1.2; }
+.portal-role-badge { padding: 5px 9px; color: #173840; background: #d8d8d866; border: 1px solid #17384024; border-radius: 999px; font-size: 11px; font-weight: 750; line-height: 1.2; }
 
 .portal-welcome .eyebrow { margin: 0 0 13px; color: #562fb1; font-size: 10px; letter-spacing: .16em; }
 
@@ -41,7 +41,7 @@
 
 .portal-departments li { display: inline-flex; align-items: center; gap: 9px; padding: 9px 12px; color: var(--ink); background: var(--canvas); border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
 
-.portal-departments li span { padding: 3px 7px; color: #175f58; background: #e4f3ef; border-radius: 999px; font-size: 11px; font-weight: 750; }
+.portal-departments li span { padding: 3px 7px; color: #175f58; background: #c1cdca; border-radius: 999px; font-size: 11px; font-weight: 750; }
 
 .portal-departments-empty { margin: 0; color: var(--muted); font-size: 13px; }
 
@@ -65,9 +65,9 @@
 
 .shortcut-teal { color: var(--primary); background: var(--secondary-soft); }
 
-.shortcut-blue { color: #466aa2; background: #edf2f8; }
+.shortcut-blue { color: #466aa2; background: #c9ccd2; }
 
-.shortcut-gold { color: #9b711e; background: #fbf3e2; }
+.shortcut-gold { color: #9b711e; background: #d4cdbf; }
 
 .shortcut-copy { display: grid; gap: 7px; padding-top: 2px; }
 
@@ -79,7 +79,7 @@
 
 .portal-shortcut-card:hover .shortcut-arrow { color: var(--primary); transform: translateX(3px); }
 
-.portal-note { display: flex; align-items: center; gap: 12px; padding: 15px 17px; color: #47656a; background: #eaf4f2; border: 1px solid #d5e9e5; border-radius: 12px; }
+.portal-note { display: flex; align-items: center; gap: 12px; padding: 15px 17px; color: #47656a; background: #c6cecc; border: 1px solid #d5e9e5; border-radius: 12px; }
 
 .portal-note > svg:first-child { flex: 0 0 auto; color: var(--teal); }
 

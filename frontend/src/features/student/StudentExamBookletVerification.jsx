@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle, RefreshCw } from 'lucide-react'
 import QrCameraScanner from '../../components/ui/QrCameraScanner'
 import { getStudentExamAttendance, getStudentExamBooklets, scanStudentExamBooklet } from '../../api/student'
+import { useExamBookletVerificationWindow } from '../shared/examBookletVerificationWindow'
 
 function records(response) {
   const payload = response?.data ?? response
@@ -41,11 +42,16 @@ export default function StudentExamBookletVerification() {
   }, [load])
 
   const selected = booklets.find(({ id }) => id === selectedId)
+  const canVerifyBooklet = useExamBookletVerificationWindow(selected?.session)
   const scan = async (qrPayload) => {
     setError('')
     setNotice('')
     if (!selected) {
       setError('Select your allocated booklet before scanning its QR code.')
+      return
+    }
+    if (!canVerifyBooklet) {
+      setError('The booklet verification window is closed for this examination session.')
       return
     }
     if (!/^[a-f0-9]{64}$/i.test(qrPayload)) {
@@ -105,7 +111,8 @@ export default function StudentExamBookletVerification() {
                   <p><strong>Course unit:</strong> {selected.session?.courseUnit?.code} · {selected.session?.courseUnit?.name}</p>
                   <p><strong>Booklet status:</strong> {selected.status.replaceAll('_', ' ')}</p>
                   <p><strong>Attendance status:</strong> {attendance.find((item) => item.session?.id === selected.session?.id)?.examVerificationStatus?.replaceAll('_', ' ') || 'Not yet verified'}</p>
-                  {selected.status === 'ALLOCATED' && !scanning && <QrCameraScanner onDecode={scan} label="Scan my booklet QR" />}
+                  {selected.status === 'ALLOCATED' && canVerifyBooklet && !scanning && <QrCameraScanner onDecode={scan} label="Scan my booklet QR" />}
+                  {selected.status === 'ALLOCATED' && !canVerifyBooklet && <p role="status">Booklet verification is closed for this examination session.</p>}
                   {scanning && <p role="status">Verifying booklet and refreshing attendance…</p>}
                 </div>
               )}
