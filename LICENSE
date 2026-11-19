@@ -1,0 +1,66 @@
+Missing Marks Management System – Proprietary License
+
+PROPOSED DRAFT — NOT APPROVED OR EFFECTIVE
+
+Proposed licensing model: Proprietary — All Rights Reserved.
+
+This document is a proposed licensing policy for the Missing Marks Management
+System (the "Software"). It must be reviewed and expressly agreed to by all
+relevant lawful copyright holders before it is adopted or represented as the
+Software's operative license. Until that review and agreement occur, this
+draft does not grant rights on behalf of any person or institution.
+
+1. Copyright and ownership
+
+Copyright and other intellectual property rights in the Software remain with
+their respective lawful owners. This document does not identify, create, or
+transfer ownership, and does not assert that any one person or institution
+owns the Software exclusively. Rights in third-party materials remain subject
+to their respective owners and applicable terms.
+
+2. Limited permission to view
+
+The Software is publicly visible on GitHub. You may access and view the
+publicly available source code using GitHub's ordinary viewing functionality.
+Public visibility, access to the repository, and this limited permission to
+view do not grant a general license to use or reuse the Software.
+
+3. All rights reserved; no general license
+
+Except for the limited permission to view above and rights that cannot be
+restricted under applicable law, no permission or license is granted to use,
+copy, reproduce, modify, adapt, create derivative works from, publish,
+distribute, sublicense, make available, or commercially exploit the Software
+or any part of it.
+
+Redistribution of the Software, in whole or in part, and creation or
+distribution of derivative works require prior written authorization from all
+relevant lawful rights holders. Commercial use also requires prior written
+authorization from all relevant lawful rights holders. No authorization is
+effective unless it is given in writing by persons or institutions with
+authority to grant the relevant rights.
+
+4. Institutional requests
+
+Universities and other institutions may request permission to use the Software
+by seeking written authorization from the relevant lawful rights holders.
+Submitting a request does not itself grant permission. No contact details are
+specified here because an authorized contact has not been confirmed.
+
+5. No implied rights
+
+No rights are granted by implication, estoppel, public availability, or any
+other means except as expressly stated in an authorization from the relevant
+lawful rights holders. Any rights that cannot be restricted by law remain
+unaffected.
+
+6. Ownership review required before publication
+
+Before adopting this proposal, the project must confirm who holds rights in
+the contributions and whether each relevant holder has authority to approve
+these terms. Review should include the project's university or institutional
+intellectual-property policies, all contributors and any contribution or
+assignment agreements, work created in the course of employment or study,
+and third-party code, assets, and other materials. Git history and repository
+ownership information alone do not establish exclusive ownership or authority
+to license every contribution.

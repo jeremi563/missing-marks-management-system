@@ -1,0 +1,23 @@
+.admin-student-page > .page-heading > .button {
+  min-height: 38px;
+  padding-inline: 12px;
+  font-size: 12px;
+}
+
+.admin-student-page .lecturer-directory-tab {
+  min-height: 36px;
+  gap: 6px;
+  padding-inline: 10px;
+}
+
+.admin-student-page #student-directory-panel .record-actions {
+  gap: 5px;
+}
+
+.admin-student-page #student-directory-panel .record-actions .button {
+  min-height: 36px;
+  gap: 5px;
+  padding-inline: 9px;
+  border-radius: 8px;
+  font-size: 11px;
+}

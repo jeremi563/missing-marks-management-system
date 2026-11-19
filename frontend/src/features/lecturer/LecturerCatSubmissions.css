@@ -1,0 +1,30 @@
+.cat-submission-bulk-actions {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cat-submission-bulk-actions > label:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+}
+
+.cat-submission-bulk-rejection {
+  display: grid;
+  gap: 12px;
+}
+
+.cat-submissions-page input[type='checkbox'] {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+  accent-color: var(--primary);
+}
+
+.cat-submissions-page th:first-child,
+.cat-submissions-page td:first-child {
+  width: 1%;
+  white-space: nowrap;
+}

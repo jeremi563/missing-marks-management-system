@@ -1,0 +1,243 @@
+import { prisma } from "../../config/database.js";
+import { recordAuditEvent } from "../../shared/services/audit.service.js";
+import { AppError } from "../../shared/utils/app-error.js";
+import { academicYearForDate } from "../../shared/utils/academic-year.js";
+
+async function paginated(model, { where = {}, page, limit, orderBy = { createdAt: "desc" }, include, select }) {
+	const [items, total] = await Promise.all([
+		model.findMany({ where, orderBy, skip: (page - 1) * limit, take: limit, ...(include ? { include } : {}), ...(select ? { select } : {}) }),
+		model.count({ where }),
+	]);
+	return { data: items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } };
+}
+
+async function mutate({ db, actorUserId, action, entityType, entityId, operation }) {
+	return db.$transaction(async (tx) => {
+		const result = await operation(tx);
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action, entityType, entityId: result.id, metadata: { id: result.id } });
+		return result;
+	});
+}
+
+export const listDepartments = ({ db = prisma, page, limit }) => paginated(db.department, { page, limit, orderBy: [{ name: "asc" }], include: { designatedCod: { select: { id: true, displayName: true, email: true } }, _count: { select: { courseUnits: true, members: true } } } });
+export const listDepartmentMembers = ({ db = prisma, page, limit, departmentId, role }) => paginated(db.departmentMembership, { page, limit, where: { departmentId, ...(role ? { user: { roles: { some: { role: { name: role } } } } } : {}) }, orderBy: { createdAt: "asc" }, include: { user: { select: { id: true, email: true, displayName: true, isActive: true, roles: { select: { role: { select: { name: true } } } }, lecturerProfile: { select: { id: true, staffNumber: true } } } }, department: { select: { id: true, name: true, code: true } } } });
+export const listCourses = ({ db = prisma, page, limit, departmentId }) => paginated(db.course, { page, limit, where: departmentId ? { departmentId } : {}, orderBy: [{ department: { name: "asc" } }, { code: "asc" }], include: { department: { select: { id: true, code: true, name: true, initials: true } }, _count: { select: { courseUnits: true } } } });
+export const listCourseUnits = ({ db = prisma, page, limit, departmentId, courseId }) => paginated(db.courseUnit, { page, limit, where: { ...(departmentId ? { departmentId } : {}), ...(courseId ? { courseId } : {}) }, orderBy: [{ department: { name: "asc" } }, { course: { code: "asc" } }, { code: "asc" }], include: { department: { select: { id: true, name: true, code: true } }, course: { select: { id: true, code: true, name: true } }, _count: { select: { enrollments: true, lecturerMappings: true, assessments: true } } } });
+export const listAcademicPeriods = ({ db = prisma, page, limit }) => paginated(db.academicPeriod, { page, limit, orderBy: [{ startsAt: "desc" }, { name: "asc" }], include: { eligibleCourses: { select: { id: true, code: true, name: true } }, _count: { select: { enrollments: true, reports: true } } } });
+export const listEnrollments = ({ db = prisma, page, limit, studentProfileId, courseUnitId, academicPeriodId }) => paginated(db.unitEnrollment, { page, limit, where: { ...(studentProfileId ? { studentProfileId } : {}), ...(courseUnitId ? { courseUnitId } : {}), ...(academicPeriodId ? { academicPeriodId } : {}) }, orderBy: { createdAt: "desc" }, include: { student: { select: { id: true, studentNumber: true, user: { select: { id: true, displayName: true, email: true } } } }, courseUnit: { select: { id: true, code: true, name: true } }, academicPeriod: { select: { id: true, code: true, name: true, startsAt: true, academicYear: true, semester: true } } } });
+export const listMappings = ({ db = prisma, page, limit, courseUnitId, lecturerProfileId, academicYear }) => paginated(db.courseUnitLecturer, { page, limit, where: { ...(courseUnitId ? { courseUnitId } : {}), ...(lecturerProfileId ? { lecturerProfileId } : {}), ...(academicYear ? { academicYear } : {}) }, orderBy: [{ academicYear: "desc" }, { createdAt: "desc" }], include: { courseUnit: { select: { id: true, code: true, name: true } }, lecturer: { select: { id: true, staffNumber: true, user: { select: { id: true, displayName: true, email: true } } } } } });
+export const listClassrooms = ({ db = prisma, page, limit }) => paginated(db.classroom, { page, limit, orderBy: [{ name: "asc" }] });
+export const listAssessments = ({ db = prisma, page, limit, courseUnitId, type }) => paginated(db.assessment, { page, limit, where: { ...(courseUnitId ? { courseUnitId } : {}), ...(type ? { type } : {}) }, orderBy: [{ assessmentDate: "desc" }, { name: "asc" }], include: { courseUnit: { select: { id: true, code: true, name: true } }, _count: { select: { reports: true, sessions: true, attendanceRecords: true, catSubmissions: true } } } });
+export const listAssessmentTypes = ({ db = prisma, page, limit, isActive }) => paginated(db.assessmentType, { page, limit, where: isActive === undefined ? {} : { isActive }, orderBy: [{ isActive: "desc" }, { name: "asc" }] });
+
+export const createDepartment = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_DEPARTMENT_CREATED", entityType: "Department", operation: (tx) => tx.department.create({ data }) });
+export const updateDepartment = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_DEPARTMENT_UPDATED", entityType: "Department", entityId: id, operation: async (tx) => { const current = await tx.department.findUnique({ where: { id } }); if (!current) throw new AppError(404, "Department not found"); return tx.department.update({ where: { id }, data }); } });
+export const createCourse = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_COURSE_CREATED", entityType: "Course", operation: async (tx) => {
+	if (!await tx.department.findUnique({ where: { id: data.departmentId }, select: { id: true } })) throw new AppError(422, "Department not found");
+	try {
+		return await tx.course.create({ data });
+	} catch (error) {
+		if (error.code === "P2002") throw new AppError(409, "A course with this identifier already exists in the department");
+		throw error;
+	}
+} });
+export const createCourseUnit = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_COURSE_UNIT_CREATED", entityType: "CourseUnit", operation: async (tx) => {
+	const course = await tx.course.findUnique({ where: { id: data.courseId }, select: { id: true, departmentId: true } });
+	if (!course) throw new AppError(422, "Course not found");
+	return tx.courseUnit.create({ data: { ...data, departmentId: course.departmentId } });
+} });
+export const updateCourseUnit = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_COURSE_UNIT_UPDATED", entityType: "CourseUnit", entityId: id, operation: async (tx) => {
+		const current = await tx.courseUnit.findUnique({ where: { id }, select: { id: true, departmentId: true, courseId: true, _count: { select: { enrollments: true, reports: true, attendanceSessions: true, assessments: true } } } });
+		if (!current) throw new AppError(404, "Course unit not found");
+		const course = data.courseId
+			? await tx.course.findUnique({ where: { id: data.courseId }, select: { id: true, departmentId: true } })
+			: null;
+		if (data.courseId && !course) throw new AppError(422, "Course not found");
+		const nextDepartmentId = course?.departmentId ?? current.departmentId;
+		if (nextDepartmentId !== current.departmentId && Object.values(current._count).some((count) => count > 0)) throw new AppError(409, "A course unit with academic history cannot move departments");
+		return tx.courseUnit.update({ where: { id }, data: { ...data, ...(course ? { departmentId: course.departmentId } : {}) } });
+	} });
+export const createAcademicPeriod = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ACADEMIC_PERIOD_CREATED", entityType: "AcademicPeriod", operation: (tx) => {
+	if (!data.startsAt) throw new AppError(422, "An academic period start date is required");
+	const academicYear = academicYearForDate(data.startsAt);
+	if (data.endsAt && academicYearForDate(data.endsAt) !== academicYear) {
+		throw new AppError(422, "An academic period must start and end within the same academic year");
+	}
+	return tx.academicPeriod.create({ data });
+} });
+export const updateAcademicPeriod = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ACADEMIC_PERIOD_UPDATED", entityType: "AcademicPeriod", entityId: id, operation: async (tx) => {
+		const current = await tx.academicPeriod.findUnique({ where: { id }, select: { id: true, startsAt: true, endsAt: true, enrollmentOpensAt: true, enrollmentClosesAt: true } });
+		if (!current) throw new AppError(404, "Academic period not found");
+		const startsAt = data.startsAt === undefined ? current.startsAt : data.startsAt;
+		const endsAt = data.endsAt === undefined ? current.endsAt : data.endsAt;
+		if (!startsAt) throw new AppError(422, "An academic period start date is required");
+		if (startsAt && endsAt && endsAt <= startsAt) throw new AppError(422, "The end date must be later than the start date");
+		if (endsAt && academicYearForDate(startsAt) !== academicYearForDate(endsAt)) {
+			throw new AppError(422, "An academic period must start and end within the same academic year");
+		}
+		const enrollmentOpensAt = data.enrollmentOpensAt === undefined ? current.enrollmentOpensAt : data.enrollmentOpensAt;
+		const enrollmentClosesAt = data.enrollmentClosesAt === undefined ? current.enrollmentClosesAt : data.enrollmentClosesAt;
+		if (enrollmentOpensAt && enrollmentClosesAt && enrollmentClosesAt <= enrollmentOpensAt) {
+			throw new AppError(422, "The enrollment closing date must be later than its opening date");
+		}
+		return tx.academicPeriod.update({ where: { id }, data });
+	} });
+export async function saveAcademicYearSchedule({
+	db = prisma,
+	actorUserId,
+	academicYear,
+	semester,
+	schedule,
+	courseIds = [],
+	now = new Date(),
+}) {
+	const yearStart = Number(academicYear.slice(0, 4));
+	if (String(yearStart + 1).slice(-2) !== academicYear.slice(-2)) {
+		throw new AppError(422, "Academic year must use the YYYY/YY format");
+	}
+	if (academicYearForDate(now) !== academicYear) {
+		throw new AppError(409, "Schedules can only be configured for the current academic year");
+	}
+	if (![1, 2, 3].includes(semester)) throw new AppError(422, "Select a valid semester");
+	if (!schedule.startsAt || !schedule.endsAt
+		|| academicYearForDate(schedule.startsAt) !== academicYear
+		|| academicYearForDate(schedule.endsAt) !== academicYear
+		|| schedule.endsAt <= schedule.startsAt) {
+		throw new AppError(422, "Semester dates must be valid and remain within the current academic year");
+	}
+	if (Boolean(schedule.enrollmentOpensAt) !== Boolean(schedule.enrollmentClosesAt)
+		|| (schedule.enrollmentOpensAt && schedule.enrollmentClosesAt <= schedule.enrollmentOpensAt)) {
+		throw new AppError(422, "Configure a valid pair of enrollment-window dates, or leave both unset");
+	}
+	if (semester === 3 && !courseIds.length) {
+		throw new AppError(422, "Select at least one course for semester 3");
+	}
+	if (semester !== 3 && courseIds.length) {
+		throw new AppError(422, "Course eligibility applies only to semester 3");
+	}
+
+	return db.$transaction(async (tx) => {
+		const previousSemester = semester > 1
+			? await tx.academicPeriod.findUnique({
+				where: { scheduleKey: `${academicYear}:S${semester - 1}` },
+				select: { id: true, endsAt: true },
+			})
+			: null;
+		if (semester > 1 && !previousSemester) {
+			throw new AppError(409, `Semester ${semester} cannot be set up until semester ${semester - 1} has been configured`);
+		}
+		if (previousSemester && !previousSemester.endsAt) {
+			throw new AppError(409, `Semester ${semester - 1} must have an end date before semester ${semester} can be set up`);
+		}
+		if (previousSemester && now <= previousSemester.endsAt) {
+			throw new AppError(409, `Semester ${semester} setup opens after semester ${semester - 1} ends`);
+		}
+		if (previousSemester && schedule.startsAt <= previousSemester.endsAt) {
+			throw new AppError(422, `Semester ${semester} must start after semester ${semester - 1} ends`);
+		}
+
+		const scheduleKey = `${academicYear}:S${semester}`;
+		const [existing, followingSemester] = await Promise.all([
+			tx.academicPeriod.findUnique({
+				where: { scheduleKey },
+				select: { id: true, endsAt: true },
+			}),
+			semester < 3
+				? tx.academicPeriod.findUnique({
+					where: { scheduleKey: `${academicYear}:S${semester + 1}` },
+					select: { id: true, startsAt: true },
+				})
+				: Promise.resolve(null),
+		]);
+		if (existing && now > existing.endsAt) {
+			throw new AppError(409, `Semester ${semester} has ended and its schedule can no longer be changed`);
+		}
+		if (followingSemester && schedule.endsAt >= followingSemester.startsAt) {
+			throw new AppError(422, `Semester ${semester} must end before semester ${semester + 1} starts`);
+		}
+
+		if (courseIds.length) {
+			const courses = await tx.course.findMany({
+				where: { id: { in: courseIds } },
+				select: { id: true },
+			});
+			if (courses.length !== courseIds.length) throw new AppError(422, "One or more selected courses do not exist");
+		}
+
+		const data = {
+			name: `Semester ${semester} ${academicYear}`,
+			academicYear,
+			semester,
+			startsAt: schedule.startsAt,
+			endsAt: schedule.endsAt,
+			enrollmentOpensAt: schedule.enrollmentOpensAt ?? null,
+			enrollmentClosesAt: schedule.enrollmentClosesAt ?? null,
+			scheduleKey,
+		};
+		const period = await tx.academicPeriod.upsert({
+			where: { scheduleKey },
+			create: {
+				...data,
+				...(courseIds.length ? { eligibleCourses: { connect: courseIds.map((id) => ({ id })) } } : {}),
+			},
+			update: { ...data, eligibleCourses: { set: courseIds.map((id) => ({ id })) } },
+			include: { eligibleCourses: { select: { id: true, code: true, name: true } } },
+		});
+		await recordAuditEvent({
+			prismaClient: tx,
+			actorId: actorUserId,
+			action: "ADMIN_ACADEMIC_SEMESTER_SCHEDULE_SAVED",
+			entityType: "AcademicPeriod",
+			entityId: period.id,
+			metadata: { academicYear, semester },
+		});
+		return period;
+	});
+}
+export const createClassroom = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_CLASSROOM_CREATED", entityType: "Classroom", operation: (tx) => tx.classroom.create({ data }) });
+export const updateClassroom = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_CLASSROOM_UPDATED", entityType: "Classroom", entityId: id, operation: async (tx) => { if (!await tx.classroom.findUnique({ where: { id }, select: { id: true } })) throw new AppError(404, "Classroom not found"); return tx.classroom.update({ where: { id }, data }); } });
+export const createAssessment = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_CREATED", entityType: "Assessment", operation: async (tx) => { if (!await tx.courseUnit.findUnique({ where: { id: data.courseUnitId }, select: { id: true } })) throw new AppError(422, "Course unit not found"); return tx.assessment.create({ data: { ...data, createdByUserId: actorUserId } }); } });
+export const updateAssessment = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_UPDATED", entityType: "Assessment", entityId: id, operation: async (tx) => { if (!await tx.assessment.findUnique({ where: { id }, select: { id: true } })) throw new AppError(404, "Assessment not found"); return tx.assessment.update({ where: { id }, data }); } });
+export const createAssessmentType = ({ db = prisma, actorUserId, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_TYPE_CREATED", entityType: "AssessmentType", operation: (tx) => tx.assessmentType.create({ data }) });
+export const updateAssessmentType = ({ db = prisma, actorUserId, id, ...data }) => mutate({ db, actorUserId, action: "ADMIN_ASSESSMENT_TYPE_UPDATED", entityType: "AssessmentType", entityId: id, operation: async (tx) => { if (!await tx.assessmentType.findUnique({ where: { id }, select: { id: true } })) throw new AppError(404, "Assessment type not found"); return tx.assessmentType.update({ where: { id }, data }); } });
+
+export const addDepartmentMember = ({ db = prisma, actorUserId, departmentId, userId }) => mutate({ db, actorUserId, action: "ADMIN_DEPARTMENT_MEMBER_ADDED", entityType: "DepartmentMembership", operation: async (tx) => {
+		if (!await tx.department.findUnique({ where: { id: departmentId }, select: { id: true } })) throw new AppError(404, "Department not found");
+		const user = await tx.user.findFirst({ where: { id: userId, isActive: true, roles: { some: { role: { name: { in: ["lecturer", "cod", "administrator"] } } } } }, select: { id: true } });
+		if (!user) throw new AppError(422, "Department members must be active lecturer, COD, or administrator accounts");
+		return tx.departmentMembership.create({ data: { departmentId, userId }, select: { id: true, departmentId: true, userId: true, createdAt: true } });
+	} });
+
+export const removeDepartmentMember = ({ db = prisma, actorUserId, departmentId, userId }) => db.$transaction(async (tx) => {
+		const department = await tx.department.findUnique({ where: { id: departmentId }, select: { id: true, designatedCodUserId: true } });
+		if (!department) throw new AppError(404, "Department not found");
+		if (department.designatedCodUserId === userId) throw new AppError(409, "Change the designated COD before removing that department membership");
+		const membership = await tx.departmentMembership.findUnique({ where: { userId_departmentId: { userId, departmentId } }, select: { id: true } });
+		if (!membership) throw new AppError(404, "Department membership not found");
+		await tx.departmentMembership.delete({ where: { id: membership.id } });
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_DEPARTMENT_MEMBER_REMOVED", entityType: "DepartmentMembership", entityId: membership.id, metadata: { departmentId, userId } });
+		return { id: membership.id, departmentId, userId };
+});
+
+async function remove({ db, actorUserId, id, model, action, entityType, message }) {
+	return db.$transaction(async (tx) => {
+		try { await tx[model].delete({ where: { id } }); } catch (error) { if (error.code === "P2025") throw new AppError(404, message); if (error.code === "P2003") throw new AppError(409, "This relationship is referenced by protected academic history"); throw error; }
+		await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action, entityType, entityId: id, metadata: { id } });
+		return { id };
+	});
+}
+
+export const deleteEnrollment = ({ db = prisma, actorUserId, id }) => remove({ db, actorUserId, id, model: "unitEnrollment", action: "ADMIN_ENROLLMENT_DELETED", entityType: "UnitEnrollment", message: "Enrolment not found" });
+export const deleteMapping = ({ db = prisma, actorUserId, id }) => db.$transaction(async (tx) => {
+	const mapping = await tx.courseUnitLecturer.findUnique({ where: { id }, select: { id: true, isActive: true } });
+	if (!mapping) throw new AppError(404, "Lecturer mapping not found");
+	if (!mapping.isActive) throw new AppError(409, "Lecturer mapping is already inactive");
+	const endedAt = new Date();
+	const updated = await tx.courseUnitLecturer.updateMany({
+		where: { id, isActive: true },
+		data: { isActive: false, endedAt },
+	});
+	if (updated.count !== 1) throw new AppError(409, "Lecturer mapping changed; reload before deactivating it");
+	await recordAuditEvent({ prismaClient: tx, actorId: actorUserId, action: "ADMIN_LECTURER_MAPPING_DEACTIVATED", entityType: "CourseUnitLecturer", entityId: id, metadata: { isActive: false, endedAt } });
+	return { id, isActive: false, endedAt };
+});

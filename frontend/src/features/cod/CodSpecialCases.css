@@ -1,0 +1,116 @@
+.cod-special-cases {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.cod-special-case-config,
+.cod-special-case-list,
+.cod-special-case-detail {
+  display: grid;
+  gap: 1rem;
+}
+
+.cod-special-case-config > div:first-child > p,
+.cod-special-case-config > div:first-child > h3 {
+  margin-top: 0;
+}
+
+.cod-special-case-config .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cod-special-case-config-row,
+.special-case-inbox-heading,
+.special-case-inbox-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cod-special-case-config-row {
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color, #d9e0e8);
+}
+
+.cod-special-case-config-row h4,
+.cod-special-case-config-row p,
+.special-case-inbox-item h4,
+.special-case-inbox-item p {
+  margin: 0 0 0.35rem;
+}
+
+.cod-special-case-config-row small,
+.special-case-inbox-item p,
+.special-case-inbox-item small {
+  color: var(--text-muted, #64748b);
+}
+
+.cod-special-case-config-row label,
+.special-case-inbox-heading label,
+.cod-special-case-actions label {
+  display: grid;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.cod-special-case-config-row input,
+.special-case-inbox-heading select,
+.cod-special-case-actions textarea {
+  width: 100%;
+}
+
+.cod-special-case-monitor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.75rem;
+}
+
+.cod-special-case-metric {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.cod-special-case-metric span {
+  color: var(--text-muted, #64748b);
+  font-size: 0.875rem;
+}
+
+.cod-special-case-metric strong {
+  font-size: 1.5rem;
+}
+
+.special-case-inbox-list {
+  display: grid;
+}
+
+.special-case-inbox-item {
+  padding: 1rem 0;
+  border-top: 1px solid var(--border-color, #d9e0e8);
+}
+
+.cod-special-case-detail .details-card {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.cod-special-case-detail .details-card h4,
+.cod-special-case-detail .details-card p {
+  margin: 0;
+}
+
+.cod-special-case-actions {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .cod-special-case-config-row,
+  .special-case-inbox-heading,
+  .special-case-inbox-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

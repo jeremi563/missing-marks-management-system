@@ -1,0 +1,71 @@
+.panel { padding: clamp(19px, 2.4vw, 28px); }
+.page-heading .eyebrow { margin: 0 0 9px; font-size: 10px; letter-spacing: .15em; }
+tr:hover td { background: #d2d4d4; }
+.welcome-orbit { position: absolute; top: 50%; left: 50%; border: 1px solid #b6e8df27; border-radius: 50%; transform: translate(-50%, -50%); }
+.welcome-orbit-one { width: 220px; height: 220px; box-shadow: 0 0 0 25px #b6e8df09, 0 0 0 52px #b6e8df07; }
+.welcome-orbit-two { width: 150px; height: 150px; border-color: #b6e8df38; }
+.welcome-emblem { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 76px; height: 76px; color: #9ce0d1; background: #d8d8d812; border: 1px solid #ffffff25; border-radius: 23px; transform: translate(-50%, -50%) rotate(-7deg); }
+.admin-edit-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  width: min(calc(100vw - 32px), 560px);
+  max-height: min(90vh, 760px);
+  max-height: min(90dvh, 760px);
+  margin: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  background: var(--account-surface);
+  box-shadow: 0 24px 80px #102f3740;
+}
+.admin-edit-dialog::backdrop { background: #0e282f80; backdrop-filter: blur(3px); }
+.admin-edit-dialog[open] { display: block; }
+.public-brand { color: var(--navy); font-size: 15px; }
+.public-brand > span:last-child { display: grid; gap: 2px; }
+.public-brand small { color: #779094; font-size: 10px; font-weight: 500; }
+.public-brand .brand-icon { color: #f4fffc; background: var(--navy); border-radius: 12px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+.account-self-label { display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; padding: 2px 6px; color: #477177; background: #c6cecc; border-radius: 99px; font-size: 9px; line-height: 1.2; font-weight: 700; }
+.lecturer-directory-tabs { display: flex; gap: 8px; margin: 16px 0; padding: 8px; overflow-x: auto; background: var(--secondary-soft); border: 1px solid var(--line); border-radius: 12px; }
+.lecturer-directory-tab { display: inline-flex; align-items: center; gap: 9px; flex: 0 0 auto; min-height: 40px; padding: 0 13px; color: #536f73; background: transparent; border: 1px solid transparent; border-radius: 9px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.lecturer-directory-tab:hover { background: #d8d8d8a6; }
+.lecturer-directory-tab.active { color: var(--primary); background: var(--account-surface); border-color: var(--secondary); box-shadow: 0 3px 10px rgba(var(--primary-rgb), .08); }
+.lecturer-directory-tab small { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 5px; color: #60797d; background: #c9cdcc; border-radius: 99px; font-size: 10px; }
+.lecturer-directory-tab.active small { color: var(--primary); background: var(--secondary-soft); }
+.lecturer-directory-tab:focus-visible { outline: 3px solid rgba(var(--primary-rgb), .45); outline-offset: 2px; }
+#lecturer-directory-panel table { border-collapse: collapse; }
+#lecturer-directory-panel th,
+#lecturer-directory-panel td { padding: 8px 10px; line-height: 1.3; }
+#lecturer-directory-panel .record-actions { flex-wrap: nowrap; }
+.session-expiry-overlay { position: fixed; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); z-index: 1000; width: min(390px, calc(100vw - 24px)); pointer-events: none; }
+.session-expiry-dialog { width: 100%; padding: 17px 18px; color: #f8fafc; background: #17232d; border: 1px solid #3b4c58; border-left: 4px solid var(--primary); border-radius: 12px; box-shadow: 0 12px 32px #07101870; pointer-events: auto; }
+.session-expiry-dialog h2 { margin: 0 0 6px; color: #f8fafc; font-size: 15px; }
+.session-expiry-dialog p { margin: 0; color: #cbd5e1; font-size: 12px; line-height: 1.5; }
+.session-expiry-dialog .session-expiry-error { margin-top: 10px; color: #fecaca; font-size: 11px; }
+.session-expiry-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px; }
+.session-expiry-actions .button { min-height: 35px; padding: 0 11px; border-radius: 8px; font-size: 11px; }
+.session-expiry-actions .button-secondary { color: #e2e8f0; background: #34424d; border-color: #4b5b67; box-shadow: none; }
+.session-expiry-actions .button-secondary:hover { color: #fff; background: #43515c; border-color: #657681; box-shadow: none; }
+.session-expiry-actions .button-primary { box-shadow: none; }
+@media (max-width: 480px) {
+  .session-expiry-overlay { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); width: min(370px, calc(100vw - 20px)); }
+  .session-expiry-dialog { padding: 15px; }
+}
+.academic-record-form { display: grid; gap: 16px; margin-bottom: 20px; }
+.academic-record-form h3 { margin: 0; }
+.academic-record-form .form-grid { align-items: center; }
+.academic-record-checkbox { display: flex; align-items: center; gap: 8px; }
+.academic-record-checkbox input { width: auto; min-height: 0; }
+.academic-enrollment-period-filter { max-width: 520px; margin: 14px 0; }
+.academic-year-schedule-form > p { margin: 0; color: var(--muted); line-height: 1.5; }
+.academic-semester-schedule,
+.academic-semester-course-list { display: grid; gap: 14px; min-width: 0; margin: 0; padding: 18px; border: 1px solid var(--border); border-radius: 12px; }
+.academic-semester-schedule legend,
+.academic-semester-course-list legend { padding: 0 6px; font-weight: 700; }
+.academic-semester-course-list { max-height: 280px; overflow: auto; }
