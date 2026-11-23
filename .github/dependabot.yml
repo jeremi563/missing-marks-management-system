@@ -1,0 +1,112 @@
+# Dependabot configuration for Missing Marks Management System
+#
+# This file configures Dependabot version updates for the three npm package
+# locations in this monorepo-style repository:
+#
+#   /           – Root package (Prisma client, dotenv)
+#   /backend    – Node.js / Express REST API
+#   /frontend   – React / Vite client
+#
+# Package manager: npm (all three directories use package-lock.json v3)
+#
+# ----------------------------------------------------------------------------
+# SECURITY UPDATES
+# ----------------------------------------------------------------------------
+# This file controls version-update PRs only.
+# Dependabot security-update PRs are a separate GitHub feature and are NOT
+# automatically enabled by this file.
+#
+# Repository administrators should verify that the following are enabled in
+# GitHub Settings → Security → Code security and analysis:
+#
+#   ✔  Dependency graph
+#   ✔  Dependabot alerts
+#   ✔  Dependabot security updates
+#
+# Security update PRs target the repository default branch (main) regardless
+# of the target-branch set here for version updates.
+# ----------------------------------------------------------------------------
+
+version: 2
+
+updates:
+  # --------------------------------------------------------------------------
+  # Root package
+  # Dependencies: @prisma/client, dotenv
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Nairobi"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      root-production-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      root-development-minor-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # --------------------------------------------------------------------------
+  # Backend – Node.js / Express REST API
+  # Located in: /backend
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Nairobi"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      backend-production-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      backend-development-minor-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # --------------------------------------------------------------------------
+  # Frontend – React / Vite client
+  # Located in: /frontend
+  # --------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Africa/Nairobi"
+    target-branch: "develop"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      frontend-production-minor-patch:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      frontend-development-minor-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
