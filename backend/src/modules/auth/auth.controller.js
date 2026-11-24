@@ -19,7 +19,7 @@ import {
 const cookieOptions = {
 	httpOnly: true,
 	secure: env.NODE_ENV === "production",
-	sameSite: "strict",
+	sameSite: env.COOKIE_SAME_SITE,
 	path: "/",
 };
 const sessionCookieMaxAge = 15 * 60 * 1000;
