@@ -5,7 +5,6 @@ import {
   submitLecturerMarks,
 } from '../../api/lecturer'
 import EmptyState from '../../components/ui/EmptyState'
-import ErrorState from '../../components/ui/ErrorState'
 import LoadingState from '../../components/ui/LoadingState'
 import { extractRecords, formatMarkValue } from '../shared/recordUtils'
 
@@ -49,14 +48,39 @@ export default function LecturerMarks() {
   const selectedAssessment = assessments.find(({ id }) => id === assessmentId)
   const canLoadRoster = Boolean(selectedUnit && academicPeriodId && selectedAssessment)
 
-  const loadRoster = useCallback(async () => {
+  const requestRoster = useCallback(async () => {
+    const response = await getLecturerAssessmentRoster(assessmentId, academicPeriodId)
+    return unwrap(response)
+  }, [assessmentId, academicPeriodId])
+
+  useEffect(() => {
     if (!canLoadRoster) return
+    let active = true
+    requestRoster()
+      .then((result) => {
+        if (active) {
+          setRoster(result)
+          setDrafts({})
+          setError('')
+        }
+      })
+      .catch((requestError) => {
+        if (active) {
+          setRoster(null)
+          setError(requestError.userMessage || 'Unable to load this assessment roster.')
+        }
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [canLoadRoster, requestRoster])
+
+  const reloadRoster = async () => {
+    if (!canLoadRoster) return
+    setLoading(true)
     setError('')
     setNotice('')
-    setLoading(true)
     try {
-      const response = await getLecturerAssessmentRoster(assessmentId, academicPeriodId)
-      setRoster(unwrap(response))
+      setRoster(await requestRoster())
       setDrafts({})
     } catch (requestError) {
       setRoster(null)
@@ -64,15 +88,7 @@ export default function LecturerMarks() {
     } finally {
       setLoading(false)
     }
-  }, [assessmentId, academicPeriodId, canLoadRoster])
-
-  useEffect(() => {
-    if (!canLoadRoster) {
-      setRoster(null)
-      return
-    }
-    loadRoster()
-  }, [canLoadRoster, loadRoster])
+  }
 
   const markableStudents = useMemo(
     () => roster?.students?.filter(({ mark, attendance }) => !mark && attendance?.eligible) ?? [],
@@ -98,7 +114,7 @@ export default function LecturerMarks() {
     try {
       await submitLecturerMarks(assessmentId, { academicPeriodId, marks })
       setNotice(`${marks.length} official mark${marks.length === 1 ? '' : 's'} submitted.`)
-      await loadRoster()
+      await reloadRoster()
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to submit marks.')
     } finally {
@@ -127,19 +143,19 @@ export default function LecturerMarks() {
             <section className="panel">
               <div className="form-grid">
                 <label>Course unit
-                  <select value={courseUnitId} onChange={(event) => { setCourseUnitId(event.target.value); setAcademicPeriodId(''); setAssessmentId('') }}>
+                  <select value={courseUnitId} onChange={(event) => { setCourseUnitId(event.target.value); setAcademicPeriodId(''); setAssessmentId(''); setRoster(null); setLoading(false); setError(''); setNotice('') }}>
                     <option value="">Select a course unit</option>
                     {options.map(({ courseUnit }) => <option key={courseUnit.id} value={courseUnit.id}>{courseUnit.code} · {courseUnit.name}</option>)}
                   </select>
                 </label>
                 <label>Academic period
-                  <select value={academicPeriodId} disabled={!selectedUnit} onChange={(event) => setAcademicPeriodId(event.target.value)}>
+                  <select value={academicPeriodId} disabled={!selectedUnit} onChange={(event) => { setAcademicPeriodId(event.target.value); setAssessmentId(''); setRoster(null); setLoading(false); setError(''); setNotice('') }}>
                     <option value="">Select an academic period</option>
                     {periods.map((period) => <option key={period.id} value={period.id}>{period.name} · {period.academicYear}</option>)}
                   </select>
                 </label>
                 <label>Assessment
-                  <select value={assessmentId} disabled={!selectedUnit} onChange={(event) => setAssessmentId(event.target.value)}>
+                  <select value={assessmentId} disabled={!selectedUnit} onChange={(event) => { setAssessmentId(event.target.value); setRoster(null); setLoading(Boolean(event.target.value && academicPeriodId)); setError(''); setNotice('') }}>
                     <option value="">Select an assessment</option>
                     {assessments.map((assessment) => <option key={assessment.id} value={assessment.id}>{assessment.code || assessment.name} · max {assessment.maximumMarks ?? 'not set'}</option>)}
                   </select>

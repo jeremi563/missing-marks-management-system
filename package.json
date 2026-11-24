@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test --prefix backend && npm run test --prefix frontend && npm run test:ui --prefix frontend"
   },
   "repository": {
     "type": "git",

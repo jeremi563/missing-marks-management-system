@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   decideCodMarkCorrection,
   getCodDepartments,
@@ -27,19 +27,7 @@ export default function CodMarkCorrections() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-
-  const loadQueue = useCallback(async () => {
-    setLoading(true)
-    setError('')
-    try {
-      const response = await getCodMarkCorrections({ status, ...(departmentId ? { departmentId } : {}) })
-      setItems(extractRecords(response))
-    } catch (requestError) {
-      setError(requestError.userMessage || 'Unable to load mark corrections.')
-    } finally {
-      setLoading(false)
-    }
-  }, [departmentId, status])
+  const [queueRevision, setQueueRevision] = useState(0)
 
   useEffect(() => {
     let active = true
@@ -49,7 +37,19 @@ export default function CodMarkCorrections() {
     return () => { active = false }
   }, [])
 
-  useEffect(() => { loadQueue() }, [loadQueue])
+  useEffect(() => {
+    let active = true
+    getCodMarkCorrections({ status, ...(departmentId ? { departmentId } : {}) })
+      .then((response) => {
+        if (active) {
+          setItems(extractRecords(response))
+          setError('')
+        }
+      })
+      .catch((requestError) => { if (active) setError(requestError.userMessage || 'Unable to load mark corrections.') })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [departmentId, queueRevision, status])
 
   const openCorrection = async (id) => {
     setBusy(true)
@@ -78,7 +78,8 @@ export default function CodMarkCorrections() {
       setNotice(`Correction ${decision === 'APPROVE' ? 'approved' : 'rejected'}.`)
       setSelected(null)
       setComments('')
-      await loadQueue()
+      setLoading(true)
+      setQueueRevision((revision) => revision + 1)
     } catch (requestError) {
       setError(requestError.userMessage || 'Unable to record the correction decision.')
     } finally {
@@ -100,13 +101,13 @@ export default function CodMarkCorrections() {
       <section className="panel">
         <div className="form-grid">
           <label>Department
-            <select value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}>
+            <select value={departmentId} onChange={(event) => { setLoading(true); setError(''); setDepartmentId(event.target.value) }}>
               <option value="">All authorized departments</option>
               {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
             </select>
           </label>
           <label>Status
-            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <select value={status} onChange={(event) => { setLoading(true); setError(''); setStatus(event.target.value) }}>
               <option value="PENDING_REVIEW">Pending review</option>
               <option value="APPROVED">Approved</option>
               <option value="REJECTED">Rejected</option>
@@ -165,7 +166,7 @@ export default function CodMarkCorrections() {
           {selected.decidedAt && <p><strong>Decision recorded:</strong> {new Date(selected.decidedAt).toLocaleString()} {selected.reviewedBy?.displayName ? `by ${selected.reviewedBy.displayName}` : ''}{selected.finalValue != null ? ` · final mark ${formatMarkValue(selected.finalValue)}` : ''}</p>}
         </section>
       )}
-      {error && !items.length && <ErrorState title="Unable to load corrections" message={error} onRetry={loadQueue} />}
+      {error && !items.length && <ErrorState title="Unable to load corrections" message={error} onRetry={() => { setLoading(true); setError(''); setQueueRevision((revision) => revision + 1) }} />}
     </section>
   )
 }

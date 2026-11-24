@@ -35,7 +35,7 @@ test("returns the authenticated user's student profile", async () => {
 
 	assert.equal(queriedUserId, "user-1");
 	assert.equal(res.statusCode, 200);
-	assert.deepEqual(res.body.data, profile);
+	assert.deepEqual(res.body.data, { ...profile, course: null });
 });
 
 test("returns report options for the authenticated student", async () => {
@@ -148,6 +148,16 @@ test("creates a report using authenticated identity and returns 201", async () =
 		unitEnrollment: { findMany: async () => [{ courseUnit: { id: "unit-1", code: "IN101", name: "Introduction to Computing" }, academicPeriod: { id: "period-1", code: "2026/27", name: "2026/27", startsAt: new Date("2026-09-01") } }] },
 		$transaction: async (callback) => callback({
 			courseUnitLecturer: { findFirst: async () => null },
+			assessment: {
+				findMany: async () => ["CAT", "EXAM"].map((type) => ({
+					type,
+					attendanceRecords: [{ status: "PRESENT" }],
+					sessions: [],
+				})),
+			},
+			attendanceSession: {
+				findMany: async () => [{ records: [{ status: "PRESENT" }] }],
+			},
 			missingMarkReport: { create: async () => report },
 			reportStatusHistory: { create: async () => ({}) },
 			auditLog: { create: async () => ({}) },
