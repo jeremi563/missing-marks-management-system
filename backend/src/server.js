@@ -4,15 +4,16 @@ import { prisma } from "./config/database.js";
 import { logger } from "./shared/utils/logger.js";
 import { completeExpiredAttendanceSessions } from "./modules/lecturer/lecturer.service.js";
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, "0.0.0.0", () => {
 	logger.info("API server started", { port: env.PORT, environment: env.NODE_ENV });
-	prisma.$connect()
-		.then(() => logger.info("Database connection established"))
-		.catch((error) => logger.error("Database connection failed", {
-			errorName: error.name,
-			errorCode: error.code,
-		}));
 });
+
+if (env.NODE_ENV === "production") {
+	prisma.$connect().catch((error) => {
+		logger.error("Database connection failed", { errorName: error.name, errorCode: error.code });
+		server.close(() => process.exit(1));
+	});
+}
 
 let attendanceExpiryCheckRunning = false;
 const expireAttendanceSessions = async () => {

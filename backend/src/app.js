@@ -1,6 +1,7 @@
 import cookieParser from "cookie-parser";
 import express from "express";
 import helmet from "helmet";
+import { env } from "./config/env.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { codRoutes } from "./modules/cod/cod.routes.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
@@ -15,6 +16,30 @@ import { evidenceRoutes } from "./modules/evidence/evidence.routes.js";
 
 export const app = express();
 app.locals.prisma = prisma;
+
+if (env.TRUST_PROXY > 0) app.set("trust proxy", env.TRUST_PROXY);
+
+const allowedOrigins = (env.CORS_ORIGINS ?? "")
+	.split(",")
+	.map((origin) => origin.trim())
+	.filter(Boolean);
+
+app.use((req, res, next) => {
+	const origin = req.headers.origin;
+	if (origin && allowedOrigins.length === 0) {
+		return res.sendStatus(403);
+	}
+	if (origin && allowedOrigins.includes(origin)) {
+		res.setHeader("Access-Control-Allow-Origin", origin);
+		res.setHeader("Vary", "Origin");
+		res.setHeader("Access-Control-Allow-Credentials", "true");
+		res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+		res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+	}
+	if (origin && !allowedOrigins.includes(origin)) return res.sendStatus(403);
+	if (req.method === "OPTIONS") return res.sendStatus(204);
+	return next();
+});
 
 const apiRouter = express.Router();
 
