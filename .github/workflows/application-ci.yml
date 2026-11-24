@@ -36,6 +36,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/missing_marks_test?schema=public
       NODE_ENV: test
+      JWT_SECRET: test-only-secret-that-is-at-least-32-characters
     steps:
       - name: Check out source
         uses: actions/checkout@v4
