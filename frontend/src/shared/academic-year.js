@@ -5,4 +5,4 @@ export {
   academicYearForPeriod,
   nairobiDateAtEndOfDay,
   nairobiDateAtStartOfDay,
-} from '../../../shared/academic-year.js'
+} from '../../../backend/shared/academic-year.js'

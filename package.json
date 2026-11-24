@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run test --prefix backend && npm run test --prefix frontend && npm run test:ui --prefix frontend"
   },
   "repository": {
     "type": "git",
@@ -23,6 +23,6 @@
   "homepage": "https://github.com/jeremi563/missing-marks-management-system#readme",
   "dependencies": {
     "@prisma/client": "^7.10.1",
-    "dotenv": "^18.0.9"
+    "dotenv": "^18.0.10"
   }
 }
