@@ -49,6 +49,9 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: npm ci
+      - name: Audit backend dependencies
+        working-directory: backend
+        run: npm audit --omit=dev --audit-level=high
       - name: Validate Prisma schema
         working-directory: backend
         run: npx prisma validate
@@ -77,6 +80,9 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
       - name: Lint frontend
         working-directory: frontend
         run: npm run lint
