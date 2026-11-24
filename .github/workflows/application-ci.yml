@@ -1,0 +1,91 @@
+name: Application CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+      - "release/**"
+      - "ci/**"
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: missing_marks_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d missing_marks_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/missing_marks_test?schema=public
+      NODE_ENV: test
+      JWT_SECRET: test-only-secret-that-is-at-least-32-characters
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Validate Prisma schema
+        working-directory: backend
+        run: npx prisma validate
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+      - name: Apply migrations to disposable PostgreSQL
+        working-directory: backend
+        run: npx prisma migrate deploy
+      - name: Run backend tests
+        working-directory: backend
+        run: npm test
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+      - name: Run frontend unit tests
+        working-directory: frontend
+        run: npm test
+      - name: Run frontend UI tests
+        working-directory: frontend
+        run: npm run test:ui
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
