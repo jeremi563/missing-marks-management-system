@@ -36,6 +36,33 @@ test("auth endpoints reject malformed payloads before database access", async ()
 	}
 });
 
+test("browser writes require a signed CSRF token", async () => {
+	const server = app.listen(0);
+	try {
+		const baseUrl = `http://127.0.0.1:${server.address().port}/api/v1`;
+		const origin = "https://mmms.example.test";
+		const csrfResponse = await fetch(`${baseUrl}/auth/csrf`, { headers: { origin } });
+		const { data } = await csrfResponse.json();
+		const cookie = csrfResponse.headers.get("set-cookie").split(";")[0];
+
+		const missingToken = await fetch(`${baseUrl}/auth/login`, {
+			method: "POST",
+			headers: { origin, cookie, "content-type": "application/json" },
+			body: JSON.stringify({ email: "bad", password: "" }),
+		});
+		assert.equal(missingToken.status, 403);
+
+		const validToken = await fetch(`${baseUrl}/auth/login`, {
+			method: "POST",
+			headers: { origin, cookie, "x-csrf-token": data.token, "content-type": "application/json" },
+			body: JSON.stringify({ email: "bad", password: "" }),
+		});
+		assert.equal(validToken.status, 400);
+	} finally {
+		await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+	}
+});
+
 test("protected auth routes reject missing credentials without querying the database", async () => {
 	const server = app.listen(0);
 	try {

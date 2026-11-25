@@ -14,6 +14,7 @@ import { feature5Routes } from "./modules/feature5/feature5.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
 import { evidenceRoutes } from "./modules/evidence/evidence.routes.js";
 import { apiIpRateLimit, apiUserRateLimit } from "./middleware/rate-limit.js";
+import { csrfProtection } from "./middleware/csrf-protection.js";
 
 export const app = express();
 app.locals.prisma = prisma;
@@ -34,7 +35,7 @@ app.use((req, res, next) => {
 		res.setHeader("Access-Control-Allow-Origin", origin);
 		res.setHeader("Vary", "Origin");
 		res.setHeader("Access-Control-Allow-Credentials", "true");
-		res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+		res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, X-CSRF-Token");
 		res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
 	}
 	if (origin && !allowedOrigins.includes(origin)) return res.sendStatus(403);
@@ -50,6 +51,7 @@ app.use(requestLogger());
 app.use("/api/v1", apiIpRateLimit);
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
+app.use("/api/v1", csrfProtection);
 app.use("/api/v1", apiUserRateLimit);
 
 app.get("/health", (req, res) => res.status(200).json({ success: true, data: { status: "ok" } }));
