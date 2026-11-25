@@ -9,9 +9,11 @@ process.env.DATABASE_URL ??= "postgresql://test:test@localhost:5432/test?schema=
 process.env.JWT_SECRET ??= "test-only-secret-that-is-at-least-32-characters";
 
 const { csrfProtection, issueCsrfToken } = await import("../../src/middleware/csrf-protection.js");
+const { apiIpRateLimit } = await import("../../src/middleware/rate-limit.js");
 
 function createServer() {
 	const app = express();
+	app.use(apiIpRateLimit);
 	app.use(cookieParser());
 	app.get("/csrf", issueCsrfToken);
 	app.all("/mutate", csrfProtection, (req, res) => res.sendStatus(204));

@@ -17,6 +17,10 @@ function valuesMatch(left, right) {
 	return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
+function verifyCsrfToken(requestToken, cookieToken) {
+	return valuesMatch(requestToken, cookieToken);
+}
+
 function verifySignedToken(signedToken) {
 	if (typeof signedToken !== "string") return null;
 	const [issuedAtValue, nonce, signature, ...rest] = signedToken.split(".");
@@ -60,14 +64,16 @@ export function issueCsrfToken(req, res) {
 export function csrfProtection(req, res, next) {
 	if (!unsafeMethods.has(req.method)) return next();
 
-	const bearerToken = req.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+	const authorization = req.get("authorization") ?? "";
+	const hasBearerToken = authorization.slice(0, 7).toLowerCase() === "bearer "
+		&& authorization.slice(7).trim().length > 0;
 	const hasCookieAuthentication = Boolean(req.cookies?.access_token);
-	if (!hasCookieAuthentication && bearerToken) return next();
+	if (!hasCookieAuthentication && hasBearerToken) return next();
 	if (!hasCookieAuthentication && !req.get("origin")) return next();
 
-	const cookieToken = verifySignedToken(req.cookies?.[csrfCookieName]);
-	const requestToken = req.get("x-csrf-token");
-	if (!cookieToken || !requestToken || !valuesMatch(requestToken, cookieToken.value)) {
+	const cookieToken = verifySignedToken(req.cookies?.csrf_token);
+	const requestToken = req.headers["x-csrf-token"];
+	if (!cookieToken || !requestToken || !verifyCsrfToken(requestToken, cookieToken.value)) {
 		return next(new AppError(403, "Invalid or missing CSRF token"));
 	}
 	return next();
