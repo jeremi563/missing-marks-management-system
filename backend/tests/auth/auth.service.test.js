@@ -187,6 +187,7 @@ test("requests an email change only after verifying the current password", async
 	const db = {
 		user: { findUnique: async ({ where }) => where.id ? user : null },
 		$transaction: async (callback) => callback({
+			$queryRaw: async () => [],
 			user: { update: async ({ data }) => Object.assign(user, data) },
 			accountSecurityToken: {
 				updateMany: async () => ({ count: 0 }),

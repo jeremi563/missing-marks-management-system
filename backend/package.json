@@ -22,7 +22,9 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:migrate:status": "prisma migrate status",
     "db:seed": "prisma db seed",
-    "db:bootstrap-admin": "node scripts/bootstrap-admin.js"
+    "db:bootstrap-admin": "node scripts/bootstrap-admin.js",
+    "email:diagnose": "node scripts/check-smtp.js",
+    "test:email:mailpit": "DOTENV_CONFIG_PATH=/dev/null NODE_ENV=test DATABASE_URL=postgresql://test:test@127.0.0.1:1/test?schema=public JWT_SECRET=mailpit-test-secret-with-at-least-32-characters SMTP_HOST=127.0.0.1 SMTP_PORT=1025 SMTP_SECURE=false SMTP_USER= SMTP_PASSWORD= SMTP_FROM=no-reply@missingmarks.local APP_BASE_URL=http://localhost:5173 MAILPIT_INTEGRATION=1 node --test tests/integration/email-mailpit.test.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
