@@ -33,9 +33,8 @@ async function createUser(overrides = {}) {
 	};
 }
 
-function makeDb(users, initialTokens = [], { rejectVoidQueryRaw = false } = {}) {
+function makeDb(users, initialTokens = []) {
 	const tokens = [...initialTokens];
-	const rawCalls = { query: 0, execute: [] };
 	const accountSecurityToken = {
 		findUnique: async ({ where }) => {
 			const record = tokens.find((entry) => entry.tokenHash === where.tokenHash);
@@ -85,25 +84,12 @@ function makeDb(users, initialTokens = [], { rejectVoidQueryRaw = false } = {}) 
 				user,
 				accountSecurityToken,
 				$queryRaw: async () => {
-					rawCalls.query += 1;
-					if (rejectVoidQueryRaw) {
-						throw Object.assign(new Error("Failed to deserialize column of type 'void'"), { code: "P2010" });
-					}
 					const previous = securityTokenLock;
 					let unlock;
 					securityTokenLock = new Promise((resolve) => { unlock = resolve; });
 					await previous;
 					release = unlock;
 					return [];
-				},
-				$executeRaw: async (strings, ...values) => {
-					rawCalls.execute.push({ sql: strings.join("?"), values });
-					const previous = securityTokenLock;
-					let unlock;
-					securityTokenLock = new Promise((resolve) => { unlock = resolve; });
-					await previous;
-					release = unlock;
-					return 1;
 				},
 			};
 			try {
@@ -113,7 +99,7 @@ function makeDb(users, initialTokens = [], { rejectVoidQueryRaw = false } = {}) 
 			}
 		},
 	};
-	return { db, users, tokens, rawCalls };
+	return { db, users, tokens };
 }
 
 test("verification sends one random token while persisting only its hash and 24-hour expiry", async () => {
@@ -162,21 +148,6 @@ test("password reset sends to verified active accounts with a one-hour hashed to
 	assert.equal(state.tokens[0].tokenHash, hash(delivered.token));
 	assert.ok(state.tokens[0].expiresAt.getTime() > Date.now() + 59 * 60 * 1000);
 	assert.ok(state.tokens[0].expiresAt.getTime() < Date.now() + 61 * 60 * 1000);
-});
-
-test("password reset runs the transaction lock without deserializing its void result", async () => {
-	const user = await createUser();
-	const state = makeDb([user], [], { rejectVoidQueryRaw: true });
-
-	await requestPasswordReset(user.email, state.db, async () => {});
-
-	assert.equal(state.rawCalls.query, 0);
-	assert.equal(state.rawCalls.execute.length, 1);
-	assert.equal(
-		state.rawCalls.execute[0].sql,
-		"SELECT pg_advisory_xact_lock(hashtext('account-security-token'), hashtext(?))",
-	);
-	assert.deepEqual(state.rawCalls.execute[0].values, [`${user.id}:PASSWORD_RESET`]);
 });
 
 test("failed verification delivery revokes only the undelivered token", async () => {

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
+import { issueCsrfToken } from "../../middleware/csrf-protection.js";
 import { validate } from "../../middleware/validate.js";
 import { authenticationIpRateLimit, loginRateLimit, recoveryRateLimit, registrationRateLimit, sensitiveOperationRateLimit } from "./auth.rate-limit.js";
 import { avatarUpdateSchema, emailBodySchema, emailChangeSchema, lecturerDepartmentRegistrationSchema, loginSchema, passwordChangeSchema, passwordResetSchema, registerSchema, tokenBodySchema } from "./auth.validation.js";
@@ -8,6 +9,7 @@ import { changeEmailController, changePasswordController, extendSessionControlle
 export const authRoutes = Router();
 
 authRoutes.use(authenticationIpRateLimit);
+authRoutes.get("/csrf", issueCsrfToken);
 authRoutes.post("/login", loginRateLimit, validate(loginSchema), login);
 authRoutes.get("/departments", getRegistrationDepartments);
 authRoutes.post("/register", registrationRateLimit, validate(registerSchema), register);

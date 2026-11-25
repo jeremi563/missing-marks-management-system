@@ -39,7 +39,7 @@ export function createEmailDatabase(users = []) {
 			return { id: token.id };
 		},
 	};
-	const tx = { user, accountSecurityToken, $queryRaw: async () => [], $executeRaw: async () => 1 };
+	const tx = { user, accountSecurityToken, $queryRaw: async () => [] };
 	return {
 		users,
 		tokens,

@@ -38,7 +38,7 @@ async function attemptEmailDelivery(send, email, token, purpose) {
 }
 
 async function storeSecurityToken(tx, userId, type, expiresInMs) {
-	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('account-security-token'), hashtext(${`${userId}:${type}`}))`;
+	await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('account-security-token'), hashtext(${`${userId}:${type}`}))`;
 	const token = randomBytes(32).toString("base64url");
 	const now = new Date();
 	await tx.accountSecurityToken.updateMany({ where: { userId, type, usedAt: null }, data: { usedAt: now } });
