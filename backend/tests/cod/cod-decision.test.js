@@ -71,7 +71,7 @@ test("registers COD final decision behind COD router authentication and role mid
     layer.route?.path === "/reports/:id/decision" && layer.route.methods.post
   );
   assert.ok(route);
-  assert.equal(route.route.stack.length, 3); // params validation, body validation, controller
+  assert.equal(route.route.stack.length, 4); // rate limit, params validation, body validation, controller
   assert.equal(codRoutes.stack.filter((layer) => !layer.route).length >= 2, true);
   for (const handler of route.route.stack) assert.equal(typeof handler.handle, "function");
 });

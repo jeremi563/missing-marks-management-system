@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import router from "../../src/modules/student/student.routes.js";
 import { validateReportListQuery, validateStudentReportId, validateCreateReportBody, validateStudentAttendanceCheckIn, validateStudentCatSubmissionsQuery, validateStudentExamAttendanceQuery } from "../../src/modules/student/student.validation.js";
 import { createStandaloneSpecialCaseBody } from "../../src/modules/feature5/feature5.validation.js";
+import { resourceIntensiveRateLimit, sensitiveOperationRateLimit } from "../../src/middleware/rate-limit.js";
 
 test("registers GET /profile with authentication and student-role checks", () => {
 	const profileRoute = router.stack.find((layer) => layer.route?.path === "/profile");
@@ -34,7 +35,7 @@ test("registers standalone special-case options and submission behind student au
 	assert.ok(optionsRoute);
 	assert.equal(optionsRoute.route.stack.length, 3);
 	assert.ok(submitRoute);
-	assert.equal(submitRoute.route.stack.length, 5);
+	assert.equal(submitRoute.route.stack.length, 6);
 
 	const valid = createStandaloneSpecialCaseBody.safeParse({
 		courseUnitId: "550e8400-e29b-41d4-a716-446655440000",
@@ -57,7 +58,7 @@ test("registers GET /reports with auth, student-role, and query validation", () 
 	const reportsRoute = router.stack.find((layer) => layer.route?.path === "/reports");
 	assert.ok(reportsRoute);
 	assert.equal(reportsRoute.route.methods.get, true);
-	assert.equal(reportsRoute.route.stack.length, 4);
+	assert.equal(reportsRoute.route.stack.length, 5);
 });
 
 test("parses pagination into a separate validated query field", () => {
@@ -104,7 +105,7 @@ test("validates student report IDs as UUIDs", () => {
 test("registers POST /reports with auth, student-role, and body validation", () => {
 	const reportsRoute = router.stack.find((layer) => layer.route?.path === "/reports" && layer.route.methods.post);
 	assert.equal(reportsRoute.route.methods.post, true);
-	assert.equal(reportsRoute.route.stack.length, 5);
+	assert.equal(reportsRoute.route.stack.length, 6);
 });
 
 test("registers GET /attendance with auth, student-role, and pagination validation", () => {
@@ -117,7 +118,7 @@ test("registers GET /attendance with auth, student-role, and pagination validati
 test("registers a student-scoped CAT submission list and validates pagination and status", () => {
 	const route = router.stack.find((layer) => layer.route?.path === "/cat-submissions" && layer.route.methods.get);
 	assert.ok(route);
-	assert.equal(route.route.stack.length, 4);
+	assert.equal(route.route.stack.length, 5);
 	const req = { query: { page: "2", limit: "25", status: "REJECTED" } };
 	let capturedError;
 	validateStudentCatSubmissionsQuery(req, {}, (error) => { capturedError = error; });
@@ -131,7 +132,7 @@ test("registers a student-scoped CAT submission list and validates pagination an
 test("registers a student-scoped examination attendance list with status and pagination filters", () => {
 	const route = router.stack.find((layer) => layer.route?.path === "/exam-attendance" && layer.route.methods.get);
 	assert.ok(route);
-	assert.equal(route.route.stack.length, 4);
+	assert.equal(route.route.stack.length, 5);
 	const req = { query: { page: "2", limit: "25", status: "REJECTED" } };
 	let capturedError;
 	validateStudentExamAttendanceQuery(req, {}, (error) => { capturedError = error; });
@@ -146,7 +147,24 @@ test("registers POST /attendance/check-in with student auth, role checks and loc
 	const route = router.stack.find((layer) => layer.route?.path === "/attendance/check-in");
 	assert.ok(route);
 	assert.equal(route.route.methods.post, true);
-	assert.equal(route.route.stack.length, 4);
+	assert.equal(route.route.stack.length, 5);
+});
+
+test("resource-heavy student routes and attendance check-in have additional limits", () => {
+	for (const [path, method] of [
+		["/marks", "get"],
+		["/reports", "get"],
+		["/reports", "post"],
+		["/cat-submissions", "get"],
+		["/exam-attendance", "get"],
+		["/special-cases", "post"],
+	]) {
+		const route = router.stack.find((layer) => layer.route?.path === path && layer.route.methods[method]);
+		assert.ok(route);
+		assert.ok(route.route.stack.some((layer) => layer.handle === resourceIntensiveRateLimit), `${method.toUpperCase()} ${path}`);
+	}
+	const checkIn = router.stack.find((layer) => layer.route?.path === "/attendance/check-in" && layer.route.methods.post);
+	assert.ok(checkIn.route.stack.some((layer) => layer.handle === sensitiveOperationRateLimit));
 });
 
 test("validates attendance check-in token and GPS coordinates", () => {
