@@ -28,7 +28,7 @@ test("registers enrollment-request review routes behind COD authentication", () 
 	assert.ok(inboxRoute);
 	assert.equal(inboxRoute.route.stack.length, 2);
 	assert.ok(decisionRoute);
-	assert.equal(decisionRoute.route.stack.length, 2);
+	assert.equal(decisionRoute.route.stack.length, 3);
 });
 
 test("registers COD notification inbox and read actions behind the COD router authorization", () => {
@@ -52,7 +52,7 @@ test("registers COD approval routes for lecturer department membership requests"
 	assert.ok(inboxRoute);
 	assert.equal(inboxRoute.route.stack.length, 1);
 	assert.ok(decisionRoute);
-	assert.equal(decisionRoute.route.stack.length, 3);
+	assert.equal(decisionRoute.route.stack.length, 4);
 });
 
 test("public and administrator Feature 5 routes remain separately registered", () => {
