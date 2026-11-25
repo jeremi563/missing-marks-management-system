@@ -7,7 +7,7 @@ import { AppError } from "../../shared/utils/app-error.js";
 import { logger } from "../../shared/utils/logger.js";
 import { recordAuditEvent } from "../../shared/services/audit.service.js";
 import { isActiveCodDepartmentMember } from "../../shared/services/designated-cod-authorization.service.js";
-import { sendPasswordResetEmail, sendVerificationEmail } from "../../shared/services/email.service.js";
+import { EmailDeliveryError, sendPasswordResetEmail, sendVerificationEmail } from "../../shared/services/email.service.js";
 import {
 	isStaffRegistrationNumber,
 	isStudentRegistrationNumber,
@@ -28,20 +28,45 @@ function createSessionToken(userId, roles, sessionVersion = 0) {
 async function attemptEmailDelivery(send, email, token, purpose) {
 	try { await send(email, token); }
 	catch (error) {
-		logger.warn("Account email delivery failed", { purpose, errorName: error.name, errorCode: error.code, errorStatusCode: error.statusCode });
+		logger.warn("Account email delivery failed", {
+			purpose,
+			errorCategory: error instanceof EmailDeliveryError ? error.category : "unexpected",
+		});
 		return false;
 	}
 	return true;
 }
 
 async function storeSecurityToken(tx, userId, type, expiresInMs) {
+	await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('account-security-token'), hashtext(${`${userId}:${type}`}))`;
 	const token = randomBytes(32).toString("base64url");
 	const now = new Date();
 	await tx.accountSecurityToken.updateMany({ where: { userId, type, usedAt: null }, data: { usedAt: now } });
-	await tx.accountSecurityToken.create({
+	const record = await tx.accountSecurityToken.create({
 		data: { userId, type, tokenHash: hashToken(token), expiresAt: new Date(now.getTime() + expiresInMs) },
+		select: { id: true },
 	});
-	return token;
+	return { token, tokenId: record.id };
+}
+
+async function revokeUndeliveredToken(db, tokenId, purpose) {
+	try {
+		await db.accountSecurityToken.updateMany({
+			where: { id: tokenId, usedAt: null },
+			data: { usedAt: new Date() },
+		});
+	} catch (error) {
+		logger.error("Undelivered security token revocation failed", {
+			purpose,
+			errorName: error instanceof Error ? "Error" : "UnknownError",
+		});
+	}
+}
+
+async function deliverSecurityEmail({ db, send, email, purpose, tokenRecord }) {
+	const delivered = await attemptEmailDelivery(send, email, tokenRecord.token, purpose);
+	if (!delivered) await revokeUndeliveredToken(db, tokenRecord.tokenId, purpose);
+	return delivered;
 }
 
 export async function loginWithCredentials(identifier, password, db = prisma, { accountType = null } = {}) {
@@ -305,11 +330,11 @@ export async function completeLecturerDepartmentRegistration({
 	});
 }
 
-export async function requestEmailVerification(email, db = prisma) {
+export async function requestEmailVerification(email, db = prisma, send = sendVerificationEmail) {
 	const user = await db.user.findUnique({ where: { email: normalizeEmail(email) } });
 	if (!user || user.emailVerifiedAt) return;
-	const token = await db.$transaction((tx) => storeSecurityToken(tx, user.id, "EMAIL_VERIFICATION", 24 * 60 * 60 * 1000));
-	await attemptEmailDelivery(sendVerificationEmail, user.email, token, "verification");
+	const tokenRecord = await db.$transaction((tx) => storeSecurityToken(tx, user.id, "EMAIL_VERIFICATION", 24 * 60 * 60 * 1000));
+	await deliverSecurityEmail({ db, send, email: user.email, purpose: "verification", tokenRecord });
 }
 
 export async function verifyEmailAddress(token, db = prisma) {
@@ -363,9 +388,9 @@ export async function requestEmailChange(userId, email, currentPassword, db = pr
 		throw new AppError(409, "This email address is already associated with an account");
 	}
 
-	let token;
+	let tokenRecord;
 	try {
-		token = await db.$transaction(async (tx) => {
+		tokenRecord = await db.$transaction(async (tx) => {
 			await tx.user.update({ where: { id: userId }, data: { pendingEmail: normalizedEmail } });
 			return storeSecurityToken(tx, userId, "EMAIL_CHANGE", 24 * 60 * 60 * 1000);
 		});
@@ -373,15 +398,15 @@ export async function requestEmailChange(userId, email, currentPassword, db = pr
 		if (error.code === "P2002") throw new AppError(409, "This email address is already associated with an account");
 		throw error;
 	}
-	const verificationEmailSent = await attemptEmailDelivery(send, normalizedEmail, token, "email_change");
+	const verificationEmailSent = await deliverSecurityEmail({ db, send, email: normalizedEmail, purpose: "email_change", tokenRecord });
 	return { pendingEmail: normalizedEmail, verificationEmailSent };
 }
 
-export async function requestPasswordReset(email, db = prisma) {
+export async function requestPasswordReset(email, db = prisma, send = sendPasswordResetEmail) {
 	const user = await db.user.findUnique({ where: { email: normalizeEmail(email) } });
 	if (!user?.emailVerifiedAt || !user.isActive) return;
-	const token = await db.$transaction((tx) => storeSecurityToken(tx, user.id, "PASSWORD_RESET", 60 * 60 * 1000));
-	await attemptEmailDelivery(sendPasswordResetEmail, user.email, token, "password_reset");
+	const tokenRecord = await db.$transaction((tx) => storeSecurityToken(tx, user.id, "PASSWORD_RESET", 60 * 60 * 1000));
+	await deliverSecurityEmail({ db, send, email: user.email, purpose: "password_reset", tokenRecord });
 }
 
 export async function resetPassword(token, password, db = prisma) {

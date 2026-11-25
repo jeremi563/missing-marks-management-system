@@ -72,19 +72,19 @@ export async function registerLecturerDepartment(req, res, next) {
 }
 
 export async function verifyEmail(req, res, next) {
-	try { return sendSuccess(res, "Email address verified", await verifyEmailAddress(req.body.token)); } catch (error) { return next(error); }
+	try { return sendSuccess(res, "Email address verified", await verifyEmailAddress(req.body.token, req.app.locals.prisma)); } catch (error) { return next(error); }
 }
 
 export async function resendVerification(req, res, next) {
 	try {
-		await requestEmailVerification(req.body.email);
+		await requestEmailVerification(req.body.email, req.app.locals.prisma);
 		return sendSuccess(res, "If the account can be verified, an email will be sent shortly", null, 202);
 	} catch (error) { return next(error); }
 }
 
 export async function forgotPassword(req, res, next) {
 	try {
-		await requestPasswordReset(req.body.email);
+		await requestPasswordReset(req.body.email, req.app.locals.prisma);
 		return sendSuccess(res, "If the account exists, password reset instructions will be sent shortly", null, 202);
 	} catch (error) { return next(error); }
 }
@@ -106,7 +106,7 @@ export async function changePasswordController(req, res, next) {
 
 export async function changeEmailController(req, res, next) {
 	try {
-		const result = await requestEmailChange(req.user.id, req.body.email, req.body.currentPassword);
+		const result = await requestEmailChange(req.user.id, req.body.email, req.body.currentPassword, req.app.locals.prisma);
 		return sendSuccess(res, "Verify your new email address to finish the change", result);
 	} catch (error) { return next(error); }
 }
