@@ -48,7 +48,7 @@ npm install
 cp ../.env.example .env
 ```
 
-Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and optional SMTP credentials to deliver verification and password-reset links. Email delivery is unavailable until SMTP is configured. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts and must be 8–128 characters with at least one letter, one number, and one special character. Do not share or commit `.env`.
+Edit `.env` with a local development `DATABASE_URL` and a random `JWT_SECRET` of at least 32 characters. The runtime also accepts `DATABASE_POOL_URL` when `DATABASE_URL` is unset, but at least one valid database URL is required; Prisma CLI uses `DIRECT_DATABASE_URL` or `DATABASE_URL`. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_FROM`, and optional SMTP credentials to deliver verification and password-reset links. Email delivery is unavailable until SMTP is configured. `DEMO_SEED_PASSWORD` is only for synthetic local seed accounts and must be 8–128 characters with at least one letter, one number, and one special character. Do not share or commit `.env`.
 
 Validate the shared schema and generate Prisma Client:
 
@@ -89,6 +89,8 @@ The shared scripts include:
 npm run dev
 npm test
 ```
+
+For isolated local testing of verification, password-reset, and email-change messages, see [Local email testing](../docs/LOCAL_EMAIL_TESTING.md). It uses Mailpit and does not require SMTP credentials.
 
 The API and the Feature 5 notification worker run as separate processes:
 
