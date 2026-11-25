@@ -8,6 +8,7 @@ process.env.JWT_SECRET ??= 'test-only-secret-that-is-at-least-32-characters';
 const { default: router } = await import('../../src/modules/lecturer/lecturer.routes.js');
 const { lecturerStudentsQuerySchema } = await import('../../src/modules/lecturer/lecturer.validation.js');
 const { lecturerSpecialCaseRecommendationBody } = await import('../../src/modules/feature5/feature5.validation.js');
+const { resourceIntensiveRateLimit, sensitiveOperationRateLimit } = await import('../../src/middleware/rate-limit.js');
 
 test('registers GET /reports', () => {
   const reportsRoute = router.stack.find(
@@ -85,7 +86,8 @@ test('registers the authenticated CAT submission queue, details, and single and 
   assert.ok(decision);
   assert.equal(decision.route.stack.length, 5);
   assert.ok(bulkDecision);
-  assert.equal(bulkDecision.route.stack.length, 4);
+  assert.equal(bulkDecision.route.stack.length, 5);
+  assert.ok(bulkDecision.route.stack.some((layer) => layer.handle === resourceIntensiveRateLimit));
 });
 
 test('registers authenticated examination attendance queue, details, and single and bulk decisions', () => {
@@ -94,13 +96,15 @@ test('registers authenticated examination attendance queue, details, and single 
   const decision = router.stack.find((layer) => layer.route?.path === '/exam-attendance/:recordId/decision' && layer.route.methods.post);
   const bulkDecision = router.stack.find((layer) => layer.route?.path === '/exam-attendance/bulk-decision' && layer.route.methods.post);
   assert.ok(list);
-  assert.equal(list.route.stack.length, 4);
+  assert.equal(list.route.stack.length, 5);
   assert.ok(detail);
   assert.equal(detail.route.stack.length, 4);
   assert.ok(decision);
   assert.equal(decision.route.stack.length, 5);
   assert.ok(bulkDecision);
-  assert.equal(bulkDecision.route.stack.length, 4);
+  assert.equal(bulkDecision.route.stack.length, 5);
+  assert.ok(list.route.stack.some((layer) => layer.handle === resourceIntensiveRateLimit));
+  assert.ok(bulkDecision.route.stack.some((layer) => layer.handle === resourceIntensiveRateLimit));
 });
 
 test('registers an authenticated end-time extension endpoint with body validation', () => {
@@ -137,7 +141,8 @@ test('registers lecturer enrollment-request inbox and bulk decisions', () => {
   assert.ok(inboxRoute);
   assert.equal(inboxRoute.route.stack.length, 4);
   assert.ok(decisionRoute);
-  assert.equal(decisionRoute.route.stack.length, 4);
+  assert.equal(decisionRoute.route.stack.length, 5);
+  assert.ok(decisionRoute.route.stack.some((layer) => layer.handle === sensitiveOperationRateLimit));
 });
 
 test('exposes assigned departments for lecturer filters without a post-login membership request route', () => {
@@ -388,7 +393,8 @@ test('applies authentication and authorization to GET attendance sessions', () =
   const handlers = attendanceRoute.route.stack;
 
   // authenticate, authorize, controller
-  assert.equal(handlers.length, 3);
+  assert.equal(handlers.length, 4);
+  assert.ok(handlers.some((handler) => handler.handle === resourceIntensiveRateLimit));
 
   for (const handler of handlers) {
     assert.equal(typeof handler.handle, 'function');
@@ -446,5 +452,6 @@ test('registers GET attendance records with authentication, lecturer role and UU
 
   assert.ok(recordsRoute, 'GET attendance records route should exist');
   assert.equal(recordsRoute.route.methods.get, true);
-  assert.equal(recordsRoute.route.stack.length, 4);
+  assert.equal(recordsRoute.route.stack.length, 5);
+  assert.ok(recordsRoute.route.stack.some((layer) => layer.handle === resourceIntensiveRateLimit));
 });

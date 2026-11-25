@@ -133,3 +133,13 @@ The current shared tests use Node's built-in test runner (`node --test`) and do 
 ## API documentation
 
 See `../docs/API.md` for the actual API routes, including Feature 5. Private file upload/download remains pending a storage provider decision; metadata-only evidence responses omit storage keys.
+
+## Rate limiting
+
+The Express application applies API-wide IP and verified-user limits, with additional IP/account limits on authentication and tighter per-user limits on sensitive and resource-intensive operations. Limits return the standard API failure body with HTTP 429, `RateLimit` headers, and `Retry-After`. All values are validated at startup and configurable through the `API_RATE_LIMIT_*`, `AUTH_RATE_LIMIT_*`, `LOGIN_RATE_LIMIT_MAX`, `REGISTRATION_RATE_LIMIT_*`, `RECOVERY_RATE_LIMIT_*`, `SENSITIVE_RATE_LIMIT_*`, and `RESOURCE_RATE_LIMIT_*` variables in `.env.example`.
+
+The existing `express-rate-limit` in-memory store is used; counters are process-local, reset on restart, and are not shared across instances. It provides accurate enforcement only within one running process; when the service runs multiple instances, each instance has independent counters. The limiter factory accepts a future shared store without changing route policy definitions. Configure `TRUST_PROXY` only to the verified number of trusted proxy hops (the deployment blueprint currently sets one); never enable unrestricted proxy trust or derive client identity from untrusted forwarding headers.
+
+Browser clients use signed double-submit CSRF tokens for state-changing requests. The frontend client obtains a token from `GET /api/v1/auth/csrf` and sends it in `X-CSRF-Token`; external clients using cookie authentication must do the same. Tokens expire after 15 minutes. Bearer-only API clients do not require a CSRF token.
+
+Health and readiness probes (`/health` and `/health/ready`) are intentionally outside the `/api/v1` rate-limited API so deployment monitoring remains available. CORS preflight `OPTIONS` requests are also answered by the existing CORS middleware before API routing.

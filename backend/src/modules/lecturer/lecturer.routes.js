@@ -96,6 +96,7 @@ import {
   reportCorrectionParams,
   submitMarksBody,
 } from '../marks/marks.validation.js';
+import { resourceIntensiveRateLimit, sensitiveOperationRateLimit } from '../../middleware/rate-limit.js';
 const router = express.Router();
 
 router.get('/notifications', authenticate, authorize('lecturer'), validate(userNotificationsQuery, 'query'), getUserNotifications);
@@ -103,11 +104,11 @@ router.patch('/notifications/read-all', authenticate, authorize('lecturer'), pat
 router.patch('/notifications/:notificationId/read', authenticate, authorize('lecturer'), validate(userNotificationIdParams, 'params'), patchUserNotificationRead);
 router.get('/course-units', authenticate, authorize('lecturer'), getAssignedCourseUnits);
 router.get('/cat-submissions', authenticate, authorize('lecturer'), validate(catSubmissionsQuerySchema, 'query'), getCatSubmissionsController);
-router.post('/cat-submissions/bulk-decision', authenticate, authorize('lecturer'), validate(catSubmissionBulkDecisionSchema, 'body'), postBulkCatSubmissionDecisionController);
+router.post('/cat-submissions/bulk-decision', authenticate, authorize('lecturer'), resourceIntensiveRateLimit, validate(catSubmissionBulkDecisionSchema, 'body'), postBulkCatSubmissionDecisionController);
 router.get('/cat-submissions/:submissionId', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), getCatSubmissionController);
 router.post('/cat-submissions/:submissionId/decision', authenticate, authorize('lecturer'), validate(catSubmissionParamsSchema, 'params'), validate(catSubmissionDecisionSchema, 'body'), postCatSubmissionDecisionController);
-router.get('/exam-attendance', authenticate, authorize('lecturer'), validate(examAttendanceQuerySchema, 'query'), getLecturerExamAttendanceController);
-router.post('/exam-attendance/bulk-decision', authenticate, authorize('lecturer'), validate(examAttendanceBulkDecisionSchema, 'body'), postBulkLecturerExamAttendanceDecisionController);
+router.get('/exam-attendance', authenticate, authorize('lecturer'), resourceIntensiveRateLimit, validate(examAttendanceQuerySchema, 'query'), getLecturerExamAttendanceController);
+router.post('/exam-attendance/bulk-decision', authenticate, authorize('lecturer'), resourceIntensiveRateLimit, validate(examAttendanceBulkDecisionSchema, 'body'), postBulkLecturerExamAttendanceDecisionController);
 router.get('/exam-attendance/:recordId', authenticate, authorize('lecturer'), validate(examAttendanceParamsSchema, 'params'), getLecturerExamAttendanceRecordController);
 router.post('/exam-attendance/:recordId/decision', authenticate, authorize('lecturer'), validate(examAttendanceParamsSchema, 'params'), validate(examAttendanceDecisionSchema, 'body'), postLecturerExamAttendanceDecisionController);
 router.post('/exam-booklets/sessions/:sessionId/allocate', authenticate, authorize('lecturer'), examBookletScanRateLimit, validateExamBookletSessionParams, postExamBookletAllocations);
@@ -119,17 +120,17 @@ router.post('/exam-booklets/:bookletId/replacements', authenticate, authorize('l
 router.get('/course-units/:courseUnitId/assessments', authenticate, authorize('lecturer'), validate(courseUnitIdParamsSchema, 'params'), validate(courseUnitAssessmentsQuerySchema, 'query'), getAssignedCourseUnitAssessments);
 router.get('/marks/options', authenticate, authorize('lecturer'), validate(markOptionsQuery, 'query'), getLecturerMarkOptionsController);
 router.get('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), validate(assessmentMarkParams, 'params'), validate(assessmentRosterQuery, 'query'), getAssessmentRosterController);
-router.post('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), validate(assessmentMarkParams, 'params'), validate(submitMarksBody), postInitialMarksController);
+router.post('/assessments/:assessmentId/marks', authenticate, authorize('lecturer'), sensitiveOperationRateLimit, validate(assessmentMarkParams, 'params'), validate(submitMarksBody), postInitialMarksController);
 router.get('/classrooms', authenticate, authorize('lecturer'), getActiveClassrooms);
 router.get('/students', authenticate, authorize('lecturer'), validate(lecturerStudentsQuerySchema, 'query'), getAssignedStudents);
 router.get('/enrollment-requests', authenticate, authorize('lecturer', 'cod'), validate(enrollmentRequestListQuery, 'query'), getEnrollmentRequestsForReviewer);
-router.post('/enrollment-requests/decision', authenticate, authorize('lecturer', 'cod'), validate(enrollmentRequestDecisionBody), postEnrollmentRequestDecision);
+router.post('/enrollment-requests/decision', authenticate, authorize('lecturer', 'cod'), sensitiveOperationRateLimit, validate(enrollmentRequestDecisionBody), postEnrollmentRequestDecision);
 router.get('/departments', authenticate, authorize('lecturer'), getLecturerDepartments);
 
-router.post('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(createAttendanceDiscrepancySchema), createLecturerDiscrepancy);
-router.get('/attendance-discrepancies', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyListQuerySchema, 'query'), getLecturerDiscrepancies);
+router.post('/attendance-discrepancies', authenticate, authorize('lecturer'), sensitiveOperationRateLimit, validate(createAttendanceDiscrepancySchema), createLecturerDiscrepancy);
+router.get('/attendance-discrepancies', authenticate, authorize('lecturer'), resourceIntensiveRateLimit, validate(attendanceDiscrepancyListQuerySchema, 'query'), getLecturerDiscrepancies);
 router.get('/attendance-discrepancies/:id', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyParamsSchema, 'params'), getLecturerDiscrepancy);
-router.post('/attendance-discrepancies/:id/review', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyParamsSchema, 'params'), validate(reviewAttendanceDiscrepancySchema), reviewLecturerDiscrepancy);
+router.post('/attendance-discrepancies/:id/review', authenticate, authorize('lecturer'), sensitiveOperationRateLimit, validate(attendanceDiscrepancyParamsSchema, 'params'), validate(reviewAttendanceDiscrepancySchema), reviewLecturerDiscrepancy);
 router.post('/attendance-discrepancies/:id/clarifications', authenticate, authorize('lecturer'), validate(attendanceDiscrepancyParamsSchema, 'params'), validate(createCommentSchema), respondLecturerDiscrepancy);
 
 router.get('/assessment-types', authenticate, authorize('lecturer'), getAssessmentTypes);
@@ -139,6 +140,7 @@ router.get(
   '/reports',
   authenticate,
   authorize('lecturer'),
+  resourceIntensiveRateLimit,
   getReports
 );
 
@@ -218,6 +220,7 @@ router.get(
   '/attendance/sessions',
   authenticate,
   authorize('lecturer'),
+  resourceIntensiveRateLimit,
   getAttendanceSessionsController
 );
 
@@ -280,6 +283,7 @@ router.get(
   authenticate,
   authorize('lecturer'),
   validate(attendanceSessionIdSchema, 'params'),
+  resourceIntensiveRateLimit,
   getAttendanceSessionRecordsController
 );
 export default router;
